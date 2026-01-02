@@ -1,0 +1,1012 @@
+{
+	"info": {
+		"_postman_id": "c72be573-6413-4db4-895a-847768a520c5",
+		"name": "zivdah-api",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "32675084",
+		"_collection_link": "https://warped-crater-46751.postman.co/workspace/Ashapurtiloans_java~2f770deb-af65-4ebf-8f05-731a3c45af88/collection/32675084-c72be573-6413-4db4-895a-847768a520c5?action=share&source=collection_link&creator=32675084"
+	},
+	"item": [
+		{
+			"name": "auth",
+			"item": [
+				{
+					"name": "register",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"name\": \"Tushar\",\r\n  \"email\": \"tushar@gmail.com\",\r\n  \"password\": \"12345678\",\r\n  \"mobile\": \"7060532390\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/auth/register",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "send-otp",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{ \"mobile\": \"7060532399\", \"countryCode\":\"+91\" }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/auth/send-otp",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"auth",
+								"send-otp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "verify-otp",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{ \"mobile\": \"7060532399\", \"otp\": \"123456\", \"deviceToken\": \"fgggfgfgffggewwerdfwefwesfdrwfsrwffrwe323242424242424242423\" }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/auth/verify-otp",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"auth",
+								"verify-otp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "reset-password",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQUdFTlQiLCJ1c2VyX2lkIjo0MSwic3ViIjoiajdZSnBCcGQzZDBoWTVEQzhielpwZz09IiwiaWF0IjoxNzY1ODY1NDU0LCJleHAiOjE3Njg0NTc0NTR9.fs4dNR-6homgvv1UjWnGT47ggOOCOEuNYjEcI9jIdBg",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"userId\": 1,\r\n  \"emailOrMobile\": \"user@example.com\"\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/auth/forgot-password",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"auth",
+								"forgot-password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "forgot-password",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "\r\n\r\n\r\n{\r\n  \"userId\": 1,\r\n  \"email\": \"uravi0704@gmailcom\"\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/auth/forgot-password",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"auth",
+								"forgot-password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "user profile",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "\r\n\r\n\r\n{\r\n  \"userId\": 1\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/auth/userProfile",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"auth",
+								"userProfile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "save user address",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "\r\n\r\n\r\n{\r\n  \"userId\": 2,\r\n  \"addressLine1\": \"Near Central Mall\",\r\n  \"houseNumber\": \"H-101\",\r\n  \"city\": \"Bengaluru\",\r\n  \"state\": \"Karnataka\",\r\n  \"pinCode\": \"560001\"\r\n}\r\n\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/auth/saveUserAddress",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"auth",
+								"saveUserAddress"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update user address",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "\r\n{\r\n  \"userId\": 2,\r\n  \"name\": \"Rohit\",\r\n  \"password\": \"newPassword123\",\r\n  \"addressLine1\": \"Near Central Mall\",\r\n  \"houseNumber\": \"H-101\",\r\n  \"city\": \"Chennai\",\r\n  \"state\": \"TN\",\r\n  \"pinCode\": \"834001\"\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/auth/updateUserAddress",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"auth",
+								"updateUserAddress"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "product",
+			"item": [
+				{
+					"name": "create",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY3MDg5MTM2LCJleHAiOjE3NjcxNzU1MzZ9.28vpaq1wsFEeQwD2m1b2TzNCoUR3veKbRZI2GATPlm0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"name\": \"Organic Apple\",\r\n  \"category\": \"FRUIT\",\r\n  \"price\": 120.50,\r\n  \"discountPrice\": 99.99,\r\n  \"unit\": \"kg\",\r\n  \"stockQuantity\": 50,\r\n  \"expiryDate\": \"2025-06-30\",\r\n  \"description\": \"Fresh organic apples from farm\",\r\n  \"imageUrl\": \"https://example.com/apple.jpg\",\r\n  \"organic\": true,\r\n  \"fav\": true,\r\n  \"brand\": \"Zivdah Farms\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/products/create",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"products",
+								"create"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getAllProducts",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY3MDg5MTM2LCJleHAiOjE3NjcxNzU1MzZ9.28vpaq1wsFEeQwD2m1b2TzNCoUR3veKbRZI2GATPlm0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/products/getAll?page=1&size=10",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"products",
+								"getAll"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getByProductId",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY3MDg5MTM2LCJleHAiOjE3NjcxNzU1MzZ9.28vpaq1wsFEeQwD2m1b2TzNCoUR3veKbRZI2GATPlm0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/products/31",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"products",
+								"31"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getAllCategories",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzkwIiwiaWF0IjoxNzY2NzI0NzQxLCJleHAiOjE3NjY4MTExNDF9.rzPwCv2paBhkw3TaBh1zm9A0heuVmS5snQTmPas5YpA",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/products/categories",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"products",
+								"categories"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getWishlist",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY3MDg5MTM2LCJleHAiOjE3NjcxNzU1MzZ9.28vpaq1wsFEeQwD2m1b2TzNCoUR3veKbRZI2GATPlm0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/products/wishlist?page=0&size=10",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"products",
+								"wishlist"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "updateWishlist",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY3MDg5MTM2LCJleHAiOjE3NjcxNzU1MzZ9.28vpaq1wsFEeQwD2m1b2TzNCoUR3veKbRZI2GATPlm0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"fav\": true\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/products/3/wishlist",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"products",
+								"3",
+								"wishlist"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "cart",
+			"item": [
+				{
+					"name": "add",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY2MDU0OTk4LCJleHAiOjE3NjYxNDEzOTh9._Uj2h0OQHLnLEi6nGArQmQWnfz6aWibZoSiFCJiOvBo",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"userId\": 1,\r\n  \"productId\": 26,\r\n  \"quantity\": 2,\r\n  \"price\": 499.99,\r\n  \"sku\": \"SKU-RED-XL\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/cart/add",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"cart",
+								"add"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getCartByUser",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY2MDU0OTk4LCJleHAiOjE3NjYxNDEzOTh9._Uj2h0OQHLnLEi6nGArQmQWnfz6aWibZoSiFCJiOvBo",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/cart/user/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"cart",
+								"user",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "updateQuantity",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY2MDU0OTk4LCJleHAiOjE3NjYxNDEzOTh9._Uj2h0OQHLnLEi6nGArQmQWnfz6aWibZoSiFCJiOvBo",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/cart/1?quantity=3",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"cart",
+								"1"
+							],
+							"query": [
+								{
+									"key": "quantity",
+									"value": "3"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "orders",
+			"item": [
+				{
+					"name": "createOrder",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY2MTIwMTMyLCJleHAiOjE3NjYyMDY1MzJ9.5O-AuNLLioKTC1h_CSVSbFd-w5X7RiYla1cWX34kWUM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"userId\": 1,\r\n  \"items\": [\r\n    {\r\n      \"productId\": 26,\r\n      \"quantity\": 2,\r\n      \"price\": 499.99\r\n    },\r\n    {\r\n      \"productId\": 30,\r\n      \"quantity\": 1,\r\n      \"price\": 199.99\r\n    }\r\n  ]\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/orders/create",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"orders",
+								"create"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getOrderById",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY2MTIwMTMyLCJleHAiOjE3NjYyMDY1MzJ9.5O-AuNLLioKTC1h_CSVSbFd-w5X7RiYla1cWX34kWUM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/orders/2",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"orders",
+								"2"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getOrderByUserId",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY2MTIwMTMyLCJleHAiOjE3NjYyMDY1MzJ9.5O-AuNLLioKTC1h_CSVSbFd-w5X7RiYla1cWX34kWUM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/orders/user/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"orders",
+								"user",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "CancelOrder",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY2MTIwMTMyLCJleHAiOjE3NjYyMDY1MzJ9.5O-AuNLLioKTC1h_CSVSbFd-w5X7RiYla1cWX34kWUM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/orders/cancel/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"orders",
+								"cancel",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "payment",
+			"item": [
+				{
+					"name": "initiatePayment",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY2MTIwMTMyLCJleHAiOjE3NjYyMDY1MzJ9.5O-AuNLLioKTC1h_CSVSbFd-w5X7RiYla1cWX34kWUM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"orderId\": 1,\r\n  \"userId\": 1,\r\n  \"amount\": 1199.97,\r\n  \"method\": \"CARD\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/payments/initiate",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"payments",
+								"initiate"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getPaymentById",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY2MTIwMTMyLCJleHAiOjE3NjYyMDY1MzJ9.5O-AuNLLioKTC1h_CSVSbFd-w5X7RiYla1cWX34kWUM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/payments/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"payments",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getPaymentByOrderId",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY2MTIwMTMyLCJleHAiOjE3NjYyMDY1MzJ9.5O-AuNLLioKTC1h_CSVSbFd-w5X7RiYla1cWX34kWUM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/payments/order/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"payments",
+								"order",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "paymentSuccess",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY2MTIwMTMyLCJleHAiOjE3NjYyMDY1MzJ9.5O-AuNLLioKTC1h_CSVSbFd-w5X7RiYla1cWX34kWUM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/payments/success/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"payments",
+								"success",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "paymentFailed",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzk5IiwiaWF0IjoxNzY2MTIwMTMyLCJleHAiOjE3NjYyMDY1MzJ9.5O-AuNLLioKTC1h_CSVSbFd-w5X7RiYla1cWX34kWUM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/payments/failed/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"payments",
+								"failed",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "banner",
+			"item": [
+				{
+					"name": "getAllBanner",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3MDYwNTMyMzkwIiwiaWF0IjoxNzY2NzI0NzQxLCJleHAiOjE3NjY4MTExNDF9.rzPwCv2paBhkw3TaBh1zm9A0heuVmS5snQTmPas5YpA",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8001/restful/v1/api/banner/getAll",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8001",
+							"path": [
+								"restful",
+								"v1",
+								"api",
+								"banner",
+								"getAll"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

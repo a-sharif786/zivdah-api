@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: zivdah-cart-service
+  profiles:
+    active: dev

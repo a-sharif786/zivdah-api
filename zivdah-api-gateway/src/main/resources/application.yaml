@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: zivdah-api-gateway
+  profiles:
+    active: dev

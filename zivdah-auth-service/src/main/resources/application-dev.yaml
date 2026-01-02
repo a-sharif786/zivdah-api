@@ -1,0 +1,50 @@
+server:
+  port: 8002
+
+spring:
+  application:
+    name: zivdah-auth-service
+  # dev
+  #  datasource:
+  #    url: jdbc:postgresql://localhost:5432/zivdahDB
+  #    username: postgres
+  #    password: root
+  #    driver-class-name: org.postgresql.Driver
+
+  # local
+  datasource:
+    url: jdbc:postgresql://localhost:5433/zivdahDB
+    username: postgres
+    password: root
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: uravi0704@gmail.com
+    password: <GMAIL_APP_PASSWORD>
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+

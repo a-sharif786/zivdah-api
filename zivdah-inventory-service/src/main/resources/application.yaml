@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: zivdah-inventory-service
+  profiles:
+    active: dev
