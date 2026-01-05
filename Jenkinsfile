@@ -39,14 +39,24 @@ pipeline {
             }
         }
 
-        /*
+
         stage('Docker Build') {
             steps {
-                echo 'Building Docker images...'
-                bat 'docker compose build'
+                 echo 'Building Docker images for all microservices...'
+                 bat 'docker compose build'
             }
         }
 
+        stage('Docker Refresh') {
+            steps {
+                  echo 'Refreshing Docker environment...'
+                  bat 'docker compose down -v'
+                  bat 'docker compose pull'
+                  bat 'docker compose up -d'
+           }
+        }
+
+        /*
         stage('Deploy') {
             steps {
                 echo 'Deploying microservices...'
