@@ -19,7 +19,7 @@ pipeline {
         }
         stage('Build Auth Service') {
             steps {
-                dir('zivdh-auth-service') {
+                dir('zivdah-auth-service') {
                     echo 'Building Auth Service...'
                     bat 'mvn clean install'
                 }
@@ -43,7 +43,7 @@ pipeline {
         }
         stage('Test Auth Service') {
             steps {
-                dir('zivdh-auth-service') {
+                dir('zivdah-auth-service') {
                     echo 'Testing Auth Service...'
                     bat 'mvn test'
                 }
