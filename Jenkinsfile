@@ -21,7 +21,7 @@ pipeline {
         stage('Build All Microservices') {
             steps {
                 echo 'Building all microservices using parent POM...'
-                bat 'mvn clean install -DskipTests'
+                bat 'mvn clean install -DskipTests -U'
             }
         }
 
