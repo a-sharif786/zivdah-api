@@ -5,7 +5,7 @@ pipeline {
             steps {
                 dir('zivdah-api-gateway') {
                     echo 'Building API Gateway...'
-                    sh 'mvn clean install'
+                    bat 'mvn clean install'
                 }
             }
         }
@@ -13,7 +13,7 @@ pipeline {
             steps {
                 dir('zivdah-eureka-server') {
                     echo 'Building Eureka Server...'
-                    sh 'mvn clean install'
+                    bat 'mvn clean install'
                 }
             }
         }
@@ -21,31 +21,31 @@ pipeline {
             steps {
                 dir('zivdh-auth-service') {
                     echo 'Building Auth Service...'
-                    sh 'mvn clean install'
+                    bat 'mvn clean install'
                 }
             }
         }
         stage('Test API Gateway') {
             steps {
-                dir('api-gatewaye-service') {
-                    echo 'Running tests for API Gateway...'
-                    sh 'mvn test'
+                dir('zivdah-api-gateway') {
+                    echo 'Testing API Gateway...'
+                    bat 'mvn test'
                 }
             }
         }
         stage('Test Eureka Server') {
             steps {
                 dir('zivdah-eureka-server') {
-                    echo 'Running tests for Eureka Server...'
-                    sh 'mvn test'
+                    echo 'Testing Eureka Server...'
+                    bat 'mvn test'
                 }
             }
         }
         stage('Test Auth Service') {
             steps {
                 dir('zivdh-auth-service') {
-                    echo 'Running tests for Auth Service...'
-                    sh 'mvn test'
+                    echo 'Testing Auth Service...'
+                    bat 'mvn test'
                 }
             }
         }
