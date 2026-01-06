@@ -1,0 +1,176 @@
+docker for zivdah
+
+zivdahonlinegrocery@gmail.com
+Aa1011##1988
+
+
+
+
+
+
+
+Docker Hub
+docker login
+docker logout
+docker ps
+Pull Redis:  docker run -d --name redis -p 6379:6379 redis
+
+
+Start docker ====> docker-compose up -d
+
+
+🧪 Verify Redis Cache Is Working
+
+Run:
+
+docker exec -it redis redis-cli
+keys *
+
+Clear Old Cache Data
+Old broken serialized data is still in Redis.
+
+docker exec -it redis redis-cli
+KEYS *
+
+EXIT
+
+FLUSHALL
+
+docker logs redis
+
+Clean and Build JARs: Run this in your main folder: mvn clean package -DskipTests
+
+Stop old containers: docker-compose down   or docker-compose down --remove-orphans
+
+Build and Start: docker-compose up -d
+
+Verify names: Check your running containers with docker ps. Your product service should now be named product-service.
+
+Test Redis Connection: Run this to see if the app can talk to Redis: docker exec -it product-service ping redis (It should return PONG).
+
+docker exec -it redis redis-cli -p 6379 monitor
+
+docker exec -it redis redis-cli flushall
+
+
+
+CLEAN START (VERY IMPORTANT)
+docker-compose down -v
+docker-compose pull
+docker-compose up -d
+
+========================================================================================================================================================================================================================
+jenkien's credentials
+https://localhost:8080/
+
+Administrator Password
+d1c46ef51a31473b8886ec895fd899e2
+
+
+Jenkins base tutorial link
+https://www.youtube.com/watch?v=8kRJtV85rZg
+
+Create First Admin User
+zivdahonlinegrocery
+zivdahonlinegrocery@gmail.com
+Aa1011##1988
+
+===================================
+Bitbucket Token 
+ATATT3xFfGF0BAzsXHXvUmH34t3fA7zgtXbdNwbeYq1s2Q2UOtJiP05IzHdvcGuZJeWkkkhY3sRU4aPhqwkRQo9C1HTWc_xELJJRLAOmv8OLUWUh1-7QfllNq7xvJpMv1EvYew7J9hXaijyEIjbQI8piWJFGuP5p4JfOVrNy4aZlbNxCi2VYnCo=662F9B9D
+
+
+
+
+Add Bitbucket Credentials to Jenkins
+Username: zivdahonlinegrocery
+Password: ATATT3xFfGF0BAzsXHXvUmH34t3fA7zgtXbdNwbeYq1s2Q2UOtJiP05IzHdvcGuZJeWkkkhY3sRU4aPhqwkRQo9C1HTWc_xELJJRLAOmv8OLUWUh1-7QfllNq7xvJpMv1EvYew7J9hXaijyEIjbQI8piWJFGuP5p4JfOVrNy4aZlbNxCi2VYnCo=662F9B9D
+ID: bitbucket-creds
+
+
+
+========================================================================================================================================================================================================================
+
+Gmail details
+zivdahonlinegrocery@gmail.com
+Aa1011##2025
+
+
+=================================================
+github token:
+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
+
+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
+
+
+pipeline {
+    agent any
+
+    tools {
+        jdk 'JDK-17'
+        maven 'Maven-3.9.11'
+    }
+
+    environment {
+        MAVEN_OPTS = '-Xmx1024m'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build All Microservices') {
+            steps {
+                echo 'Building all microservices using parent POM...'
+                bat 'mvn clean install -DskipTests -U'
+            }
+        }
+
+        stage('Run Unit Tests') {
+            steps {
+                echo 'Running all unit tests...'
+                bat 'mvn test'
+            }
+        }
+
+        stage('Verify Artifacts') {
+            steps {
+                echo 'Listing generated JAR files...'
+                bat 'dir /s /b target'
+            }
+        }
+
+        /*
+        stage('Docker Build') {
+            steps {
+                echo 'Building Docker images...'
+                bat 'docker compose build'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo 'Deploying microservices...'
+            }
+        }
+        */
+    }
+
+    post {
+        success {
+            echo '✅ All microservices built successfully using parent POM!'
+        }
+        failure {
+            echo '❌ Build failed. Check Maven logs.'
+        }
+        always {
+            echo 'Pipeline finished.'
+        }
+    }
+}
+
+
