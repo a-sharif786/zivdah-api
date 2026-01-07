@@ -25,7 +25,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/restful/v1/api/users/**").authenticated()
+                        .requestMatchers("/restful/v1/api/user/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .anonymous(anonymous -> anonymous.disable()) // DISABLE anonymous access
