@@ -1,9 +1,9 @@
 server:
-  port: 8002
+  port: 8009
 
 spring:
   application:
-    name: zivdah-auth-service
+    name: zivdah-user-service
   # dev
   #  datasource:
   #    url: jdbc:postgresql://localhost:5432/zivdahDB
@@ -34,20 +34,5 @@ eureka:
 logging:
   level:
     org.springframework.security: DEBUG
-
-
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: uravi0704@gmail.com
-    password: <GMAIL_APP_PASSWORD>
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-
-
 
 

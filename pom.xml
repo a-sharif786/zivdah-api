@@ -29,6 +29,7 @@
         <module>zivdah-payment-service</module>
         <module>zivdah-notification-service</module>
         <module>zivdah-inventory-service</module>
+        <module>zivdah-user-service</module>
     </modules>
 
     <properties>
