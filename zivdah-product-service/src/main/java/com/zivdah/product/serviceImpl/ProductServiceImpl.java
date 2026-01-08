@@ -80,7 +80,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Cacheable(value = "wishlistProducts", key = "'page:' + #pageable.pageNumber + ':size:' + #pageable.pageSize")
     public List<ProductResponseDto> getAllWishlist(Pageable pageable) {
-        log.info("!!! DATABASE HIT FOR PRODUCTS PAGE {} SIZE {} !!!", pageable.getPageNumber(), pageable.getPageSize());
+
         // Watch for this in logs
         return productRepository.findByFavTrue(pageable)
                 .stream()

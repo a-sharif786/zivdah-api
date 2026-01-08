@@ -30,6 +30,7 @@
         <module>zivdah-notification-service</module>
         <module>zivdah-inventory-service</module>
         <module>zivdah-user-service</module>
+        <module>zivdah-review-service</module>
     </modules>
 
     <properties>
