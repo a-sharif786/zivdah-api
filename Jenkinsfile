@@ -1,61 +1,79 @@
 pipeline {
     agent any
-    stages {
-        stage('Build API Gateway') {
-            steps {
-                dir('zivdah-api-gateway') {
-                    echo 'Building API Gateway...'
-                    bat 'mvn clean install'
-                }
-            }
-        }
-        stage('Build Eureka Server') {
-            steps {
-                dir('zivdah-eureka-server') {
-                    echo 'Building Eureka Server...'
-                    bat 'mvn clean install'
-                }
-            }
-        }
-        stage('Build Auth Service') {
-            steps {
-                dir('zivdh-auth-service') {
-                    echo 'Building Auth Service...'
-                    bat 'mvn clean install'
-                }
-            }
-        }
-        stage('Test API Gateway') {
-            steps {
-                dir('zivdah-api-gateway') {
-                    echo 'Testing API Gateway...'
-                    bat 'mvn test'
-                }
-            }
-        }
-        stage('Test Eureka Server') {
-            steps {
-                dir('zivdah-eureka-server') {
-                    echo 'Testing Eureka Server...'
-                    bat 'mvn test'
-                }
-            }
-        }
-        stage('Test Auth Service') {
-            steps {
-                dir('zivdh-auth-service') {
-                    echo 'Testing Auth Service...'
-                    bat 'mvn test'
-                }
-            }
-        }
+
+    tools {
+        jdk 'JDK-17'
+        maven 'Maven-3.9.11'
     }
+
+    environment {
+        MAVEN_OPTS = '-Xmx1024m'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build All Microservices') {
+            steps {
+                echo 'Building all microservices using parent POM...'
+                bat 'mvn clean install -DskipTests -U'
+            }
+        }
+
+        stage('Run Unit Tests') {
+            steps {
+                echo 'Running all unit tests...'
+                bat 'mvn test'
+            }
+        }
+
+        stage('Verify Artifacts') {
+            steps {
+                echo 'Listing generated JAR files...'
+                bat 'dir /s /b target'
+            }
+        }
+
+
+        stage('Docker Build') {
+            steps {
+                 echo 'Building Docker images for all microservices...'
+                 bat 'docker compose build'
+            }
+        }
+
+        stage('Docker Refresh') {
+            steps {
+                  echo 'Refreshing Docker environment...'
+                  bat 'docker compose down -v'
+                  bat 'docker compose pull'
+                  bat 'docker compose up -d'
+           }
+        }
+
+        /*
+        stage('Deploy') {
+            steps {
+                echo 'Deploying microservices...'
+            }
+        }
+        */
+    }
+
     post {
         success {
-            echo 'All microservices built and tested successfully!'
+            echo '✅ All microservices built successfully using parent POM!'
         }
         failure {
-            echo 'Build failed for one or more microservices.'
+            echo '❌ Build failed. Check Maven logs.'
+        }
+        always {
+            echo 'Pipeline finished.'
         }
     }
 }

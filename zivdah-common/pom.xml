@@ -2,27 +2,63 @@
 		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
                              http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>com.zivdah</groupId>
+	<!-- 🔥 REQUIRED: inherit Java 17 + Spring Boot config -->
+	<parent>
+		<groupId>com.zivdah</groupId>
+		<artifactId>zivdah-api</artifactId>
+		<version>1.0.0</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+
 	<artifactId>zivdah-common</artifactId>
-	<version>1.0.0</version>
 	<packaging>jar</packaging>
 
 	<dependencies>
+
 		<!-- Lombok -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
-			<version>1.18.28</version>
 			<scope>provided</scope>
 		</dependency>
 
-		<!-- For JSON serialization (optional, if you use Kafka) -->
+		<!-- Jackson (version managed by Spring Boot) -->
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
-			<version>2.15.2</version>
 		</dependency>
+
 	</dependencies>
 </project>
+
+		<!--<project xmlns="http://maven.apache.org/POM/4.0.0"-->
+<!--		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"-->
+<!--		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0-->
+<!--                             http://maven.apache.org/xsd/maven-4.0.0.xsd">-->
+<!--	<modelVersion>4.0.0</modelVersion>-->
+
+<!--	<groupId>com.zivdah</groupId>-->
+<!--	<artifactId>zivdah-common</artifactId>-->
+<!--	<version>1.0.0</version>-->
+<!--	<packaging>jar</packaging>-->
+
+<!--	<dependencies>-->
+<!--		&lt;!&ndash; Lombok &ndash;&gt;-->
+<!--		<dependency>-->
+<!--			<groupId>org.projectlombok</groupId>-->
+<!--			<artifactId>lombok</artifactId>-->
+<!--			<version>1.18.28</version>-->
+<!--			<scope>provided</scope>-->
+<!--		</dependency>-->
+
+<!--		&lt;!&ndash; For JSON serialization (optional, if you use Kafka) &ndash;&gt;-->
+<!--		<dependency>-->
+<!--			<groupId>com.fasterxml.jackson.core</groupId>-->
+<!--			<artifactId>jackson-databind</artifactId>-->
+<!--			<version>2.15.2</version>-->
+<!--		</dependency>-->
+<!--	</dependencies>-->
+<!--</project>-->

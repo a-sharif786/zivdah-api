@@ -19,6 +19,7 @@
     <packaging>pom</packaging>
 
     <modules>
+        <module>zivdah-common</module>
         <module>zivdah-eureka-server</module>
         <module>zivdah-api-gateway</module>
         <module>zivdah-auth-service</module>
@@ -28,6 +29,8 @@
         <module>zivdah-payment-service</module>
         <module>zivdah-notification-service</module>
         <module>zivdah-inventory-service</module>
+        <module>zivdah-user-service</module>
+        <module>zivdah-review-service</module>
     </modules>
 
     <properties>
