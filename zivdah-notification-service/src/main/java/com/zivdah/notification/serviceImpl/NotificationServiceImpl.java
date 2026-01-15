@@ -2,7 +2,9 @@ package com.zivdah.notification.serviceImpl;
 
 
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
+import com.google.firebase.messaging.MessagingErrorCode;
 import com.zivdah.notification.dto.NotificationRequestDto;
 import com.zivdah.notification.dto.NotificationResponseDto;
 import com.zivdah.notification.entity.Notification;
@@ -24,6 +26,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public NotificationResponseDto sendNotification(NotificationRequestDto dto) {
+
         Notification notification = Notification.builder()
                 .userId(dto.getUserId())
                 .title(dto.getTitle())
@@ -33,29 +36,42 @@ public class NotificationServiceImpl implements NotificationService {
 
         Notification saved = notificationRepository.save(notification);
 
-        // Send via Firebase if FCM token provided
         if (dto.getFcmToken() != null && !dto.getFcmToken().isBlank()) {
             try {
                 Message message = Message.builder()
                         .setToken(dto.getFcmToken())
-                        .setNotification(com.google.firebase.messaging.Notification.builder()
-                                .setTitle(dto.getTitle())
-                                .setBody(dto.getMessage())
-                                .build())
+                        .setNotification(
+                                com.google.firebase.messaging.Notification.builder()
+                                        .setTitle(dto.getTitle())
+                                        .setBody(dto.getMessage())
+                                        .build()
+                        )
+                        .putData("notificationId", saved.getId().toString())
+                        .putData("status", "ORDER_SHIPPED")
                         .build();
 
                 String response = FirebaseMessaging.getInstance().send(message);
-                log.info("Notification sent via FCM: " + response);
+                log.info("FCM response: {}", response);
+
                 saved.setStatus("SENT");
+
+            } catch (FirebaseMessagingException e) {
+                log.error("FCM error", e);
+
+                if (e.getMessagingErrorCode() == MessagingErrorCode.UNREGISTERED) {
+                    log.warn("FCM token is invalid or expired");
+                    // TODO: remove token from DB
+                }
+
+                saved.setStatus("FAILED");
+
             } catch (Exception e) {
-                log.error("Error sending FCM notification", e);
+                log.error("Unexpected error sending FCM", e);
                 saved.setStatus("FAILED");
             }
-        } else {
-            saved.setStatus("PENDING");
         }
 
-        saved = notificationRepository.save(saved);
+        notificationRepository.save(saved);
         return mapToDto(saved);
     }
 
