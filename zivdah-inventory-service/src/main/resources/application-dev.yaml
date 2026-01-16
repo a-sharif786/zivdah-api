@@ -14,7 +14,7 @@ spring:
       port: 6380
 
   datasource:
-    url: jdbc:postgresql://localhost:5433/zivdahDB
+    url: jdbc:postgresql://localhost:5432/zivdahDB
     username: postgres
     password: root
     driver-class-name: org.postgresql.Driver
