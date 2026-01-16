@@ -50,8 +50,8 @@ pipeline {
         stage('Docker Refresh') {
             steps {
                   echo 'Refreshing Docker environment...'
-//                   bat 'docker compose down -v'
-//                   bat 'docker compose pull'
+                  bat 'docker compose down -v'
+                  bat 'docker compose pull'
                   bat 'docker compose up -d'
            }
         }
