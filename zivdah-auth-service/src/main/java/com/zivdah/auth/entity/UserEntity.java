@@ -4,6 +4,8 @@ import com.zivdah.auth.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "users", uniqueConstraints = {
         @UniqueConstraint(columnNames = "email")
@@ -35,6 +37,15 @@ public class UserEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role = Role.USER;
+
+
+    private boolean isActive = false; // default false
+
+    // Store OTPs temporarily (optional: can use a separate table)
+    private String mobileOtp;
+    private String emailOtp;
+
+    private LocalDateTime otpGeneratedAt;
 
 
 }

@@ -210,7 +210,32 @@ public class AuthController {
         );
     }
 
+    @PostMapping("/verify-registration-otp")
+    public ResponseEntity<ApiResponse<LoginResponseDTO>> verifyRegistrationOtp(
+            @Valid @RequestBody VerifyOtpDTO request) {
 
+        String token = authService.verifyRegistrationOtp(request);
+
+        UserEntity user = authService.getUserByMobile(request.getMobile());
+
+        LoginResponseDTO loginResponse = new LoginResponseDTO(
+                user.getId(),
+                user.getMobile(),
+                user.getName(),
+                user.getEmail(),
+                user.getRole(),
+                token
+        );
+
+        ApiResponse<LoginResponseDTO> response = ApiResponse.<LoginResponseDTO>builder()
+                .status("success")
+                .message("User verified and logged in successfully")
+                .statusCode(HttpStatus.OK.value())
+                .data(loginResponse)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
 
 
 

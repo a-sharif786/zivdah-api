@@ -1,4 +1,4 @@
-package com.zivdah.auth.service.impl;
+package com.zivdah.auth.serviceImpl;
 
 import com.zivdah.auth.dto.*;
 import com.zivdah.auth.entity.UserEntity;
@@ -36,14 +36,23 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void register(RegisterRequestDTO request) {
+        boolean emailExists = userRepository.existsByEmail(request.getEmail());
+        boolean mobileExists = userRepository.existsByMobile(request.getMobile());
 
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already registered");
+        if (emailExists && mobileExists) {
+            throw new RuntimeException("Both email and mobile are already registered");
+        } else if (emailExists) {
+            throw new RuntimeException("Email is already registered");
+        } else if (mobileExists) {
+            throw new RuntimeException("Mobile number is already registered");
         }
 
-        if (userRepository.existsByMobile(request.getMobile())) {
-            throw new RuntimeException("Mobile already exists");
-        }
+        // Generate OTPs
+//        String mobileOtp = generateOtp();
+//        String emailOtp = generateOtp();
+
+        String mobileOtp = "123456";
+        String emailOtp = "123456";;
 
         UserEntity user = UserEntity.builder()
                 .name(request.getName())
@@ -51,9 +60,32 @@ public class AuthServiceImpl implements AuthService {
                 .mobile(request.getMobile())
                 .role(Role.USER)
                 .password(passwordEncoder.encode(request.getPassword()))
+                .isActive(false)
+                .mobileOtp(mobileOtp)
+                .emailOtp(emailOtp)
+                .otpGeneratedAt(LocalDateTime.now())
                 .build();
 
         userRepository.save(user);
+
+        // Send OTPs
+        sendOtpToMobile(user.getMobile(), mobileOtp);
+        sendOtpToEmail(user.getEmail(), emailOtp);
+    }
+
+    private void sendOtpToMobile(String mobile, String otp) {
+        // Real implementation: send SMS
+        log.info("Sending OTP {} to mobile {}", otp, mobile);
+    }
+
+    private void sendOtpToEmail(String email, String otp) {
+
+        log.info("Sending OTP {} to mobile {}", otp, email);
+//        SimpleMailMessage message = new SimpleMailMessage();
+//        message.setTo(email);
+//        message.setSubject("Your Registration OTP");
+//        message.setText("Your OTP for registration is: " + otp);
+//        mailSender.send(message);
     }
 
     @Override
@@ -79,9 +111,15 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void sendOtp(String mobile) {
 
-        userRepository.findByMobile(mobile)
+        UserEntity user =    userRepository.findByMobile(mobile)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+
+        // For demo, use static OTP or generate dynamic one
+        String otp = "123456"; // or generateOtp()
+        user.setMobileOtp(otp);
+        user.setOtpGeneratedAt(LocalDateTime.now());
+        userRepository.save(user);
         // In real system: send OTP via SMS provider
         log.info("Sending OTP {} to {}", STATIC_OTP, mobile);
     }
@@ -92,7 +130,7 @@ public class AuthServiceImpl implements AuthService {
         UserEntity user = userRepository.findByMobile(request.getMobile())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (!STATIC_OTP.equals(request.getOtp())) {
+        if (!STATIC_OTP.equals(request.getMobileOtp())) {
             throw new RuntimeException("Invalid OTP");
         }
 
@@ -117,7 +155,6 @@ public class AuthServiceImpl implements AuthService {
         }
 
         userSessionRepository.save(session);
-
         return token;
     }
 
@@ -201,6 +238,44 @@ public class AuthServiceImpl implements AuthService {
 
 
 
+    @Override
+    public String verifyRegistrationOtp(VerifyOtpDTO request) {
+
+        UserEntity user = userRepository.findByMobile(request.getMobile())
+                .orElseThrow(() -> new RuntimeException("User not found with this mobile"));
+
+        // Check email matches
+        if (!user.getEmail().equals(request.getEmail())) {
+            throw new RuntimeException("Email does not match");
+        }
+
+        // Check OTPs
+        if (!request.getMobileOtp().equals(user.getMobileOtp())) {
+            throw new RuntimeException("Invalid mobile OTP");
+        }
+        if (!request.getEmailOtp().equals(user.getEmailOtp())) {
+            throw new RuntimeException("Invalid email OTP");
+        }
+
+        // Activate user
+        user.setActive(true);
+        user.setMobileOtp(null);
+        user.setEmailOtp(null);
+        userRepository.save(user);
+
+        // Generate JWT token
+        String token = jwtUtil.generateToken(user.getMobile());
+
+        // Save session
+        UserSession session = userSessionRepository.findByUserId(user.getId())
+                .orElse(UserSession.builder().userId(user.getId()).build());
+        session.setToken(token);
+        session.setDeviceToken(request.getDeviceToken());
+        session.setCreatedAt(LocalDateTime.now());
+        userSessionRepository.save(session);
+
+        return token;
+    }
 
 
 
