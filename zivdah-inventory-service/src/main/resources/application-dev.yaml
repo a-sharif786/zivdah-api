@@ -46,6 +46,8 @@ spring:
 #        spring.json.value.default.type: com.zivdah.common.event.OrderCreatedEvent
 
 eureka:
+  instance:
+    prefer-ip-address: true
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka

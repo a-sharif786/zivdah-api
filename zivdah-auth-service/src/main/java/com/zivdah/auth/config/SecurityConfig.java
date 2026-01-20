@@ -34,7 +34,8 @@ public class SecurityConfig {
                                 "/restful/v1/api/auth/login",
                                 "/restful/v1/api/auth/send-otp",
                                 "/restful/v1/api/auth/verify-otp",
-                                "/restful/v1/api/auth/forget-password"
+                                "/restful/v1/api/auth/forget-password",
+                                "/restful/v1/api/auth/verify-registration-otp"
                         ).permitAll()
 
                         // 🔒 PROTECTED ENDPOINTS
