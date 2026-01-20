@@ -98,7 +98,7 @@ Aa1011##2025
 
 =================================================
 github token:
-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
+
 
 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
 
@@ -173,4 +173,27 @@ pipeline {
     }
 }
 
+
+======================================================================sonarqube============================
+IMPORTANT VIDEO
+https://www.youtube.com/watch?v=sk36v_gEjxM
+
+
+Create a Docker network (recommended)
+docker network create sonar-net
+
+Start SonarQube
+docker run -d --name sonarqube --network sonar-net -p 9000:9000 sonarqube:community
+
+
+
+docker ps
+
+docker logs -f sonarqube
+
+
+Password: Aw3#se4$dr5%
+
+Provide a token
+"zivdah-api": sqp_695a489c12fe342f3c63f41bb67f63a78426dd67
 

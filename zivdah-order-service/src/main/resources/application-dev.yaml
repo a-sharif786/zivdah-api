@@ -15,7 +15,7 @@ spring:
 
   # local
   datasource:
-    url: jdbc:postgresql://localhost:5433/zivdahDB
+    url: jdbc:postgresql://localhost:5432/zivdahDB
     username: postgres
     password: root
     driver-class-name: org.postgresql.Driver
@@ -44,6 +44,8 @@ spring:
         spring.json.trusted-packages: com.zivdah.order.event
 
 eureka:
+  instance:
+    prefer-ip-address: true
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka

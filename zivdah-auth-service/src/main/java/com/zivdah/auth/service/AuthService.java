@@ -23,6 +23,6 @@ public interface AuthService {
     boolean sendPasswordResetOtp(String email);
 
     ResetPasswordResponseDTO resetPassword(ResetPasswordDTO request);
-
+    String verifyRegistrationOtp(VerifyOtpDTO request);
 
 }
