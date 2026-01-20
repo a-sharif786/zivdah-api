@@ -33,12 +33,17 @@ pipeline {
         }
 
         stage('SonarQube Analysis') {
-           steps {
-             withSonarQubeEnv('SonarQube') {
-            bat 'mvn sonar:sonar -Dsonar.projectKey=zivdah-api'
-          }
-       }
-   }
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    bat '''
+                    mvn clean verify ^
+                    org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar ^
+                    -Dsonar.projectKey=zivdah-api ^
+                    -Dsonar.projectName=zivdah-api
+                    '''
+                }
+            }
+        }
 
         stage('Quality Gate') {
              steps {
