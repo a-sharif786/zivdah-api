@@ -33,12 +33,16 @@ pipeline {
         }
 
         stage('SonarQube Analysis') {
-             steps {
-                 echo 'Running SonarQube analysis...'
-                 withSonarQubeEnv('SonarQube') {
-                 bat 'mvn sonar:sonar -Dsonar.projectKey=my-project -Dsonar.host.url=%SONAR_HOST_URL% -Dsonar.login=%SONAR_AUTH_TOKEN%'
-                 }
-             }
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    bat '''
+                    mvn clean verify ^
+                    org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar ^
+                    -Dsonar.projectKey=zivdah-api ^
+                    -Dsonar.projectName=zivdah-api
+                    '''
+                }
+            }
         }
 
         stage('Quality Gate') {
