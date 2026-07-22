@@ -4,14 +4,14 @@ import com.zivdah.coupon.dto.ApplyCouponRequestDto;
 import com.zivdah.coupon.dto.ApplyCouponResponseDto;
 import com.zivdah.coupon.dto.CouponRequestDto;
 import com.zivdah.coupon.dto.CouponResponseDto;
-
-import java.util.List;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public interface CouponService {
-    CouponResponseDto createCoupon(CouponRequestDto dto);
-    CouponResponseDto getCouponByCode(String code);
-    List<CouponResponseDto> getAllCoupons();
-    CouponResponseDto toggleActive(Long couponId);
-    void deleteCoupon(Long couponId);
-    ApplyCouponResponseDto applyCoupon(ApplyCouponRequestDto dto);
+    Mono<CouponResponseDto> createCoupon(CouponRequestDto dto);
+    Mono<CouponResponseDto> getCouponByCode(String code);
+    Flux<CouponResponseDto> getAllCoupons();
+    Mono<CouponResponseDto> toggleActive(Long couponId);
+    Mono<Void> deleteCoupon(Long couponId);
+    Mono<ApplyCouponResponseDto> applyCoupon(ApplyCouponRequestDto dto);
 }

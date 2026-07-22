@@ -7,13 +7,13 @@ import com.zivdah.review.repository.ReviewRepository;
 import com.zivdah.review.service.ReviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import org.springframework.http.HttpStatus;
-
-import java.util.List;
-import java.util.stream.Collectors;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -21,60 +21,53 @@ public class ReviewServiceImpl implements ReviewService {
 
     private final ReviewRepository reviewRepository;
 
-    // Create review
     @Override
-    public ReviewResponseDto createReview(ReviewRequestDto dto) {
+    public Mono<ReviewResponseDto> createReview(ReviewRequestDto dto) {
         Review review = Review.builder()
                 .userId(dto.getUserId())
                 .productId(dto.getProductId())
                 .rating(dto.getRating())
                 .comment(dto.getComment())
+                .createdAt(LocalDateTime.now())
                 .build();
-
-        Review saved = reviewRepository.save(review);
-        return mapToDto(saved);
+        return reviewRepository.save(review).map(this::mapToDto);
     }
 
-    // Get review by ID
     @Override
-    public ReviewResponseDto getReviewById(Long id) {
-        Review review = reviewRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found"));
-        return mapToDto(review);
+    public Mono<ReviewResponseDto> getReviewById(Long id) {
+        return reviewRepository.findById(id)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found: " + id)))
+                .map(this::mapToDto);
     }
 
-    // Get all reviews with pagination
     @Override
-    public List<ReviewResponseDto> getAllReviews(int page, int size) {
-        return reviewRepository.findAll(PageRequest.of(page, size))
-                .stream()
-                .map(this::mapToDto)
-                .collect(Collectors.toList());
+    public Flux<ReviewResponseDto> getAllReviews(int page, int size) {
+        return reviewRepository.findAllBy(PageRequest.of(page, size)).map(this::mapToDto);
     }
 
-    // Update review
     @Override
-    public ReviewResponseDto updateReview(Long id, ReviewRequestDto dto) {
-        Review review = reviewRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found"));
-
-        review.setRating(dto.getRating());
-        review.setComment(dto.getComment());
-
-        Review updated = reviewRepository.save(review);
-        return mapToDto(updated);
+    public Mono<ReviewResponseDto> updateReview(Long id, ReviewRequestDto dto) {
+        return reviewRepository.findById(id)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found: " + id)))
+                .flatMap(review -> {
+                    review.setRating(dto.getRating());
+                    review.setComment(dto.getComment());
+                    return reviewRepository.save(review);
+                })
+                .map(this::mapToDto);
     }
 
-    // Delete review
     @Override
-    public void deleteReview(Long id) {
-        if (!reviewRepository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found");
-        }
-        reviewRepository.deleteById(id);
+    public Mono<Void> deleteReview(Long id) {
+        return reviewRepository.existsById(id)
+                .flatMap(exists -> {
+                    if (!exists) {
+                        return Mono.<Void>error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found: " + id));
+                    }
+                    return reviewRepository.deleteById(id);
+                });
     }
 
-    // Mapper: Entity -> DTO
     private ReviewResponseDto mapToDto(Review review) {
         return ReviewResponseDto.builder()
                 .id(review.getId())
@@ -83,7 +76,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .rating(review.getRating())
                 .comment(review.getComment())
                 .createdAt(review.getCreatedAt())
-                .updatedAt(review.getCreatedAt()) // you can add updatedAt in entity later
+                .updatedAt(review.getCreatedAt())
                 .build();
     }
 }

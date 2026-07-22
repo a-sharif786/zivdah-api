@@ -1,10 +1,9 @@
 package com.zivdah.inventory.repository;
 
 import com.zivdah.inventory.entity.InventoryReservation;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import reactor.core.publisher.Flux;
 
-import java.util.List;
-
-public interface InventoryReservationRepository extends JpaRepository<InventoryReservation, Long> {
-    List<InventoryReservation> findByOrderId(Long orderId);
+public interface InventoryReservationRepository extends ReactiveCrudRepository<InventoryReservation, Long> {
+    Flux<InventoryReservation> findByOrderId(Long orderId);
 }

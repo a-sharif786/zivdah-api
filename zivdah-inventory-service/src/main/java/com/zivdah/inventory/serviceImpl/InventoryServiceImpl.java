@@ -4,104 +4,102 @@ import com.zivdah.inventory.dto.InventoryResponseDto;
 import com.zivdah.inventory.entity.Inventory;
 import com.zivdah.inventory.repository.InventoryRepository;
 import com.zivdah.inventory.service.InventoryService;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import reactor.core.publisher.Mono;
+
+import java.time.LocalDateTime;
 
 @Service
-@RequiredArgsConstructor
-@Transactional
 @Slf4j
+@RequiredArgsConstructor
 public class InventoryServiceImpl implements InventoryService {
 
     private final InventoryRepository inventoryRepository;
 
     @Override
-    public InventoryResponseDto getInventoryByProductId(Long productId) {
-        Inventory inventory = inventoryRepository.findByProductId(productId)
-                .orElseThrow(() -> new RuntimeException("Inventory not found"));
-        return mapToDto(inventory);
+    public Mono<InventoryResponseDto> getInventoryByProductId(Long productId) {
+        return inventoryRepository.findByProductId(productId)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Inventory not found for product: " + productId)))
+                .map(this::mapToDto);
     }
 
     @Override
-    public InventoryResponseDto addStock(Long productId, Integer quantity) {
-        Inventory inventory = inventoryRepository.findByProductId(productId)
-                .orElse(Inventory.builder()
+    public Mono<InventoryResponseDto> addStock(Long productId, Integer quantity) {
+        return inventoryRepository.findByProductId(productId)
+                .switchIfEmpty(Mono.just(Inventory.builder()
                         .productId(productId)
                         .availableQuantity(0)
                         .reservedQuantity(0)
-                        .build());
-
-        inventory.setAvailableQuantity(inventory.getAvailableQuantity() + quantity);
-        inventoryRepository.save(inventory);
-
-        log.info("Stock added for product {}", productId);
-        return mapToDto(inventory);
+                        .build()))
+                .flatMap(inv -> {
+                    inv.setAvailableQuantity(inv.getAvailableQuantity() + quantity);
+                    inv.setLastUpdated(LocalDateTime.now());
+                    return inventoryRepository.save(inv);
+                })
+                .doOnSuccess(inv -> log.info("Stock added for product {}", productId))
+                .map(this::mapToDto);
     }
 
     @Override
-    public InventoryResponseDto reserveStock(Long productId, Integer quantity) {    //store or reserve product
-        Inventory inventory = inventoryRepository.findByProductId(productId)
-                .orElseThrow(() -> new RuntimeException("Inventory not found"));
-
-        if (inventory.getAvailableQuantity() < quantity) {
-            throw new RuntimeException("Out of stock");
-        }
-
-        inventory.setAvailableQuantity(inventory.getAvailableQuantity() - quantity);
-        inventory.setReservedQuantity(inventory.getReservedQuantity() + quantity);
-
-        inventoryRepository.save(inventory);
-        log.info("Stock reserved for product {}", productId);
-
-        return mapToDto(inventory);
+    public Mono<InventoryResponseDto> reserveStock(Long productId, Integer quantity) {
+        return inventoryRepository.findByProductId(productId)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Inventory not found for product: " + productId)))
+                .flatMap(inv -> {
+                    if (inv.getAvailableQuantity() < quantity) {
+                        return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT, "Out of stock for product: " + productId));
+                    }
+                    inv.setAvailableQuantity(inv.getAvailableQuantity() - quantity);
+                    inv.setReservedQuantity(inv.getReservedQuantity() + quantity);
+                    inv.setLastUpdated(LocalDateTime.now());
+                    return inventoryRepository.save(inv);
+                })
+                .doOnSuccess(inv -> log.info("Stock reserved for product {}", productId))
+                .map(this::mapToDto);
     }
 
     @Override
-    public InventoryResponseDto releaseStock(Long productId, Integer quantity) {   //fail payment
-        Inventory inventory = inventoryRepository.findByProductId(productId)
-                .orElseThrow(() -> new RuntimeException("Inventory not found"));
-
-
-        if (inventory.getReservedQuantity() < quantity) {
-            throw new RuntimeException("Not enough reserved stock to release");
-        }
-
-        inventory.setAvailableQuantity(inventory.getAvailableQuantity() + quantity);
-        inventory.setReservedQuantity(inventory.getReservedQuantity() - quantity);
-
-        inventoryRepository.save(inventory);
-        log.info("Stock released for product {}", productId);
-
-        return mapToDto(inventory);
+    public Mono<InventoryResponseDto> releaseStock(Long productId, Integer quantity) {
+        return inventoryRepository.findByProductId(productId)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Inventory not found for product: " + productId)))
+                .flatMap(inv -> {
+                    if (inv.getReservedQuantity() < quantity) {
+                        return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT, "Not enough reserved stock"));
+                    }
+                    inv.setAvailableQuantity(inv.getAvailableQuantity() + quantity);
+                    inv.setReservedQuantity(inv.getReservedQuantity() - quantity);
+                    inv.setLastUpdated(LocalDateTime.now());
+                    return inventoryRepository.save(inv);
+                })
+                .doOnSuccess(inv -> log.info("Stock released for product {}", productId))
+                .map(this::mapToDto);
     }
 
     @Override
-    public InventoryResponseDto confirmStock(Long productId, Integer quantity) {  //success payment
-        Inventory inventory = inventoryRepository.findByProductId(productId)
-                .orElseThrow(() -> new RuntimeException("Inventory not found"));
-
-        if (inventory.getReservedQuantity() < quantity) {
-            throw new RuntimeException(
-                    "Not enough reserved stock to confirm. Reserved: "
-                            + inventory.getReservedQuantity()
-            );
-        }
-
-        inventory.setReservedQuantity(inventory.getReservedQuantity() - quantity);
-        inventoryRepository.save(inventory);
-
-        log.info("Stock confirmed for product {}", productId);
-        return mapToDto(inventory);
+    public Mono<InventoryResponseDto> confirmStock(Long productId, Integer quantity) {
+        return inventoryRepository.findByProductId(productId)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Inventory not found for product: " + productId)))
+                .flatMap(inv -> {
+                    if (inv.getReservedQuantity() < quantity) {
+                        return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT, "Not enough reserved stock to confirm"));
+                    }
+                    inv.setReservedQuantity(inv.getReservedQuantity() - quantity);
+                    inv.setLastUpdated(LocalDateTime.now());
+                    return inventoryRepository.save(inv);
+                })
+                .doOnSuccess(inv -> log.info("Stock confirmed for product {}", productId))
+                .map(this::mapToDto);
     }
 
-    private InventoryResponseDto mapToDto(Inventory inventory) {
+    private InventoryResponseDto mapToDto(Inventory inv) {
         return InventoryResponseDto.builder()
-                .productId(inventory.getProductId())
-                .availableQuantity(inventory.getAvailableQuantity())
-                .reservedQuantity(inventory.getReservedQuantity())
-                .lastUpdated(inventory.getLastUpdated())
+                .productId(inv.getProductId())
+                .availableQuantity(inv.getAvailableQuantity())
+                .reservedQuantity(inv.getReservedQuantity())
+                .lastUpdated(inv.getLastUpdated())
                 .build();
     }
 }

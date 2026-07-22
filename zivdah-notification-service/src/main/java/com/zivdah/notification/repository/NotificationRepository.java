@@ -1,12 +1,9 @@
 package com.zivdah.notification.repository;
 
 import com.zivdah.notification.entity.Notification;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import reactor.core.publisher.Flux;
 
-import java.util.List;
-
-@Repository
-public interface NotificationRepository extends JpaRepository<Notification, Long> {
-    List<Notification> findByUserId(Long userId);
+public interface NotificationRepository extends ReactiveCrudRepository<Notification, Long> {
+    Flux<Notification> findByUserId(Long userId);
 }

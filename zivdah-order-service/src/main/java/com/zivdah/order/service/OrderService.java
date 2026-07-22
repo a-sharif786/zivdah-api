@@ -2,17 +2,12 @@ package com.zivdah.order.service;
 
 import com.zivdah.order.dto.OrderRequestDto;
 import com.zivdah.order.dto.OrderResponseDto;
-import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.util.List;
-
-@Service
 public interface OrderService {
-    OrderResponseDto createOrder(OrderRequestDto dto);
-
-    OrderResponseDto getOrderById(Long orderId);
-
-    List<OrderResponseDto> getOrdersByUser(Long userId);
-
-    void cancelOrder(Long orderId);
+    Mono<OrderResponseDto> createOrder(OrderRequestDto dto);
+    Mono<OrderResponseDto> getOrderById(Long orderId);
+    Flux<OrderResponseDto> getOrdersByUser(Long userId);
+    Mono<Void> cancelOrder(Long orderId);
 }

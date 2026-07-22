@@ -2,14 +2,14 @@ package com.zivdah.payment.entity;
 
 import com.zivdah.payment.enums.PaymentMethod;
 import com.zivdah.payment.enums.PaymentStatus;
-import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Table;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "payments")
+@Table("payments")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -18,28 +18,12 @@ import java.time.LocalDateTime;
 public class Payment {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
     private Long orderId;
-
     private Long userId;
-
     private BigDecimal amount;
-
-    @Enumerated(EnumType.STRING)
     private PaymentMethod method;
-
-    @Enumerated(EnumType.STRING)
     private PaymentStatus status;
-
     private String transactionId;
-
     private LocalDateTime createdAt;
-
-    @PrePersist
-    public void onCreate() {
-        createdAt = LocalDateTime.now();
-        status = PaymentStatus.INITIATED;
-    }
 }

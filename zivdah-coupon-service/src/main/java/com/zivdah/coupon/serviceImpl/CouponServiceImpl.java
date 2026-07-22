@@ -8,19 +8,19 @@ import com.zivdah.coupon.entity.Coupon;
 import com.zivdah.coupon.enums.DiscountType;
 import com.zivdah.coupon.repository.CouponRepository;
 import com.zivdah.coupon.service.CouponService;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
-@Transactional
 @Slf4j
 @RequiredArgsConstructor
 public class CouponServiceImpl implements CouponService {
@@ -28,123 +28,104 @@ public class CouponServiceImpl implements CouponService {
     private final CouponRepository couponRepository;
 
     @Override
-    public CouponResponseDto createCoupon(CouponRequestDto dto) {
-        if (couponRepository.findByCode(dto.getCode()).isPresent()) {
-            throw new RuntimeException("Coupon code already exists: " + dto.getCode());
-        }
-        Coupon coupon = Coupon.builder()
-                .code(dto.getCode().toUpperCase())
-                .description(dto.getDescription())
-                .discountType(dto.getDiscountType())
-                .discountValue(dto.getDiscountValue())
-                .minOrderAmount(dto.getMinOrderAmount())
-                .maxDiscountAmount(dto.getMaxDiscountAmount())
-                .usageLimit(dto.getUsageLimit())
-                .usedCount(0)
-                .active(true)
-                .validFrom(dto.getValidFrom())
-                .validUntil(dto.getValidUntil())
-                .build();
-        return mapToDto(couponRepository.save(coupon));
+    public Mono<CouponResponseDto> createCoupon(CouponRequestDto dto) {
+        return couponRepository.findByCode(dto.getCode().toUpperCase())
+                .flatMap(existing -> Mono.<CouponResponseDto>error(
+                        new ResponseStatusException(HttpStatus.CONFLICT, "Coupon code already exists: " + dto.getCode())))
+                .switchIfEmpty(Mono.defer(() -> {
+                    Coupon coupon = Coupon.builder()
+                            .code(dto.getCode().toUpperCase())
+                            .description(dto.getDescription())
+                            .discountType(dto.getDiscountType())
+                            .discountValue(dto.getDiscountValue())
+                            .minOrderAmount(dto.getMinOrderAmount())
+                            .maxDiscountAmount(dto.getMaxDiscountAmount())
+                            .usageLimit(dto.getUsageLimit())
+                            .usedCount(0)
+                            .active(true)
+                            .validFrom(dto.getValidFrom())
+                            .validUntil(dto.getValidUntil())
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                    return couponRepository.save(coupon).map(this::mapToDto);
+                }));
     }
 
     @Override
-    public CouponResponseDto getCouponByCode(String code) {
+    public Mono<CouponResponseDto> getCouponByCode(String code) {
         return couponRepository.findByCode(code.toUpperCase())
-                .map(this::mapToDto)
-                .orElseThrow(() -> new RuntimeException("Coupon not found: " + code));
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Coupon not found: " + code)))
+                .map(this::mapToDto);
     }
 
     @Override
-    public List<CouponResponseDto> getAllCoupons() {
-        return couponRepository.findAll().stream()
-                .map(this::mapToDto)
-                .collect(Collectors.toList());
+    public Flux<CouponResponseDto> getAllCoupons() {
+        return couponRepository.findAll().map(this::mapToDto);
     }
 
     @Override
-    public CouponResponseDto toggleActive(Long couponId) {
-        Coupon coupon = couponRepository.findById(couponId)
-                .orElseThrow(() -> new RuntimeException("Coupon not found: " + couponId));
-        coupon.setActive(!coupon.isActive());
-        return mapToDto(couponRepository.save(coupon));
+    public Mono<CouponResponseDto> toggleActive(Long couponId) {
+        return couponRepository.findById(couponId)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Coupon not found: " + couponId)))
+                .flatMap(coupon -> {
+                    coupon.setActive(!coupon.isActive());
+                    return couponRepository.save(coupon);
+                })
+                .map(this::mapToDto);
     }
 
     @Override
-    public void deleteCoupon(Long couponId) {
-        couponRepository.findById(couponId)
-                .orElseThrow(() -> new RuntimeException("Coupon not found: " + couponId));
-        couponRepository.deleteById(couponId);
+    public Mono<Void> deleteCoupon(Long couponId) {
+        return couponRepository.existsById(couponId)
+                .flatMap(exists -> {
+                    if (!exists) return Mono.<Void>error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Coupon not found: " + couponId));
+                    return couponRepository.deleteById(couponId);
+                });
     }
 
     @Override
-    public ApplyCouponResponseDto applyCoupon(ApplyCouponRequestDto dto) {
-        Coupon coupon = couponRepository.findByCode(dto.getCode().toUpperCase())
-                .orElseThrow(() -> new RuntimeException("Coupon not found: " + dto.getCode()));
+    public Mono<ApplyCouponResponseDto> applyCoupon(ApplyCouponRequestDto dto) {
+        return couponRepository.findByCode(dto.getCode().toUpperCase())
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Coupon not found: " + dto.getCode())))
+                .flatMap(coupon -> {
+                    LocalDateTime now = LocalDateTime.now();
+                    if (!coupon.isActive()) return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coupon is inactive"));
+                    if (now.isBefore(coupon.getValidFrom())) return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coupon not yet valid"));
+                    if (now.isAfter(coupon.getValidUntil())) return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coupon has expired"));
+                    if (coupon.getUsedCount() >= coupon.getUsageLimit()) return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coupon usage limit reached"));
+                    if (coupon.getMinOrderAmount() != null && dto.getOrderAmount().compareTo(coupon.getMinOrderAmount()) < 0)
+                        return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order below minimum: " + coupon.getMinOrderAmount()));
 
-        LocalDateTime now = LocalDateTime.now();
+                    BigDecimal discount = coupon.getDiscountType() == DiscountType.PERCENTAGE
+                            ? dto.getOrderAmount().multiply(coupon.getDiscountValue()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP)
+                            : coupon.getDiscountValue();
+                    if (coupon.getMaxDiscountAmount() != null && discount.compareTo(coupon.getMaxDiscountAmount()) > 0)
+                        discount = coupon.getMaxDiscountAmount();
+                    BigDecimal finalAmount = dto.getOrderAmount().subtract(discount).max(BigDecimal.ZERO);
 
-        if (!coupon.isActive()) {
-            throw new RuntimeException("Coupon is inactive");
-        }
-        if (now.isBefore(coupon.getValidFrom())) {
-            throw new RuntimeException("Coupon is not yet valid");
-        }
-        if (now.isAfter(coupon.getValidUntil())) {
-            throw new RuntimeException("Coupon has expired");
-        }
-        if (coupon.getUsedCount() >= coupon.getUsageLimit()) {
-            throw new RuntimeException("Coupon usage limit reached");
-        }
-        if (coupon.getMinOrderAmount() != null
-                && dto.getOrderAmount().compareTo(coupon.getMinOrderAmount()) < 0) {
-            throw new RuntimeException("Order amount is below the minimum required: " + coupon.getMinOrderAmount());
-        }
-
-        BigDecimal discount;
-        if (coupon.getDiscountType() == DiscountType.PERCENTAGE) {
-            discount = dto.getOrderAmount()
-                    .multiply(coupon.getDiscountValue())
-                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-        } else {
-            discount = coupon.getDiscountValue();
-        }
-
-        if (coupon.getMaxDiscountAmount() != null && discount.compareTo(coupon.getMaxDiscountAmount()) > 0) {
-            discount = coupon.getMaxDiscountAmount();
-        }
-
-        BigDecimal finalAmount = dto.getOrderAmount().subtract(discount).max(BigDecimal.ZERO);
-
-        coupon.setUsedCount(coupon.getUsedCount() + 1);
-        couponRepository.save(coupon);
-
-        log.info("Coupon {} applied: discount={}, final={}", dto.getCode(), discount, finalAmount);
-
-        return ApplyCouponResponseDto.builder()
-                .couponCode(coupon.getCode())
-                .originalAmount(dto.getOrderAmount())
-                .discountAmount(discount)
-                .finalAmount(finalAmount)
-                .message("Coupon applied successfully")
-                .build();
+                    coupon.setUsedCount(coupon.getUsedCount() + 1);
+                    BigDecimal finalDiscount = discount;
+                    return couponRepository.save(coupon)
+                            .map(saved -> {
+                                log.info("Coupon {} applied: discount={}, final={}", dto.getCode(), finalDiscount, finalAmount);
+                                return ApplyCouponResponseDto.builder()
+                                        .couponCode(saved.getCode())
+                                        .originalAmount(dto.getOrderAmount())
+                                        .discountAmount(finalDiscount)
+                                        .finalAmount(finalAmount)
+                                        .message("Coupon applied successfully")
+                                        .build();
+                            });
+                });
     }
 
-    private CouponResponseDto mapToDto(Coupon coupon) {
+    private CouponResponseDto mapToDto(Coupon c) {
         return CouponResponseDto.builder()
-                .id(coupon.getId())
-                .code(coupon.getCode())
-                .description(coupon.getDescription())
-                .discountType(coupon.getDiscountType())
-                .discountValue(coupon.getDiscountValue())
-                .minOrderAmount(coupon.getMinOrderAmount())
-                .maxDiscountAmount(coupon.getMaxDiscountAmount())
-                .usageLimit(coupon.getUsageLimit())
-                .usedCount(coupon.getUsedCount())
-                .active(coupon.isActive())
-                .validFrom(coupon.getValidFrom())
-                .validUntil(coupon.getValidUntil())
-                .createdAt(coupon.getCreatedAt())
+                .id(c.getId()).code(c.getCode()).description(c.getDescription())
+                .discountType(c.getDiscountType()).discountValue(c.getDiscountValue())
+                .minOrderAmount(c.getMinOrderAmount()).maxDiscountAmount(c.getMaxDiscountAmount())
+                .usageLimit(c.getUsageLimit()).usedCount(c.getUsedCount()).active(c.isActive())
+                .validFrom(c.getValidFrom()).validUntil(c.getValidUntil()).createdAt(c.getCreatedAt())
                 .build();
     }
 }

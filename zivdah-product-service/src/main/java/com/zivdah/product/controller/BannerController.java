@@ -1,16 +1,12 @@
 package com.zivdah.product.controller;
 
-
 import com.zivdah.product.dto.ApiResponse;
 import com.zivdah.product.dto.BannerResponseDto;
 import com.zivdah.product.service.BannerService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 
@@ -20,18 +16,13 @@ import java.util.List;
 @CrossOrigin(origins = "*")
 public class BannerController {
 
-    @Autowired
-    private BannerService bannerService;
+    private final BannerService bannerService;
 
     @GetMapping("/banner/getAll")
-    public ResponseEntity<ApiResponse<List<BannerResponseDto>>> getBanners() {
-        return ResponseEntity.ok(
-                ApiResponse.<List<BannerResponseDto>>builder()
-                        .status("success")
-                        .statusCode(200)
-                        .message("Banners fetched successfully")
-                        .data(bannerService.getBanners())
-                        .build()
-        );
+    public Mono<ResponseEntity<ApiResponse<List<BannerResponseDto>>>> getBanners() {
+        return bannerService.getBanners()
+                .collectList()
+                .map(list -> ResponseEntity.ok(ApiResponse.<List<BannerResponseDto>>builder()
+                        .status("success").statusCode(200).message("Banners fetched successfully").data(list).build()));
     }
 }

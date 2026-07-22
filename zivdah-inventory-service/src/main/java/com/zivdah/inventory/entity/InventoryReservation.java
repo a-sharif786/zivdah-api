@@ -1,11 +1,10 @@
 package com.zivdah.inventory.entity;
 
-import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Table;
 
-@Entity
-@Table(name = "inventory_reservations",
-        indexes = @Index(name = "idx_reservation_order", columnList = "orderId"))
+@Table("inventory_reservations")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -14,18 +13,9 @@ import lombok.*;
 public class InventoryReservation {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(nullable = false)
     private Long orderId;
-
-    @Column(nullable = false)
     private Long productId;
-
-    @Column(nullable = false)
     private Integer quantity;
-
-    @Column(nullable = false)
     private String status; // RESERVED, CONFIRMED, RELEASED
 }

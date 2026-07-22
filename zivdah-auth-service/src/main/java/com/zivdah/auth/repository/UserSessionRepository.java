@@ -1,11 +1,9 @@
 package com.zivdah.auth.repository;
 
 import com.zivdah.auth.entity.UserSession;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import reactor.core.publisher.Mono;
 
-import java.util.Optional;
-
-public interface UserSessionRepository extends JpaRepository<UserSession, Long> {
-    Optional<UserSession> findByUserId(Long userId);
-
+public interface UserSessionRepository extends ReactiveCrudRepository<UserSession, Long> {
+    Mono<UserSession> findByUserId(Long userId);
 }

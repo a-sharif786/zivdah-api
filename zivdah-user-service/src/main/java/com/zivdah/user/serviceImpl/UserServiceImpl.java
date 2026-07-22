@@ -10,8 +10,10 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.util.List;
+import java.time.LocalDateTime;
 
 @Service
 @Slf4j
@@ -20,146 +22,89 @@ public class UserServiceImpl implements UserService {
 
     private final UserAddressRepository userAddressRepository;
     private final WebClient webClient;
-    private final String AUTH_SERVICE_URL  = "http://localhost:8001/restful/v1/api/auth"; // AuthService base URL
-
-
-
-
-//    @Override
-//    public UserProfileResponseDTO getProfile(Long userId) {
-//        UserProfile profile = userProfileRepository.findByUserId(userId)
-//                .orElseThrow(() -> new RuntimeException("Profile not found"));
-//
-//        return mapProfileToResponse(profile);
-//    }
-//
-//    @Override
-//    public UserProfileResponseDTO updateProfile(Long userId, UpdateProfileDTO dto) {
-//
-//        UserProfile profile = userProfileRepository.findByUserId(userId)
-//                .orElseThrow(() -> new RuntimeException("Profile not found"));
-//
-//        profile.setName(dto.getName());
-//        return mapProfileToResponse(userProfileRepository.save(profile));
-//    }
+    private static final String AUTH_SERVICE_URL = "http://localhost:8001/restful/v1/api/auth";
 
     @Override
-    public void resetPassword(Long userId, ResetPasswordDTO dto) {
-        // Call auth-service via REST if needed
-        System.out.println("Password reset requested for user " + userId);
+    public Mono<UserResponseDTO> getProfileByMobile(String mobile) {
+        return webClient.get()
+                .uri(AUTH_SERVICE_URL + "/byMobile/{mobile}", mobile)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<ApiResponse<UserResponseDTO>>() {})
+                .flatMap(resp -> resp.getData() != null
+                        ? Mono.just(resp.getData())
+                        : Mono.error(new RuntimeException("User not found in Auth Service")));
     }
 
     @Override
-    public AddressResponseDTO addAddress(Long userId, AddressRequestDTO dto) {
-
-        boolean isFirstAddress = userAddressRepository.countByUserId(userId) == 0;
-        if (Boolean.TRUE.equals(dto.getIsDefault()) || isFirstAddress) {
-            userAddressRepository.resetDefaultAddress(userId);
-        }
-        UserAddress address = UserAddress.builder()
-                .userId(userId)
-                .addressLine1(dto.getAddressLine1())
-                .addressLine2(dto.getAddressLine2())
-                .city(dto.getCity())
-                .state(dto.getState())
-                .pinCode(dto.getPinCode())
-                .isDefault(Boolean.TRUE.equals(dto.getIsDefault()))
-                .build();
-
-        UserAddress savedAddress = userAddressRepository.save(address);
-
-        return mapToResponse(savedAddress);
+    public Mono<UserResponseDTO> updateProfile(String mobile, UpdateUserProfileDTO dto) {
+        return webClient.put()
+                .uri(AUTH_SERVICE_URL + "/update-profile/{mobile}", mobile)
+                .bodyValue(dto)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<ApiResponse<UserResponseDTO>>() {})
+                .flatMap(resp -> resp.getData() != null
+                        ? Mono.just(resp.getData())
+                        : Mono.error(new RuntimeException("Failed to update profile")));
     }
 
     @Override
-    public List<AddressResponseDTO> getAddresses(Long userId, Pageable pageable) {
-        return userAddressRepository.findByUserId(userId, pageable)
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
+    public Mono<Void> resetPassword(Long userId, ResetPasswordDTO dto) {
+        log.info("Password reset requested for user {}", userId);
+        return Mono.empty();
     }
 
-    private AddressResponseDTO mapToResponse(UserAddress address) {
+    @Override
+    public Mono<AddressResponseDTO> addAddress(Long userId, AddressRequestDTO dto) {
+        return userAddressRepository.countByUserId(userId)
+                .flatMap(count -> {
+                    boolean isFirst = count == 0;
+                    if (Boolean.TRUE.equals(dto.getIsDefault()) || isFirst) {
+                        return userAddressRepository.resetDefaultAddress(userId).then(Mono.just(true));
+                    }
+                    return Mono.just(false);
+                })
+                .flatMap(__ -> {
+                    UserAddress address = UserAddress.builder()
+                            .userId(userId)
+                            .addressLine1(dto.getAddressLine1())
+                            .addressLine2(dto.getAddressLine2())
+                            .city(dto.getCity())
+                            .state(dto.getState())
+                            .pinCode(dto.getPinCode())
+                            .isDefault(Boolean.TRUE.equals(dto.getIsDefault()))
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                    return userAddressRepository.save(address);
+                })
+                .map(this::mapToResponse);
+    }
+
+    @Override
+    public Flux<AddressResponseDTO> getAddresses(Long userId, Pageable pageable) {
+        return userAddressRepository.findByUserId(userId, pageable).map(this::mapToResponse);
+    }
+
+    @Override
+    public Flux<AuthUserDTO> getAllUsersFromAuth() {
+        return webClient.get()
+                .uri(AUTH_SERVICE_URL + "/all-users")
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<ApiResponse<java.util.List<AuthUserDTO>>>() {})
+                .flatMapMany(resp -> resp.getData() != null
+                        ? Flux.fromIterable(resp.getData())
+                        : Flux.error(new RuntimeException("No users found")));
+    }
+
+    private AddressResponseDTO mapToResponse(UserAddress a) {
         return AddressResponseDTO.builder()
-                .id(address.getId())
-                .userId(address.getUserId())
-                .addressLine1(address.getAddressLine1())
-                .addressLine2(address.getAddressLine2())
-                .city(address.getCity())
-                .state(address.getState())
-                .pinCode(address.getPinCode())
-                .isDefault(address.getIsDefault())
+                .id(a.getId())
+                .userId(a.getUserId())
+                .addressLine1(a.getAddressLine1())
+                .addressLine2(a.getAddressLine2())
+                .city(a.getCity())
+                .state(a.getState())
+                .pinCode(a.getPinCode())
+                .isDefault(a.getIsDefault())
                 .build();
-    }
-
-
-//    private UserProfileResponseDTO mapProfileToResponse(UserProfile profile) {
-//        return UserProfileResponseDTO.builder()
-//                .userId(profile.getUserId())
-//                .name(profile.getName())
-//                .email(profile.getEmail())
-//                .mobile(profile.getMobile())
-//                .build();
-//    }
-
-
-    @Override
-    public List<AuthUserDTO> getAllUsersFromAuth() {
-
-        ApiResponse<List<AuthUserDTO>> response =
-                webClient.get()
-                        .uri(AUTH_SERVICE_URL + "/all-users")
-                        .retrieve()
-                        .bodyToMono(new ParameterizedTypeReference<
-                                                        ApiResponse<List<AuthUserDTO>>>() {})
-                        .block();
-
-        if (response == null || response.getData() == null) {
-            throw new RuntimeException("No users found");
-        }
-
-        return response.getData();
-    }
-
-
-
-
-
-    @Override
-    public UserResponseDTO getProfileByMobile(String mobile) {
-
-        ApiResponse<UserResponseDTO> response =
-                webClient.get()
-                        .uri(AUTH_SERVICE_URL + "/byMobile/{mobile}", mobile)
-                        .retrieve()
-                        .bodyToMono(new ParameterizedTypeReference<
-                                ApiResponse<UserResponseDTO>>() {})
-                        .block();
-
-        if (response == null || response.getData() == null) {
-            throw new RuntimeException("User not found in Auth Service");
-        }
-
-        return response.getData();
-    }
-
-
-    @Override
-    public UserResponseDTO updateProfile(String mobile, UpdateUserProfileDTO dto) {
-
-        ApiResponse<UserResponseDTO> response =
-                webClient.put()
-                        .uri(AUTH_SERVICE_URL + "/update-profile/{mobile}", mobile)
-                        .bodyValue(dto)
-                        .retrieve()
-                        .bodyToMono(new ParameterizedTypeReference<
-                                ApiResponse<UserResponseDTO>>() {})
-                        .block();
-
-        if (response == null || response.getData() == null) {
-            throw new RuntimeException("Failed to update profile");
-        }
-
-        return response.getData();
     }
 }

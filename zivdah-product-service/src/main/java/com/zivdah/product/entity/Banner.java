@@ -1,25 +1,20 @@
 package com.zivdah.product.entity;
 
-
-import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Table;
 
-@Entity
-@Table(name = "banners")
+@Table("banners")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class Banner {
+
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(nullable = false)
-    private String imageUrl;   // e.g. /images/banner1.jpg
-
+    private String imageUrl;
     private String title;
-
     private Boolean active;
 }

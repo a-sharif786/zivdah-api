@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
+// Kafka listeners run on Kafka's blocking thread pool — .block() is safe here
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -23,7 +24,7 @@ public class NotificationEventConsumer {
         dto.setUserId(event.getUserId());
         dto.setTitle("Order Placed Successfully");
         dto.setMessage("Your order #" + event.getOrderId() + " has been placed. Total: " + event.getTotalAmount());
-        notificationService.sendNotification(dto);
+        notificationService.sendNotification(dto).block();
     }
 
     @KafkaListener(topics = "payment-completed", groupId = "notification-group")
@@ -36,6 +37,6 @@ public class NotificationEventConsumer {
         dto.setMessage(paid
                 ? "Payment for order #" + event.getOrderId() + " was successful."
                 : "Payment for order #" + event.getOrderId() + " failed. Please retry.");
-        notificationService.sendNotification(dto);
+        notificationService.sendNotification(dto).block();
     }
 }

@@ -1,10 +1,9 @@
 package com.zivdah.coupon.repository;
 
 import com.zivdah.coupon.entity.Coupon;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import reactor.core.publisher.Mono;
 
-import java.util.Optional;
-
-public interface CouponRepository extends JpaRepository<Coupon, Long> {
-    Optional<Coupon> findByCode(String code);
+public interface CouponRepository extends ReactiveCrudRepository<Coupon, Long> {
+    Mono<Coupon> findByCode(String code);
 }

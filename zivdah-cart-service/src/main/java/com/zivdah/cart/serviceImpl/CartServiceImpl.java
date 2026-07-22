@@ -7,27 +7,27 @@ import com.zivdah.cart.enums.CartItemStatus;
 import com.zivdah.cart.exception.ResourceNotFoundException;
 import com.zivdah.cart.repository.CartRepository;
 import com.zivdah.cart.service.CartService;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.time.LocalDateTime;
 
 @Service
-@Transactional
 @Slf4j
 @RequiredArgsConstructor
 public class CartServiceImpl implements CartService {
 
-    @Autowired
-    private CartRepository cartRepository;
+    private final CartRepository cartRepository;
+
     @Override
-    public CartItemResponseDto addToCart(CartItemRequestDto request) {
-        CartItemEntity cartItem = CartItemEntity.builder()
+    public Mono<CartItemResponseDto> addToCart(CartItemRequestDto request) {
+        CartItemEntity item = CartItemEntity.builder()
                 .userId(request.getUserId())
                 .productId(request.getProductId())
                 .quantity(request.getQuantity())
@@ -36,41 +36,43 @@ public class CartServiceImpl implements CartService {
                 .sku(request.getSku())
                 .status(CartItemStatus.ACTIVE)
                 .deleted(false)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
                 .build();
-
-        CartItemEntity savedItem = cartRepository.save(cartItem);
-        return mapToDto(savedItem);
+        return cartRepository.save(item).map(this::mapToDto);
     }
 
     @Override
-    public List<CartItemResponseDto> getCartByUser(Long userId) {
-        List<CartItemEntity> items = cartRepository.findByUserId(userId);
-        return items.stream().map(this::mapToDto).collect(Collectors.toList());
+    public Flux<CartItemResponseDto> getCartByUser(Long userId) {
+        return cartRepository.findByUserId(userId).map(this::mapToDto);
     }
 
     @Override
-    public CartItemResponseDto updateQuantity(Long cartItemId, Integer quantity) {
-        CartItemEntity item = cartRepository.findById(cartItemId)
-                .orElseThrow(() -> new ResourceNotFoundException("Cart item not found with ID: " + cartItemId));
-        item.setQuantity(quantity);
-        item.setSubtotal(item.getPrice().multiply(BigDecimal.valueOf(quantity)));
-        CartItemEntity updatedItem = cartRepository.save(item);
-        return mapToDto(updatedItem);
+    public Mono<CartItemResponseDto> updateQuantity(Long cartItemId, Integer quantity) {
+        return cartRepository.findById(cartItemId)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Cart item not found: " + cartItemId)))
+                .flatMap(item -> {
+                    item.setQuantity(quantity);
+                    item.setSubtotal(item.getPrice().multiply(BigDecimal.valueOf(quantity)));
+                    item.setUpdatedAt(LocalDateTime.now());
+                    return cartRepository.save(item);
+                })
+                .map(this::mapToDto);
     }
 
     @Override
-    public void removeItem(Long cartItemId) {
-        if (!cartRepository.existsById(cartItemId)) {
-            throw new ResourceNotFoundException("Cart item not found with ID: " + cartItemId);
-        }
-        cartRepository.deleteById(cartItemId);
+    public Mono<Void> removeItem(Long cartItemId) {
+        return cartRepository.existsById(cartItemId)
+                .flatMap(exists -> {
+                    if (!exists) return Mono.<Void>error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Cart item not found: " + cartItemId));
+                    return cartRepository.deleteById(cartItemId);
+                });
     }
 
     @Override
-    public void clearCart(Long userId) {
-        cartRepository.deleteByUserId(userId);
+    public Mono<Void> clearCart(Long userId) {
+        return cartRepository.deleteByUserId(userId);
     }
-
 
     private CartItemResponseDto mapToDto(CartItemEntity item) {
         return CartItemResponseDto.builder()
@@ -81,7 +83,7 @@ public class CartServiceImpl implements CartService {
                 .price(item.getPrice())
                 .subtotal(item.getSubtotal())
                 .sku(item.getSku())
-                .status(item.getStatus().name())
+                .status(item.getStatus() != null ? item.getStatus().name() : null)
                 .createdAt(item.getCreatedAt())
                 .updatedAt(item.getUpdatedAt())
                 .build();

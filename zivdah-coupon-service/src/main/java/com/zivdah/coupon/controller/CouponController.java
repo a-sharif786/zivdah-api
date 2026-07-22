@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 
@@ -25,52 +26,51 @@ public class CouponController {
 
     @PostMapping("/create")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<CouponResponseDto>> createCoupon(@Valid @RequestBody CouponRequestDto dto) {
-        CouponResponseDto response = couponService.createCoupon(dto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(
-                ApiResponse.<CouponResponseDto>builder()
-                        .status("success").statusCode(201)
-                        .message("Coupon created").data(response).build());
+    public Mono<ResponseEntity<ApiResponse<CouponResponseDto>>> createCoupon(
+            @Valid @RequestBody CouponRequestDto dto) {
+        return couponService.createCoupon(dto)
+                .map(r -> ResponseEntity.status(HttpStatus.CREATED)
+                        .body(ApiResponse.<CouponResponseDto>builder()
+                                .status("success").statusCode(201).message("Coupon created").data(r).build()));
     }
 
     @GetMapping("/{code}")
-    public ResponseEntity<ApiResponse<CouponResponseDto>> getCoupon(@PathVariable String code) {
-        return ResponseEntity.ok(ApiResponse.<CouponResponseDto>builder()
-                .status("success").statusCode(200)
-                .data(couponService.getCouponByCode(code)).build());
+    public Mono<ResponseEntity<ApiResponse<CouponResponseDto>>> getCoupon(@PathVariable String code) {
+        return couponService.getCouponByCode(code)
+                .map(r -> ResponseEntity.ok(ApiResponse.<CouponResponseDto>builder()
+                        .status("success").statusCode(200).data(r).build()));
     }
 
     @GetMapping("/all")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<List<CouponResponseDto>>> getAllCoupons() {
-        return ResponseEntity.ok(ApiResponse.<List<CouponResponseDto>>builder()
-                .status("success").statusCode(200)
-                .data(couponService.getAllCoupons()).build());
+    public Mono<ResponseEntity<ApiResponse<List<CouponResponseDto>>>> getAllCoupons() {
+        return couponService.getAllCoupons()
+                .collectList()
+                .map(list -> ResponseEntity.ok(ApiResponse.<List<CouponResponseDto>>builder()
+                        .status("success").statusCode(200).data(list).build()));
     }
 
     @PutMapping("/{couponId}/toggle")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<CouponResponseDto>> toggleActive(@PathVariable Long couponId) {
-        return ResponseEntity.ok(ApiResponse.<CouponResponseDto>builder()
-                .status("success").statusCode(200)
-                .data(couponService.toggleActive(couponId)).build());
+    public Mono<ResponseEntity<ApiResponse<CouponResponseDto>>> toggleActive(@PathVariable Long couponId) {
+        return couponService.toggleActive(couponId)
+                .map(r -> ResponseEntity.ok(ApiResponse.<CouponResponseDto>builder()
+                        .status("success").statusCode(200).data(r).build()));
     }
 
     @DeleteMapping("/{couponId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> deleteCoupon(@PathVariable Long couponId) {
-        couponService.deleteCoupon(couponId);
-        return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .status("success").statusCode(200)
-                .message("Coupon deleted").build());
+    public Mono<ResponseEntity<ApiResponse<Void>>> deleteCoupon(@PathVariable Long couponId) {
+        return couponService.deleteCoupon(couponId)
+                .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
+                        .status("success").statusCode(200).message("Coupon deleted").build()));
     }
 
     @PostMapping("/apply")
-    public ResponseEntity<ApiResponse<ApplyCouponResponseDto>> applyCoupon(
+    public Mono<ResponseEntity<ApiResponse<ApplyCouponResponseDto>>> applyCoupon(
             @Valid @RequestBody ApplyCouponRequestDto dto) {
-        ApplyCouponResponseDto result = couponService.applyCoupon(dto);
-        return ResponseEntity.ok(ApiResponse.<ApplyCouponResponseDto>builder()
-                .status("success").statusCode(200)
-                .message(result.getMessage()).data(result).build());
+        return couponService.applyCoupon(dto)
+                .map(r -> ResponseEntity.ok(ApiResponse.<ApplyCouponResponseDto>builder()
+                        .status("success").statusCode(200).message(r.getMessage()).data(r).build()));
     }
 }

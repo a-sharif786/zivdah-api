@@ -1,16 +1,15 @@
 package com.zivdah.order.entity;
 
-
 import com.zivdah.order.enums.OrderStatus;
-import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Table;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
-@Entity
-@Table(name = "orders")
+// R2DBC: relationships are loaded separately — no @OneToMany
+@Table("orders")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -19,30 +18,14 @@ import java.util.List;
 public class Order {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
     private Long userId;
-
+    private BigDecimal totalAmount;
+    private OrderStatus status;
+    private LocalDateTime createdAt;
     private String deliveryAddressLine1;
     private String deliveryAddressLine2;
     private String deliveryCity;
     private String deliveryState;
     private String deliveryPinCode;
-
-    private BigDecimal totalAmount;
-
-    @Enumerated(EnumType.STRING)
-    private OrderStatus status;
-
-    private LocalDateTime createdAt;
-
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
-    private List<OrderItem> items;
-
-    @PrePersist
-    public void onCreate() {
-        createdAt = LocalDateTime.now();
-        status = OrderStatus.CREATED;
-    }
 }
