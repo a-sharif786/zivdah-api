@@ -5,18 +5,27 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
+
 @Component
 public class JwtTokenProvider {
 
-    private final String SECRET_KEY = "my_super_secret_key_that_is_at_least_32_chars";
+    @Value("${jwt.secret:my_super_secret_key_that_is_at_least_32_chars}")
+    private String secretKey;
     private final long EXPIRATION_MS = 24 * 60 * 60 * 1000; // 1 day
 
-    private final Key key = Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8));
+    private Key key;
+
+    @PostConstruct
+    public void init() {
+        this.key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+    }
 
     // Generate token using mobile number
     public String generateToken(String mobileNumber) {

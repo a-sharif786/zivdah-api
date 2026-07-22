@@ -19,4 +19,9 @@ public class OrderResponseDto {
     private OrderStatus status;
     private LocalDateTime createdAt;
     private List<OrderItemDto> items;
+    private String deliveryAddressLine1;
+    private String deliveryAddressLine2;
+    private String deliveryCity;
+    private String deliveryState;
+    private String deliveryPinCode;
 }

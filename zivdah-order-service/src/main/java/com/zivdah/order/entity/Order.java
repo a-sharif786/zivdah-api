@@ -24,6 +24,12 @@ public class Order {
 
     private Long userId;
 
+    private String deliveryAddressLine1;
+    private String deliveryAddressLine2;
+    private String deliveryCity;
+    private String deliveryState;
+    private String deliveryPinCode;
+
     private BigDecimal totalAmount;
 
     @Enumerated(EnumType.STRING)

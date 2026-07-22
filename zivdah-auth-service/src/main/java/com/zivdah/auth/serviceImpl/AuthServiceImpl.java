@@ -6,7 +6,7 @@ import com.zivdah.auth.entity.UserSession;
 import com.zivdah.auth.enums.Role;
 import com.zivdah.auth.repository.UserRepository;
 import com.zivdah.auth.repository.UserSessionRepository;
-import com.zivdah.auth.security.JwtUtil;
+import com.zivdah.auth.security.JwtTokenProvider;
 import com.zivdah.auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +28,7 @@ public class AuthServiceImpl implements AuthService {
     private final Map<String, String> otpStorage = new HashMap<>();
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;
+    private final JwtTokenProvider jwtTokenProvider;
     private final UserSessionRepository userSessionRepository;
 
     // ❌ @Autowired static is wrong
@@ -98,7 +98,7 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("Invalid OTP");
         }
 
-        return jwtUtil.generateToken(userEntity.getMobile());
+        return jwtTokenProvider.generateToken(userEntity.getMobile());
     }
 
     @Override
@@ -134,7 +134,7 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("Invalid OTP");
         }
 
-        String token = jwtUtil.generateToken(user.getMobile());
+        String token = jwtTokenProvider.generateToken(user.getMobile());
 
         Optional<UserSession> existingSession =
                 userSessionRepository.findByUserId(user.getId());
@@ -264,7 +264,7 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         // Generate JWT token
-        String token = jwtUtil.generateToken(user.getMobile());
+        String token = jwtTokenProvider.generateToken(user.getMobile());
 
         // Save session
         UserSession session = userSessionRepository.findByUserId(user.getId())

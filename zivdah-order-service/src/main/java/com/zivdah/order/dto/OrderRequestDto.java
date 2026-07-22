@@ -12,4 +12,9 @@ import java.util.List;
 public class OrderRequestDto {
     private Long userId;
     private List<OrderItemDto> items;
+    private String deliveryAddressLine1;
+    private String deliveryAddressLine2;
+    private String deliveryCity;
+    private String deliveryState;
+    private String deliveryPinCode;
 }

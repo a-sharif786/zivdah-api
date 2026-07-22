@@ -1,9 +1,11 @@
 package com.zivdah.payment.serviceImpl;
 
+import com.zivdah.common.event.PaymentCompletedEvent;
 import com.zivdah.payment.dto.PaymentRequestDto;
 import com.zivdah.payment.dto.PaymentResponseDto;
 import com.zivdah.payment.entity.Payment;
 import com.zivdah.payment.enums.PaymentStatus;
+import com.zivdah.payment.kafka.PaymentKafkaProducer;
 import com.zivdah.payment.repository.PaymentRepository;
 import com.zivdah.payment.service.PaymentService;
 import jakarta.transaction.Transactional;
@@ -24,6 +26,8 @@ import java.util.UUID;
 public class PaymentServiceImpl implements PaymentService {
     @Autowired
     private PaymentRepository paymentRepository;
+    @Autowired
+    private PaymentKafkaProducer paymentKafkaProducer;
     @Override
     public PaymentResponseDto initiatePayment(PaymentRequestDto dto) {
         Payment payment = Payment.builder()
@@ -57,7 +61,14 @@ public class PaymentServiceImpl implements PaymentService {
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new RuntimeException("Payment not found"));
         payment.setStatus(PaymentStatus.SUCCESS);
-        return mapToResponse(paymentRepository.save(payment));
+        Payment saved = paymentRepository.save(payment);
+        paymentKafkaProducer.publishPaymentCompleted(
+                PaymentCompletedEvent.builder()
+                        .orderId(saved.getOrderId())
+                        .userId(saved.getUserId())
+                        .status("PAID")
+                        .build());
+        return mapToResponse(saved);
     }
 
     @Override
@@ -65,7 +76,14 @@ public class PaymentServiceImpl implements PaymentService {
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new RuntimeException("Payment not found"));
         payment.setStatus(PaymentStatus.FAILED);
-        return mapToResponse(paymentRepository.save(payment));
+        Payment saved = paymentRepository.save(payment);
+        paymentKafkaProducer.publishPaymentCompleted(
+                PaymentCompletedEvent.builder()
+                        .orderId(saved.getOrderId())
+                        .userId(saved.getUserId())
+                        .status("FAILED")
+                        .build());
+        return mapToResponse(saved);
     }
 
 

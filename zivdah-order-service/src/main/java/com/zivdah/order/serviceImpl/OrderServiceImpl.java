@@ -49,6 +49,11 @@ public class OrderServiceImpl implements OrderService {
                 .userId(dto.getUserId())
                 .totalAmount(total)
                 .status(OrderStatus.CREATED)
+                .deliveryAddressLine1(dto.getDeliveryAddressLine1())
+                .deliveryAddressLine2(dto.getDeliveryAddressLine2())
+                .deliveryCity(dto.getDeliveryCity())
+                .deliveryState(dto.getDeliveryState())
+                .deliveryPinCode(dto.getDeliveryPinCode())
                 .build();
 
         items.forEach(item -> item.setOrder(order));
@@ -56,11 +61,20 @@ public class OrderServiceImpl implements OrderService {
 
         Order saved = orderRepository.save(order);
 
+        List<com.zivdah.common.dto.OrderItemDto> eventItems = saved.getItems().stream()
+                .map(i -> com.zivdah.common.dto.OrderItemDto.builder()
+                        .productId(i.getProductId())
+                        .quantity(i.getQuantity())
+                        .price(i.getPrice())
+                        .build())
+                .collect(Collectors.toList());
+
         orderKafkaProducer.publishOrderCreated(
                 OrderCreatedEvent.builder()
                         .orderId(saved.getId())
                         .userId(saved.getUserId())
                         .totalAmount(saved.getTotalAmount())
+                        .items(eventItems)
                         .build()
         );
         log.info("OrderCreatedEvent published for orderId={}", saved.getId());
@@ -97,6 +111,11 @@ public class OrderServiceImpl implements OrderService {
                 .totalAmount(order.getTotalAmount())
                 .status(order.getStatus())
                 .createdAt(order.getCreatedAt())
+                .deliveryAddressLine1(order.getDeliveryAddressLine1())
+                .deliveryAddressLine2(order.getDeliveryAddressLine2())
+                .deliveryCity(order.getDeliveryCity())
+                .deliveryState(order.getDeliveryState())
+                .deliveryPinCode(order.getDeliveryPinCode())
                 .items(order.getItems().stream().map(i ->
                         OrderItemDto.builder()
                                 .productId(i.getProductId())
