@@ -4,6 +4,8 @@ import com.zivdah.product.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
@@ -12,6 +14,7 @@ import org.springframework.security.web.server.context.NoOpServerSecurityContext
 
 @Configuration
 @EnableWebFluxSecurity
+@EnableReactiveMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -24,7 +27,21 @@ public class SecurityConfig {
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
-                .authorizeExchange(auth -> auth.anyExchange().authenticated())
+                .authorizeExchange(auth -> auth
+                        .pathMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/webjars/**").permitAll()
+                        // wishlist is per-user data - must stay authenticated even though it's
+                        // a single path segment like the public product-browsing endpoints below
+                        .pathMatchers(HttpMethod.GET, "/restful/v1/api/products/wishlist").authenticated()
+                        .pathMatchers(HttpMethod.GET,
+                                "/restful/v1/api/products/getAll",
+                                "/restful/v1/api/products/categories",
+                                "/restful/v1/api/products/search",
+                                "/restful/v1/api/products/category/**",
+                                "/restful/v1/api/products/*",
+                                "/restful/v1/api/banner/getAll"
+                        ).permitAll()
+                        .anyExchange().authenticated()
+                )
                 .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .build();
     }

@@ -6,4 +6,5 @@ import reactor.core.publisher.Mono;
 
 public interface UserSessionRepository extends ReactiveCrudRepository<UserSession, Long> {
     Mono<UserSession> findByUserId(Long userId);
+    Mono<Void> deleteByUserId(Long userId);
 }

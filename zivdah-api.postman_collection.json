@@ -38,7 +38,7 @@
 						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Sunder Sharma\",\n  \"email\": \"sunder@zivdah.com\",\n  \"password\": \"12345678\",\n  \"mobile\": \"9876543210\"\n}",
+							"raw": "{\n  \"name\": \"Sunder Sharma\",\n  \"email\": \"sunder@zivdah.com\",\n  \"password\": \"12345678\",\n  \"mobile\": \"9876543210\",\n  \"role\": \"USER\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/register", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","register"] }
@@ -46,7 +46,37 @@
 					"response": []
 				},
 				{
-					"name": "login",
+					"name": "register-vendor",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Zivdah Farms\",\n  \"email\": \"vendor@zivdah.com\",\n  \"password\": \"12345678\",\n  \"mobile\": \"9876543211\",\n  \"role\": \"VENDOR\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/register", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","register"] }
+					},
+					"response": []
+				},
+				{
+					"name": "send-otp",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"mobile\": \"9876543210\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/send-otp", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","send-otp"] }
+					},
+					"response": []
+				},
+				{
+					"name": "login (mobile + password)",
 					"request": {
 						"auth": { "type": "noauth" },
 						"method": "POST",
@@ -61,17 +91,17 @@
 					"response": []
 				},
 				{
-					"name": "send-otp",
+					"name": "login (email + password)",
 					"request": {
 						"auth": { "type": "noauth" },
 						"method": "POST",
 						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"mobile\": \"9876543210\",\n  \"countryCode\": \"+91\"\n}",
+							"raw": "{\n  \"email\": \"sunder@zivdah.com\",\n  \"password\": \"12345678\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
-						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/send-otp", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","send-otp"] }
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/login", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","login"] }
 					},
 					"response": []
 				},
@@ -98,7 +128,7 @@
 						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"sunder@zivdah.com\",\n  \"otp\": \"123456\"\n}",
+							"raw": "{\n  \"mobile\": \"9876543210\",\n  \"email\": \"sunder@zivdah.com\",\n  \"mobileOtp\": \"123456\",\n  \"emailOtp\": \"123456\",\n  \"deviceToken\": \"fcm-device-token-here\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/verify-registration-otp", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","verify-registration-otp"] }
@@ -106,7 +136,7 @@
 					"response": []
 				},
 				{
-					"name": "forgot-password",
+					"name": "forget-password",
 					"request": {
 						"auth": { "type": "noauth" },
 						"method": "POST",
@@ -116,7 +146,7 @@
 							"raw": "{\n  \"email\": \"sunder@zivdah.com\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
-						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/forgot-password", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","forgot-password"] }
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/forget-password", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","forget-password"] }
 					},
 					"response": []
 				},
@@ -136,16 +166,16 @@
 					"response": []
 				},
 				{
-					"name": "get-user-by-mobile",
+					"name": "get-user-by-userId (owner or ADMIN)",
 					"request": {
 						"method": "GET",
 						"header": [],
-						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/byMobile/9876543210", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","byMobile","9876543210"] }
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/byUserId/1", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","byUserId","1"] }
 					},
 					"response": []
 				},
 				{
-					"name": "all-users",
+					"name": "all-users (ADMIN)",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -154,16 +184,57 @@
 					"response": []
 				},
 				{
-					"name": "update-profile",
+					"name": "update-profile (owner or ADMIN)",
 					"request": {
 						"method": "PUT",
 						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Sunder Kumar\",\n  \"email\": \"sunder.new@zivdah.com\"\n}",
+							"raw": "{\n  \"name\": \"Sunder Kumar\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
-						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/update-profile/9876543210", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","update-profile","9876543210"] }
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/update-profile/1", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","update-profile","1"] }
+					},
+					"response": []
+				},
+				{
+					"name": "update-role (ADMIN)",
+					"request": {
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"role\": \"VENDOR\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/update-role/1", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","update-role","1"] }
+					},
+					"response": []
+				},
+				{
+					"name": "logout",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/logout", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","logout"] }
+					},
+					"response": []
+				},
+				{
+					"name": "deactivate-account (owner or ADMIN)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/deactivate/1", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","deactivate","1"] }
+					},
+					"response": []
+				},
+				{
+					"name": "activate-account (ADMIN)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/auth/activate/1", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","auth","activate","1"] }
 					},
 					"response": []
 				}
@@ -173,22 +244,25 @@
 			"name": "product",
 			"item": [
 				{
-					"name": "create",
+					"name": "create (ADMIN/VENDOR)",
 					"request": {
 						"method": "POST",
-						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"header": [],
 						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"name\": \"Organic Apple\",\n  \"category\": \"FRUIT\",\n  \"price\": 120.50,\n  \"discountPrice\": 99.99,\n  \"unit\": \"kg\",\n  \"stockQuantity\": 50,\n  \"expiryDate\": \"2026-12-31\",\n  \"description\": \"Fresh organic apples from Himachal\",\n  \"imageUrl\": \"https://example.com/apple.jpg\",\n  \"organic\": true,\n  \"fav\": false,\n  \"brand\": \"Zivdah Farms\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "data", "type": "text", "contentType": "application/json", "value": "{\n  \"name\": \"Organic Apple\",\n  \"category\": \"FRUIT\",\n  \"price\": 120.50,\n  \"discountPrice\": 99.99,\n  \"unit\": \"kg\",\n  \"stockQuantity\": 50,\n  \"expiryDate\": \"2026-12-31\",\n  \"description\": \"Fresh organic apples from Himachal\",\n  \"organic\": true,\n  \"brand\": \"Zivdah Farms\"\n}" },
+								{ "key": "image", "type": "file", "src": [] }
+							]
 						},
 						"url": { "raw": "{{baseUrl}}/restful/v1/api/products/create", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","products","create"] }
 					},
 					"response": []
 				},
 				{
-					"name": "getAll",
+					"name": "getAll (public)",
 					"request": {
+						"auth": { "type": "noauth" },
 						"method": "GET",
 						"header": [],
 						"url": {
@@ -200,8 +274,37 @@
 					"response": []
 				},
 				{
-					"name": "getById",
+					"name": "search (public)",
 					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/restful/v1/api/products/search?keyword=apple&page=0&size=10",
+							"host": ["{{baseUrl}}"], "path": ["restful","v1","api","products","search"],
+							"query": [{ "key": "keyword", "value": "apple" }, { "key": "page", "value": "0" }, { "key": "size", "value": "10" }]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getByCategory (public)",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/restful/v1/api/products/category/FRUIT?page=0&size=10",
+							"host": ["{{baseUrl}}"], "path": ["restful","v1","api","products","category","FRUIT"],
+							"query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "10" }]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getById (public)",
+					"request": {
+						"auth": { "type": "noauth" },
 						"method": "GET",
 						"header": [],
 						"url": { "raw": "{{baseUrl}}/restful/v1/api/products/1", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","products","1"] }
@@ -209,21 +312,23 @@
 					"response": []
 				},
 				{
-					"name": "update",
+					"name": "update (ADMIN/VENDOR)",
 					"request": {
 						"method": "PUT",
-						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"header": [],
 						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"price\": 110.00,\n  \"discountPrice\": 89.99,\n  \"stockQuantity\": 40\n}",
-							"options": { "raw": { "language": "json" } }
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "data", "type": "text", "contentType": "application/json", "value": "{\n  \"name\": \"Organic Apple\",\n  \"category\": \"FRUIT\",\n  \"price\": 110.00,\n  \"discountPrice\": 89.99,\n  \"unit\": \"kg\",\n  \"stockQuantity\": 40\n}" },
+								{ "key": "image", "type": "file", "src": [] }
+							]
 						},
 						"url": { "raw": "{{baseUrl}}/restful/v1/api/products/1", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","products","1"] }
 					},
 					"response": []
 				},
 				{
-					"name": "delete",
+					"name": "delete (ADMIN/VENDOR)",
 					"request": {
 						"method": "DELETE",
 						"header": [],
@@ -232,8 +337,9 @@
 					"response": []
 				},
 				{
-					"name": "getAllCategories",
+					"name": "getAllCategories (public)",
 					"request": {
+						"auth": { "type": "noauth" },
 						"method": "GET",
 						"header": [],
 						"url": { "raw": "{{baseUrl}}/restful/v1/api/products/categories", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","products","categories"] }
@@ -268,11 +374,71 @@
 					"response": []
 				},
 				{
-					"name": "getAllBanners",
+					"name": "getAllBanners (public)",
 					"request": {
+						"auth": { "type": "noauth" },
 						"method": "GET",
 						"header": [],
 						"url": { "raw": "{{baseUrl}}/restful/v1/api/banner/getAll", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","banner","getAll"] }
+					},
+					"response": []
+				},
+				{
+					"name": "getAllBanners (ADMIN)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/banner/all", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","banner","all"] }
+					},
+					"response": []
+				},
+				{
+					"name": "createBanner (ADMIN)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "data", "type": "text", "contentType": "application/json", "value": "{\n  \"title\": \"Realistic Tomato\",\n  \"active\": true\n}" },
+								{ "key": "image", "type": "file", "src": [] }
+							]
+						},
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/banner/create", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","banner","create"] }
+					},
+					"response": []
+				},
+				{
+					"name": "updateBanner (ADMIN)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "data", "type": "text", "contentType": "application/json", "value": "{\n  \"title\": \"Realistic Tomato - Sale\",\n  \"active\": true\n}" },
+								{ "key": "image", "type": "file", "src": [] }
+							]
+						},
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/banner/1", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","banner","1"] }
+					},
+					"response": []
+				},
+				{
+					"name": "toggleBannerActive (ADMIN)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/banner/1/toggle", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","banner","1","toggle"] }
+					},
+					"response": []
+				},
+				{
+					"name": "deleteBanner (ADMIN)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": { "raw": "{{baseUrl}}/restful/v1/api/banner/1", "host": ["{{baseUrl}}"], "path": ["restful","v1","api","banner","1"] }
 					},
 					"response": []
 				}

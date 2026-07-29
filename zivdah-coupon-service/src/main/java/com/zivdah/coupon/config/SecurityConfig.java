@@ -27,6 +27,7 @@ public class SecurityConfig {
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
                 .authorizeExchange(auth -> auth
+                        .pathMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/webjars/**").permitAll()
                         .pathMatchers("/restful/v1/api/coupons/apply").permitAll()
                         .pathMatchers("/restful/v1/api/coupons/{code}").permitAll()
                         .anyExchange().authenticated()

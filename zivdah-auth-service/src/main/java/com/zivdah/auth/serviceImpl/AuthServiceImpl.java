@@ -40,6 +40,10 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public Mono<Void> register(RegisterRequestDTO request) {
+        if (request.getRole() == Role.ADMIN) {
+            return Mono.error(new RuntimeException("Cannot self-register as ADMIN"));
+        }
+        Role role = request.getRole() == null ? Role.USER : request.getRole();
         return Mono.zip(
                         userRepository.existsByEmail(request.getEmail()),
                         userRepository.existsByMobile(request.getMobile())
@@ -59,7 +63,7 @@ public class AuthServiceImpl implements AuthService {
                             .name(request.getName())
                             .email(request.getEmail())
                             .mobile(request.getMobile())
-                            .role(Role.USER)
+                            .role(role)
                             .password(encodedPassword)
                             .active(false)
                             .mobileOtp(STATIC_OTP)
@@ -73,16 +77,42 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public Mono<String> loginWithMobile(LoginRequestDTO request) {
-        return userRepository.findByMobile(request.getMobile())
+    public Mono<LoginResponseDTO> login(LoginRequestDTO request) {
+        boolean hasMobile = request.getMobile() != null && !request.getMobile().isBlank();
+        boolean hasEmail = request.getEmail() != null && !request.getEmail().isBlank();
+        if (!hasMobile && !hasEmail) {
+            return Mono.error(new RuntimeException("Mobile or email is required"));
+        }
+
+        Mono<UserEntity> userMono = hasMobile
+                ? userRepository.findByMobile(request.getMobile())
+                : userRepository.findByEmail(request.getEmail());
+
+        return userMono
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found")))
-                .map(user -> jwtTokenProvider.generateToken(user.getMobile()));
+                .flatMap(user -> {
+                    if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+                        return Mono.error(new RuntimeException("Invalid credentials"));
+                    }
+                    if (!user.isActive()) {
+                        return Mono.error(new RuntimeException("Account is deactivated"));
+                    }
+                    String token = jwtTokenProvider.generateToken(user.getId(), user.getMobile(), user.getRole().name());
+                    return Mono.just(new LoginResponseDTO(user.getId(), user.getMobile(), user.getName(),
+                            user.getEmail(), user.getRole(), token));
+                });
     }
 
     @Override
     public Mono<UserEntity> getUserByMobile(String mobile) {
         return userRepository.findByMobile(mobile)
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found with mobile: " + mobile)));
+    }
+
+    @Override
+    public Mono<UserEntity> getUserById(Long userId) {
+        return userRepository.findById(userId)
+                .switchIfEmpty(Mono.error(new RuntimeException("User not found with id: " + userId)));
     }
 
     @Override
@@ -99,14 +129,17 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public Mono<String> verifyOtp(VerifyOtpDTO request) {
+    public Mono<String> verifyOtp(VerifyLoginOtpDTO request) {
         return userRepository.findByMobile(request.getMobile())
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found")))
                 .flatMap(user -> {
-                    if (!STATIC_OTP.equals(request.getMobileOtp())) {
+                    if (!STATIC_OTP.equals(request.getOtp())) {
                         return Mono.error(new RuntimeException("Invalid OTP"));
                     }
-                    String token = jwtTokenProvider.generateToken(user.getMobile());
+                    if (!user.isActive()) {
+                        return Mono.error(new RuntimeException("Account is deactivated"));
+                    }
+                    String token = jwtTokenProvider.generateToken(user.getId(), user.getMobile(), user.getRole().name());
                     return userSessionRepository.findByUserId(user.getId())
                             .defaultIfEmpty(UserSession.builder().userId(user.getId()).build())
                             .flatMap(session -> {
@@ -132,8 +165,8 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public Mono<UserResponseDTO> updateProfile(String mobile, UpdateUserProfileDTO dto) {
-        return userRepository.findByMobile(mobile)
+    public Mono<UserResponseDTO> updateProfile(Long userId, UpdateUserProfileDTO dto) {
+        return userRepository.findById(userId)
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found")))
                 .flatMap(user -> {
                     user.setName(dto.getName());
@@ -172,7 +205,8 @@ public class AuthServiceImpl implements AuthService {
         return userRepository.findByEmail(request.getEmail())
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found with email: " + request.getEmail())))
                 .flatMap(user -> {
-                    if (!"123456".equals(request.getOtp())) {
+                    String storedOtp = otpStorage.get(request.getEmail());
+                    if (storedOtp == null || !storedOtp.equals(request.getOtp())) {
                         return Mono.just(ResetPasswordResponseDTO.builder()
                                 .status("failure").message("Invalid OTP").build());
                     }
@@ -182,6 +216,7 @@ public class AuthServiceImpl implements AuthService {
                                 user.setPassword(encoded);
                                 return userRepository.save(user);
                             })
+                            .doOnSuccess(u -> otpStorage.remove(request.getEmail()))
                             .thenReturn(ResetPasswordResponseDTO.builder()
                                     .status("success").message("Password reset successfully").build());
                 });
@@ -202,7 +237,7 @@ public class AuthServiceImpl implements AuthService {
                     user.setActive(true);
                     user.setMobileOtp(null);
                     user.setEmailOtp(null);
-                    String token = jwtTokenProvider.generateToken(user.getMobile());
+                    String token = jwtTokenProvider.generateToken(user.getId(), user.getMobile(), user.getRole().name());
 
                     return userRepository.save(user)
                             .flatMap(saved ->
@@ -217,6 +252,50 @@ public class AuthServiceImpl implements AuthService {
                             )
                             .thenReturn(token);
                 });
+    }
+
+    @Override
+    public Mono<Void> logout(Long userId) {
+        return userSessionRepository.deleteByUserId(userId);
+    }
+
+    @Override
+    public Mono<UserResponseDTO> updateRole(Long userId, Role role) {
+        return userRepository.findById(userId)
+                .switchIfEmpty(Mono.error(new RuntimeException("User not found")))
+                .flatMap(user -> {
+                    user.setRole(role);
+                    return userRepository.save(user);
+                })
+                .map(user -> UserResponseDTO.builder()
+                        .userId(user.getId())
+                        .name(user.getName())
+                        .email(user.getEmail())
+                        .mobile(user.getMobile())
+                        .role(user.getRole().name())
+                        .build());
+    }
+
+    @Override
+    public Mono<Void> deactivateAccount(Long userId) {
+        return userRepository.findById(userId)
+                .switchIfEmpty(Mono.error(new RuntimeException("User not found")))
+                .flatMap(user -> {
+                    user.setActive(false);
+                    return userRepository.save(user);
+                })
+                .then(userSessionRepository.deleteByUserId(userId));
+    }
+
+    @Override
+    public Mono<Void> activateAccount(Long userId) {
+        return userRepository.findById(userId)
+                .switchIfEmpty(Mono.error(new RuntimeException("User not found")))
+                .flatMap(user -> {
+                    user.setActive(true);
+                    return userRepository.save(user);
+                })
+                .then();
     }
 
     private String generateOtp() {

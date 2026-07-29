@@ -4,21 +4,19 @@ import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
-@Table("banners")
+import java.time.LocalDateTime;
+
+@Table("wishlists")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Banner {
+public class WishlistEntity {
 
     @Id
     private Long id;
-    private String imageUrl;
-    private String imagePublicId;
-    private String imageResourceType;
-    private String imageFormat;
-    private Long imageSizeBytes;
-    private String title;
-    private Boolean active;
+    private Long userId;
+    private Long productId;
+    private LocalDateTime createdAt;
 }

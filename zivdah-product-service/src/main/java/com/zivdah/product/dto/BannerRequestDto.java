@@ -7,9 +7,9 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class BannerResponseDto {
-    private Long id;
-    private String imageUrl;
+public class BannerRequestDto {
+
     private String title;
+
     private Boolean active;
 }

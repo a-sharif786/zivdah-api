@@ -6,6 +6,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
@@ -19,6 +23,23 @@ public class AuthController {
 
     private final AuthService authService;
 
+    private Mono<Authentication> currentAuth() {
+        return ReactiveSecurityContextHolder.getContext().map(ctx -> ctx.getAuthentication());
+    }
+
+    private boolean isAdmin(Authentication auth) {
+        return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    private Mono<Void> requireOwnerOrAdmin(Long userId) {
+        return currentAuth().flatMap(auth -> {
+            if (auth.getName().equals(String.valueOf(userId)) || isAdmin(auth)) {
+                return Mono.empty();
+            }
+            return Mono.error(new AccessDeniedException("Not authorized to access this profile"));
+        });
+    }
+
     @PostMapping("/register")
     public Mono<ResponseEntity<ApiResponse<Object>>> register(@Valid @RequestBody RegisterRequestDTO request) {
         return authService.register(request)
@@ -29,17 +50,11 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public Mono<ResponseEntity<ApiResponse<Object>>> loginUser(@RequestBody LoginRequestDTO request) {
-        return authService.loginWithMobile(request)
-                .flatMap(token -> authService.getUserByMobile(request.getMobile())
-                        .map(user -> {
-                            LoginResponseDTO loginResp = new LoginResponseDTO(
-                                    user.getId(), user.getMobile(), user.getName(),
-                                    user.getEmail(), user.getRole(), token);
-                            return ResponseEntity.ok(ApiResponse.<Object>builder()
-                                    .status("success").message("Login successful")
-                                    .statusCode(200).data(loginResp).build());
-                        }));
+    public Mono<ResponseEntity<ApiResponse<Object>>> loginUser(@Valid @RequestBody LoginRequestDTO request) {
+        return authService.login(request)
+                .map(loginResp -> ResponseEntity.ok(ApiResponse.<Object>builder()
+                        .status("success").message("Login successful")
+                        .statusCode(200).data(loginResp).build()));
     }
 
     @PostMapping("/send-otp")
@@ -50,7 +65,7 @@ public class AuthController {
     }
 
     @PostMapping("/verify-otp")
-    public Mono<ResponseEntity<ApiResponse<Object>>> verifyOtp(@RequestBody VerifyOtpDTO request) {
+    public Mono<ResponseEntity<ApiResponse<Object>>> verifyOtp(@Valid @RequestBody VerifyLoginOtpDTO request) {
         return authService.verifyOtp(request)
                 .flatMap(token -> authService.getUserByMobile(request.getMobile())
                         .map(user -> {
@@ -63,9 +78,10 @@ public class AuthController {
                         }));
     }
 
-    @GetMapping("/byMobile/{mobile}")
-    public Mono<ResponseEntity<ApiResponse<LoginResponseDTO>>> getUserByMobile(@PathVariable String mobile) {
-        return authService.getUserByMobile(mobile)
+    @GetMapping("/byUserId/{userId}")
+    public Mono<ResponseEntity<ApiResponse<LoginResponseDTO>>> getUserById(@PathVariable Long userId) {
+        return requireOwnerOrAdmin(userId)
+                .then(authService.getUserById(userId))
                 .map(user -> {
                     LoginResponseDTO resp = new LoginResponseDTO(user.getId(), user.getMobile(),
                             user.getName(), user.getEmail(), user.getRole(), null);
@@ -75,16 +91,18 @@ public class AuthController {
     }
 
     @GetMapping("/all-users")
+    @PreAuthorize("hasRole('ADMIN')")
     public Mono<ResponseEntity<ApiResponse<List<AuthUserResponseDTO>>>> getAllUsers() {
         return authService.getAllUsers().collectList()
                 .map(users -> ResponseEntity.ok(ApiResponse.<List<AuthUserResponseDTO>>builder()
                         .status("success").statusCode(200).message("Users fetched successfully").data(users).build()));
     }
 
-    @PutMapping("/update-profile/{mobile}")
+    @PutMapping("/update-profile/{userId}")
     public Mono<ResponseEntity<ApiResponse<UserResponseDTO>>> updateProfile(
-            @PathVariable String mobile, @Valid @RequestBody UpdateUserProfileDTO dto) {
-        return authService.updateProfile(mobile, dto)
+            @PathVariable Long userId, @Valid @RequestBody UpdateUserProfileDTO dto) {
+        return requireOwnerOrAdmin(userId)
+                .then(authService.updateProfile(userId, dto))
                 .map(r -> ResponseEntity.ok(ApiResponse.<UserResponseDTO>builder()
                         .status("success").statusCode(200).message("Profile updated successfully").data(r).build()));
     }
@@ -125,5 +143,38 @@ public class AuthController {
                                     .status("success").message("User verified and logged in")
                                     .statusCode(200).data(loginResp).build());
                         }));
+    }
+
+    @PostMapping("/logout")
+    public Mono<ResponseEntity<ApiResponse<Object>>> logout() {
+        return currentAuth()
+                .flatMap(auth -> authService.logout(Long.valueOf(auth.getName())))
+                .thenReturn(ResponseEntity.ok(ApiResponse.<Object>builder()
+                        .status("success").message("Logged out successfully").statusCode(200).data(null).build()));
+    }
+
+    @PutMapping("/update-role/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<UserResponseDTO>>> updateRole(
+            @PathVariable Long userId, @Valid @RequestBody UpdateRoleDTO dto) {
+        return authService.updateRole(userId, dto.getRole())
+                .map(r -> ResponseEntity.ok(ApiResponse.<UserResponseDTO>builder()
+                        .status("success").statusCode(200).message("Role updated successfully").data(r).build()));
+    }
+
+    @PutMapping("/deactivate/{userId}")
+    public Mono<ResponseEntity<ApiResponse<Object>>> deactivateAccount(@PathVariable Long userId) {
+        return requireOwnerOrAdmin(userId)
+                .then(authService.deactivateAccount(userId))
+                .thenReturn(ResponseEntity.ok(ApiResponse.<Object>builder()
+                        .status("success").statusCode(200).message("Account deactivated successfully").data(null).build()));
+    }
+
+    @PutMapping("/activate/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<Object>>> activateAccount(@PathVariable Long userId) {
+        return authService.activateAccount(userId)
+                .thenReturn(ResponseEntity.ok(ApiResponse.<Object>builder()
+                        .status("success").statusCode(200).message("Account activated successfully").data(null).build()));
     }
 }

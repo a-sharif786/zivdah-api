@@ -28,10 +28,13 @@ public class ProductEntity {
     private LocalDate expiryDate;
     private String description;
     private String imageUrl;
+    private String imagePublicId;
+    private String imageResourceType;
+    private String imageFormat;
+    private Long imageSizeBytes;
     private Boolean organic;
     private String brand;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private Boolean fav;
     private Boolean inStock;
 }

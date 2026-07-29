@@ -28,13 +28,18 @@ public class SecurityConfig {
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
                 .authorizeExchange(auth -> auth
                         .pathMatchers(
+                                "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/webjars/**",
                                 "/restful/v1/api/auth/register",
                                 "/restful/v1/api/auth/login",
                                 "/restful/v1/api/auth/send-otp",
                                 "/restful/v1/api/auth/verify-otp",
                                 "/restful/v1/api/auth/forget-password",
                                 "/restful/v1/api/auth/verify-registration-otp",
-                                "/restful/v1/api/auth/reset-password"
+                                "/restful/v1/api/auth/reset-password",
+                                "/restful/v1/api/auth/deactivate/*",
+                                "/restful/v1/api/auth/activate/*",
+                                "/restful/v1/api/auth/activate/*",
+                                "/restful/v1/api/auth/all-users"
                         ).permitAll()
                         .anyExchange().authenticated()
                 )
