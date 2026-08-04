@@ -34,6 +34,7 @@ public class ProductEntity {
     private Long imageSizeBytes;
     private Boolean organic;
     private String brand;
+    private Boolean fav;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Boolean inStock;

@@ -30,3 +30,7 @@ eureka:
 logging:
   level:
     org.springframework.security: DEBUG
+
+
+jwt:
+  secret: my_super_secret_key_that_is_at_least_32_characters_long_123456

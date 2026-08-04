@@ -6,8 +6,13 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
@@ -22,58 +27,130 @@ public class UserController {
 
     private final UserService userService;
 
+
     @GetMapping("/getProfile")
-    public Mono<ResponseEntity<ApiResponse<UserResponseDTO>>> getProfile(Authentication authentication) {
-        String mobile = authentication.getName();
-        return userService.getProfileByMobile(mobile)
-                .map(r -> ResponseEntity.ok(ApiResponse.<UserResponseDTO>builder()
-                        .status("success").statusCode(200).message("User fetched successfully").data(r).build()));
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<UserResponseDTO>>> getProfile(ServerHttpRequest request) {
+
+        String token = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
+                .doOnNext(auth -> {
+                    log.info("Authentication: {}", auth);
+                    log.info("Name: {}", auth.getName());
+                })
+                .flatMap(auth ->
+                        userService.getProfileByUserId(Long.valueOf(auth.getName()), token)
+                )
+                .map(r -> ResponseEntity.ok(
+                        ApiResponse.<UserResponseDTO>builder()
+                                .status("success")
+                                .statusCode(200)
+                                .message("User fetched successfully")
+                                .data(r)
+                                .build()
+                ));
+
+
     }
+
 
     @PutMapping("/updateProfile")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public Mono<ResponseEntity<ApiResponse<UserResponseDTO>>> updateProfile(
-            Authentication authentication, @Valid @RequestBody UpdateUserProfileDTO dto) {
+            Authentication authentication,
+            ServerHttpRequest request,
+            @Valid @RequestBody UpdateUserProfileDTO dto) {
+
         String mobile = authentication.getName();
-        return userService.updateProfile(mobile, dto)
+        String token = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        return userService.updateProfile(mobile, dto, token)
                 .map(r -> ResponseEntity.ok(ApiResponse.<UserResponseDTO>builder()
-                        .status("success").statusCode(200).message("Profile updated successfully").data(r).build()));
+                        .status("success")
+                        .statusCode(200)
+                        .message("Profile updated successfully")
+                        .data(r)
+                        .build()));
     }
+
 
     @PostMapping("/address")
+    @PreAuthorize("hasRole('USER')")
     public Mono<ResponseEntity<ApiResponse<AddressResponseDTO>>> addAddress(
-            Authentication authentication, @Valid @RequestBody AddressRequestDTO dto) {
+            Authentication authentication,
+            ServerHttpRequest request,
+            @Valid @RequestBody AddressRequestDTO dto) {
+
         Long userId = Long.parseLong(authentication.getName());
-        return userService.addAddress(userId, dto)
+        String token = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        return userService.addAddress(userId, dto, token)
                 .map(r -> ResponseEntity.ok(ApiResponse.<AddressResponseDTO>builder()
-                        .status("success").statusCode(201).message("Address added successfully").data(r).build()));
+                        .status("success")
+                        .statusCode(201)
+                        .message("Address added successfully")
+                        .data(r)
+                        .build()));
     }
+
 
     @GetMapping("/address")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public Mono<ResponseEntity<ApiResponse<List<AddressResponseDTO>>>> getAddresses(
             Authentication authentication,
+            ServerHttpRequest request,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
+
         Long userId = Long.parseLong(authentication.getName());
-        return userService.getAddresses(userId, PageRequest.of(page, size))
+
+
+
+        String token = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+
+        return userService.getAddresses(userId, PageRequest.of(page, size), token)
                 .collectList()
                 .map(list -> ResponseEntity.ok(ApiResponse.<List<AddressResponseDTO>>builder()
-                        .status("success").statusCode(200).message("Addresses retrieved successfully").data(list).build()));
+                        .status("success")
+                        .statusCode(200)
+                        .message("Addresses retrieved successfully")
+                        .data(list)
+                        .build()));
     }
 
-    @PostMapping("/reset-password")
-    public Mono<ResponseEntity<ApiResponse<Void>>> resetPassword(
-            Authentication authentication, @Valid @RequestBody ResetPasswordDTO dto) {
-        Long userId = Long.parseLong(authentication.getName());
-        return userService.resetPassword(userId, dto)
-                .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
-                        .status("success").statusCode(200).message("Password reset successfully").data(null).build()));
-    }
+    /**
+     * ADMIN ONLY
+     * Get addresses by userId
+     */
+    @GetMapping("/address/user/{userId}")
+    @PreAuthorize("hasRole('USER','ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<List<AddressResponseDTO>>>> getAddressByUserId(
+            @PathVariable Long userId,
+            ServerHttpRequest request,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
 
-    @GetMapping("/all-users")
-    public Mono<ResponseEntity<ApiResponse<List<AuthUserDTO>>>> getAllUsers() {
-        return userService.getAllUsersFromAuth()
+        String token = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        return userService.getAddressesByUserId(
+                        userId,
+                        PageRequest.of(page, size), token
+                )
+
                 .collectList()
-                .map(list -> ResponseEntity.ok(ApiResponse.<List<AuthUserDTO>>builder()
-                        .status("success").statusCode(200).message("Users fetched from auth service").data(list).build()));
+
+                .map(list ->
+                        ResponseEntity.ok(
+                                ApiResponse.<List<AddressResponseDTO>>builder()
+                                        .status("success")
+                                        .statusCode(200)
+                                        .message("User addresses retrieved successfully")
+                                        .data(list)
+                                        .build()
+                        )
+                );
     }
+
+
+
+
 }

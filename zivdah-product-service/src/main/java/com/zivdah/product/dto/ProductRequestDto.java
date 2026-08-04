@@ -44,5 +44,7 @@ public class ProductRequestDto implements Serializable {
 
     private Boolean organic;
 
+    private Boolean fav;
+
     private String brand;
 }

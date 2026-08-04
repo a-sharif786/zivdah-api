@@ -17,9 +17,24 @@ public class OrderItem {
 
     @Id
     private Long id;
+
     private Long orderId;
+
     private Long productId;
+
+    // Snapshot details
+    private String productName;
+
+    private String productSku;
+
     private Integer quantity;
+
     private BigDecimal price;
+
     private BigDecimal subtotal;
+
+    // Item tax
+    private BigDecimal gstAmount;
+
+    private BigDecimal totalAmount;
 }

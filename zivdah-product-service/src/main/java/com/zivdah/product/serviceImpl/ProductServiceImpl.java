@@ -56,6 +56,7 @@ public class ProductServiceImpl implements ProductService {
                             .discountPrice(dto.getDiscountPrice()).unit(dto.getUnit())
                             .stockQuantity(dto.getStockQuantity()).expiryDate(dto.getExpiryDate())
                             .description(dto.getDescription())
+                            .fav(dto.getFav())
                             .organic(dto.getOrganic()).brand(dto.getBrand())
                             .inStock(dto.getStockQuantity() != null && dto.getStockQuantity() > 0)
                             .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
@@ -106,6 +107,7 @@ public class ProductServiceImpl implements ProductService {
                     entity.setUnit(dto.getUnit()); entity.setStockQuantity(dto.getStockQuantity());
                     entity.setExpiryDate(dto.getExpiryDate()); entity.setDescription(dto.getDescription());
                     entity.setOrganic(dto.getOrganic());
+                    entity.setFav(dto.getFav());
                     entity.setBrand(dto.getBrand());
                     entity.setInStock(dto.getStockQuantity() != null && dto.getStockQuantity() > 0);
                     entity.setUpdatedAt(LocalDateTime.now());
@@ -171,6 +173,7 @@ public class ProductServiceImpl implements ProductService {
                 .stockQuantity(e.getStockQuantity()).inStock(e.getInStock()).expiryDate(e.getExpiryDate())
                 .description(e.getDescription()).imageUrl(e.getImageUrl())
                 .organic(e.getOrganic()).brand(e.getBrand())
+                .fav(e.getFav())
                 .createdAt(e.getCreatedAt()).updatedAt(e.getUpdatedAt())
                 .build();
     }

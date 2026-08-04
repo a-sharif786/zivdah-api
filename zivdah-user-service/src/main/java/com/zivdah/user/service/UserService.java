@@ -6,10 +6,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public interface UserService {
-    Mono<UserResponseDTO> getProfileByMobile(String mobile);
-    Mono<UserResponseDTO> updateProfile(String mobile, UpdateUserProfileDTO dto);
-    Mono<Void> resetPassword(Long userId, ResetPasswordDTO dto);
-    Mono<AddressResponseDTO> addAddress(Long userId, AddressRequestDTO dto);
-    Flux<AddressResponseDTO> getAddresses(Long userId, Pageable pageable);
-    Flux<AuthUserDTO> getAllUsersFromAuth();
+    Mono<UserResponseDTO> getProfileByUserId(Long userId , String token);
+    Mono<UserResponseDTO> updateProfile(String mobile, UpdateUserProfileDTO dto, String token);
+    Mono<AddressResponseDTO> addAddress(Long userId, AddressRequestDTO dto, String token);
+    Flux<AddressResponseDTO> getAddresses(Long userId, Pageable pageable, String token);
+    Flux<AddressResponseDTO> getAddressesByUserId(Long userId, Pageable pageable, String token);
 }

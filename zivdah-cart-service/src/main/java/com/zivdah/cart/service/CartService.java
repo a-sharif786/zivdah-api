@@ -11,4 +11,7 @@ public interface CartService {
     Mono<CartItemResponseDto> updateQuantity(Long cartItemId, Integer quantity);
     Mono<Void> removeItem(Long cartItemId);
     Mono<Void> clearCart(Long userId);
+    Mono<Void> clearCart();
+    Flux<CartItemResponseDto> getMyCart();
+
 }

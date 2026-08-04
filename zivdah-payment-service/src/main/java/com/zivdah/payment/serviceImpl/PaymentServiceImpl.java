@@ -35,7 +35,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .userId(dto.getUserId())
                 .amount(dto.getAmount())
                 .method(dto.getMethod())
-                .status(PaymentStatus.INITIATED)
+                .status(PaymentStatus.PENDING)
                 .transactionId(UUID.randomUUID().toString())
                 .createdAt(LocalDateTime.now())
                 .build();
