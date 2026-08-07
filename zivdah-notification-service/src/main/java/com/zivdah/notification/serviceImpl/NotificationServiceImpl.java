@@ -11,6 +11,7 @@ import com.zivdah.notification.repository.NotificationRepository;
 import com.zivdah.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -74,6 +75,11 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public Flux<NotificationResponseDto> getNotificationsByUser(Long userId) {
         return notificationRepository.findByUserId(userId).map(this::mapToDto);
+    }
+
+    @Override
+    public Flux<NotificationResponseDto> getAllNotifications(Pageable pageable) {
+        return notificationRepository.findAllBy(pageable).map(this::mapToDto);
     }
 
     private NotificationResponseDto mapToDto(Notification n) {

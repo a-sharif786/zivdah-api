@@ -1,6 +1,7 @@
 package com.zivdah.inventory.security;
 
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -61,5 +62,22 @@ public class JwtTokenProvider {
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
+    }
+
+    private Claims claims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    public Long getUserIdFromToken(String token) {
+        Object id = claims(token).get("userId");
+        return id == null ? null : Long.valueOf(id.toString());
+    }
+
+    public String getRoleFromToken(String token) {
+        return claims(token).get("role", String.class);
     }
 }

@@ -31,4 +31,5 @@ public class ProductResponseDto implements Serializable {
     private Boolean fav;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Long vendorId;
 }

@@ -13,10 +13,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.multipart.FilePart;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -36,13 +39,23 @@ public class ProductController {
                 .map(Long::valueOf);
     }
 
+    private Mono<String> currentRole() {
+        return ReactiveSecurityContextHolder.getContext()
+                .map(ctx -> ctx.getAuthentication())
+                .map(auth -> auth.getAuthorities().stream().findFirst()
+                        .map(GrantedAuthority::getAuthority)
+                        .map(a -> a.replaceFirst("^ROLE_", ""))
+                        .orElse(""));
+    }
+
     @PostMapping(value = "/products/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('ADMIN','VENDOR')")
     public Mono<ResponseEntity<ApiResponse<ProductResponseDto>>> createProduct(
             @Valid @RequestPart("data") ProductRequestDto dto,
             @RequestPart("image") FilePart image) {
         log.info("Controller reached");
-        return productService.createProduct(dto, image)
+        return Mono.zip(currentUserId(), currentRole())
+                .flatMap(t -> productService.createProduct(dto, image, t.getT1(), t.getT2()))
                 .map(r -> ResponseEntity.ok(ApiResponse.<ProductResponseDto>builder()
                         .status("success").statusCode(200).message("Product created successfully").data(r).build()));
     }
@@ -88,7 +101,8 @@ public class ProductController {
     public Mono<ResponseEntity<ApiResponse<ProductResponseDto>>> updateProduct(
             @PathVariable Long id, @Valid @RequestPart("data") ProductRequestDto dto,
             @RequestPart(value = "image", required = false) FilePart image) {
-        return productService.updateProduct(id, dto, image)
+        return Mono.zip(currentUserId(), currentRole())
+                .flatMap(t -> productService.updateProduct(id, dto, image, t.getT1(), t.getT2()))
                 .map(r -> ResponseEntity.ok(ApiResponse.<ProductResponseDto>builder()
                         .status("success").statusCode(200).message("Product updated successfully").data(r).build()));
     }
@@ -96,9 +110,27 @@ public class ProductController {
     @DeleteMapping("/products/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','VENDOR')")
     public Mono<ResponseEntity<ApiResponse<Void>>> deleteProduct(@PathVariable Long id) {
-        return productService.deleteProduct(id)
+        return Mono.zip(currentUserId(), currentRole())
+                .flatMap(t -> productService.deleteProduct(id, t.getT1(), t.getT2()))
                 .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
                         .status("success").statusCode(200).message("Product deleted successfully").build()));
+    }
+
+    @GetMapping("/products/vendor/{vendorId}")
+    @PreAuthorize("hasAnyRole('ADMIN','VENDOR')")
+    public Mono<ResponseEntity<ApiResponse<List<ProductResponseDto>>>> getProductsByVendor(
+            @PathVariable Long vendorId,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+        return Mono.zip(currentUserId(), currentRole())
+                .flatMap(t -> {
+                    if ("VENDOR".equalsIgnoreCase(t.getT2()) && !t.getT1().equals(vendorId)) {
+                        return Mono.<List<ProductResponseDto>>error(
+                                new ResponseStatusException(HttpStatus.FORBIDDEN, "Vendors may only query their own products"));
+                    }
+                    return productService.getProductsByVendor(vendorId, PageRequest.of(page, size)).collectList();
+                })
+                .map(list -> ResponseEntity.ok(ApiResponse.<List<ProductResponseDto>>builder()
+                        .status("success").statusCode(200).message("Vendor products retrieved").data(list).build()));
     }
 
     @GetMapping("/products/categories")

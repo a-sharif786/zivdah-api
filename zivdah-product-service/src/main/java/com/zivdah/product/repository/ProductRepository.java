@@ -10,4 +10,5 @@ public interface ProductRepository extends ReactiveCrudRepository<ProductEntity,
     Flux<ProductEntity> findAllBy(Pageable pageable);
     Flux<ProductEntity> findByCategory(ProductCategory category, Pageable pageable);
     Flux<ProductEntity> findByNameContainingIgnoreCase(String keyword, Pageable pageable);
+    Flux<ProductEntity> findByVendorId(Long vendorId, Pageable pageable);
 }

@@ -66,4 +66,16 @@ public class ReviewController {
                         .status("success").statusCode(200)
                         .message("Review deleted successfully").build()));
     }
+
+    @GetMapping("/product/{productId}")
+    public Mono<ResponseEntity<ApiResponse<List<ReviewResponseDto>>>> getReviewsByProduct(
+            @PathVariable Long productId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return reviewService.getReviewsByProduct(productId, page, size)
+                .collectList()
+                .map(reviews -> ResponseEntity.ok(ApiResponse.<List<ReviewResponseDto>>builder()
+                        .status("success").statusCode(200)
+                        .message("Product reviews retrieved successfully").data(reviews).build()));
+    }
 }

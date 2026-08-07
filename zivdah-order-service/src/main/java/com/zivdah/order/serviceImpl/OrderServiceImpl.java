@@ -11,8 +11,10 @@ import com.zivdah.order.kafka.OrderKafkaProducer;
 import com.zivdah.order.repository.OrderItemRepository;
 import com.zivdah.order.repository.OrderRepository;
 import com.zivdah.order.service.OrderService;
+import com.zivdah.order.enums.OrderStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -21,6 +23,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -124,6 +127,7 @@ public class OrderServiceImpl implements OrderService {
                                                 OrderItem.builder()
                                                         .orderId(savedOrder.getId())
                                                         .productId(item.getProductId())
+                                                        .vendorId(item.getVendorId())
                                                         .quantity(item.getQuantity())
                                                         .price(item.getPrice())
                                                         .subtotal(
@@ -248,6 +252,39 @@ public class OrderServiceImpl implements OrderService {
 
 
 
+    @Override
+    public Flux<OrderResponseDto> getAllOrders(Pageable pageable, OrderStatus status) {
+        Flux<Order> orders = status != null
+                ? orderRepository.findByStatus(status, pageable)
+                : orderRepository.findAllBy(pageable);
+
+        return orders.flatMap(order ->
+                orderItemRepository.findByOrderId(order.getId())
+                        .collectList()
+                        .map(items -> mapToResponse(order, items))
+        );
+    }
+
+    @Override
+    public Flux<OrderResponseDto> getOrdersByVendor(Long vendorId, Pageable pageable) {
+        return orderItemRepository.findByVendorId(vendorId, pageable)
+                .collectList()
+                .flatMapMany(vendorItems -> {
+                    if (vendorItems.isEmpty()) {
+                        return Flux.empty();
+                    }
+                    List<Long> orderIds = vendorItems.stream()
+                            .map(OrderItem::getOrderId)
+                            .distinct()
+                            .collect(Collectors.toList());
+                    Map<Long, List<OrderItem>> itemsByOrder = vendorItems.stream()
+                            .collect(Collectors.groupingBy(OrderItem::getOrderId));
+
+                    return orderRepository.findAllById(orderIds)
+                            .map(order -> mapToResponse(order, itemsByOrder.get(order.getId())));
+                });
+    }
+
     private OrderResponseDto mapToResponse(
             Order order,
             List<OrderItem> items
@@ -299,6 +336,7 @@ public class OrderServiceImpl implements OrderService {
                                 .map(item ->
                                         OrderItemDto.builder()
                                                 .productId(item.getProductId())
+                                                .vendorId(item.getVendorId())
                                                 .quantity(item.getQuantity())
                                                 .price(item.getPrice())
                                                 .subtotal(item.getSubtotal())

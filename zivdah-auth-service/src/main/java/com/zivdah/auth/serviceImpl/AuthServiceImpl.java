@@ -161,6 +161,7 @@ public class AuthServiceImpl implements AuthService {
                         .email(user.getEmail())
                         .mobile(user.getMobile())
                         .role(user.getRole())
+                        .active(user.isActive())
                         .build());
     }
 

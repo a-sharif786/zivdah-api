@@ -2,6 +2,7 @@ package com.zivdah.cart.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.Claims;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -58,5 +59,22 @@ public class JwtTokenProvider {
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
+    }
+
+    private Claims claims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    public Long getUserIdFromToken(String token) {
+        Object id = claims(token).get("userId");
+        return id == null ? null : Long.valueOf(id.toString());
+    }
+
+    public String getRoleFromToken(String token) {
+        return claims(token).get("role", String.class);
     }
 }

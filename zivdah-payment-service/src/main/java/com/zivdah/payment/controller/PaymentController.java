@@ -3,9 +3,12 @@ package com.zivdah.payment.controller;
 import com.zivdah.payment.dto.ApiResponse;
 import com.zivdah.payment.dto.PaymentRequestDto;
 import com.zivdah.payment.dto.PaymentResponseDto;
+import com.zivdah.payment.enums.PaymentStatus;
 import com.zivdah.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
@@ -55,5 +58,16 @@ public class PaymentController {
         return paymentService.markPaymentFailed(paymentId)
                 .map(r -> ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
                         .status("success").statusCode(200).message("Payment marked as failed").data(r).build()));
+    }
+
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<List<PaymentResponseDto>>>> getAllPayments(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) PaymentStatus status) {
+        return paymentService.getAllPayments(PageRequest.of(page, size), status)
+                .collectList()
+                .map(list -> ResponseEntity.ok(ApiResponse.<List<PaymentResponseDto>>builder()
+                        .status("success").statusCode(200).message("Payments retrieved").data(list).build()));
     }
 }

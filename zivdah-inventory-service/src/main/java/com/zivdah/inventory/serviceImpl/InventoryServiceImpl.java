@@ -6,9 +6,11 @@ import com.zivdah.inventory.repository.InventoryRepository;
 import com.zivdah.inventory.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
@@ -92,6 +94,11 @@ public class InventoryServiceImpl implements InventoryService {
                 })
                 .doOnSuccess(inv -> log.info("Stock confirmed for product {}", productId))
                 .map(this::mapToDto);
+    }
+
+    @Override
+    public Flux<InventoryResponseDto> getAllInventory(Pageable pageable) {
+        return inventoryRepository.findAllBy(pageable).map(this::mapToDto);
     }
 
     private InventoryResponseDto mapToDto(Inventory inv) {

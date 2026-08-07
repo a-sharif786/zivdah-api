@@ -168,13 +168,25 @@ public class CartServiceImpl implements CartService {
     @Override
     public Mono<Void> clearCart() {
 
+        return ReactiveSecurityContextHolder.getContext()
 
-        log.info(
-                "Clearing all carts"
-        );
+                .map(SecurityContext ->
+                        SecurityContext.getAuthentication()
+                )
 
+                .map(Authentication::getName)
 
-        return cartRepository.deleteAll();
+                .map(Long::valueOf)
+
+                .flatMap(userId -> {
+
+                    log.info(
+                            "Clearing cart for logged-in user {}",
+                            userId
+                    );
+
+                    return cartRepository.deleteByUserId(userId);
+                });
     }
 
 

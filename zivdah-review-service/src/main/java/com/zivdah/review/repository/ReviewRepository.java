@@ -8,4 +8,5 @@ import reactor.core.publisher.Flux;
 public interface ReviewRepository extends ReactiveCrudRepository<Review, Long> {
     Flux<Review> findAllBy(Pageable pageable);
     Flux<Review> findByProductId(Long productId);
+    Flux<Review> findByProductId(Long productId, Pageable pageable);
 }

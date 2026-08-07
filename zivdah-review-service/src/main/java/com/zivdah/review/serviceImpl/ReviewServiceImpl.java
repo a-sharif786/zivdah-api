@@ -68,6 +68,11 @@ public class ReviewServiceImpl implements ReviewService {
                 });
     }
 
+    @Override
+    public Flux<ReviewResponseDto> getReviewsByProduct(Long productId, int page, int size) {
+        return reviewRepository.findByProductId(productId, PageRequest.of(page, size)).map(this::mapToDto);
+    }
+
     private ReviewResponseDto mapToDto(Review review) {
         return ReviewResponseDto.builder()
                 .id(review.getId())

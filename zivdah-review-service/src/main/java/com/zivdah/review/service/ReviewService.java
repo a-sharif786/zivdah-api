@@ -11,4 +11,5 @@ public interface ReviewService {
     Flux<ReviewResponseDto> getAllReviews(int page, int size);
     Mono<ReviewResponseDto> updateReview(Long id, ReviewRequestDto dto);
     Mono<Void> deleteReview(Long id);
+    Flux<ReviewResponseDto> getReviewsByProduct(Long productId, int page, int size);
 }

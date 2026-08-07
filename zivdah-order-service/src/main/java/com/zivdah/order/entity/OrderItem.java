@@ -22,6 +22,10 @@ public class OrderItem {
 
     private Long productId;
 
+    // Denormalized from the product's vendorId at checkout time (client-supplied,
+    // same trust level as price/subtotal below). Null = platform-owned product.
+    private Long vendorId;
+
     // Snapshot details
     private String productName;
 

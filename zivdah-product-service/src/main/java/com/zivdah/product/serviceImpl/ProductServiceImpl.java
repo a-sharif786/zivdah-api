@@ -43,12 +43,13 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Mono<ProductResponseDto> createProduct(ProductRequestDto dto, FilePart image) {
+    public Mono<ProductResponseDto> createProduct(ProductRequestDto dto, FilePart image, Long currentUserId, String role) {
         log.info("Controller reached");
         log.info("image>>>>>>"+image);
         if (image == null) {
             return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product image is required"));
         }
+        Long vendorId = "VENDOR".equalsIgnoreCase(role) ? currentUserId : null;
         return cloudinaryUploadService.upload(image, UploadCategory.IMAGE, productsFolder())
                 .flatMap(uploaded -> {
                     ProductEntity entity = ProductEntity.builder()
@@ -59,6 +60,7 @@ public class ProductServiceImpl implements ProductService {
                             .fav(dto.getFav())
                             .organic(dto.getOrganic()).brand(dto.getBrand())
                             .inStock(dto.getStockQuantity() != null && dto.getStockQuantity() > 0)
+                            .vendorId(vendorId)
                             .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
                             .build();
                     applyUploadResult(entity, uploaded);
@@ -98,10 +100,13 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Mono<ProductResponseDto> updateProduct(Long id, ProductRequestDto dto, FilePart image) {
+    public Mono<ProductResponseDto> updateProduct(Long id, ProductRequestDto dto, FilePart image, Long currentUserId, String role) {
         return productRepository.findById(id)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found: " + id)))
                 .flatMap(entity -> {
+                    if ("VENDOR".equalsIgnoreCase(role) && !currentUserId.equals(entity.getVendorId())) {
+                        return Mono.<ProductEntity>error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the owner of this product"));
+                    }
                     entity.setName(dto.getName()); entity.setCategory(dto.getCategory());
                     entity.setPrice(dto.getPrice()); entity.setDiscountPrice(dto.getDiscountPrice());
                     entity.setUnit(dto.getUnit()); entity.setStockQuantity(dto.getStockQuantity());
@@ -129,12 +134,19 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Mono<Void> deleteProduct(Long id) {
+    public Mono<Void> deleteProduct(Long id, Long currentUserId, String role) {
         return productRepository.findById(id)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found: " + id)))
-                .flatMap(entity -> cloudinaryUploadService.delete(entity.getImagePublicId(), entity.getImageResourceType())
-                        .then(productRepository.deleteById(id)))
-                .doOnSuccess(v -> log.info("Product deleted: {}", id));
+                .flatMap(entity -> {
+                    if ("VENDOR".equalsIgnoreCase(role) && !currentUserId.equals(entity.getVendorId())) {
+                        return Mono.<ProductEntity>error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the owner of this product"));
+                    }
+                    return cloudinaryUploadService.delete(entity.getImagePublicId(), entity.getImageResourceType())
+                            .then(productRepository.deleteById(id))
+                            .thenReturn(entity);
+                })
+                .doOnSuccess(v -> log.info("Product deleted: {}", id))
+                .then();
     }
 
     @Override
@@ -166,6 +178,11 @@ public class ProductServiceImpl implements ProductService {
         entity.setImageSizeBytes(uploaded.getBytes());
     }
 
+    @Override
+    public Flux<ProductResponseDto> getProductsByVendor(Long vendorId, Pageable pageable) {
+        return productRepository.findByVendorId(vendorId, pageable).map(this::mapToResponse);
+    }
+
     private ProductResponseDto mapToResponse(ProductEntity e) {
         return ProductResponseDto.builder()
                 .id(e.getId()).name(e.getName()).category(e.getCategory())
@@ -175,6 +192,7 @@ public class ProductServiceImpl implements ProductService {
                 .organic(e.getOrganic()).brand(e.getBrand())
                 .fav(e.getFav())
                 .createdAt(e.getCreatedAt()).updatedAt(e.getUpdatedAt())
+                .vendorId(e.getVendorId())
                 .build();
     }
 }

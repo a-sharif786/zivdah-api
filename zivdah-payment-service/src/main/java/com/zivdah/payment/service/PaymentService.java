@@ -2,6 +2,8 @@ package com.zivdah.payment.service;
 
 import com.zivdah.payment.dto.PaymentRequestDto;
 import com.zivdah.payment.dto.PaymentResponseDto;
+import com.zivdah.payment.enums.PaymentStatus;
+import org.springframework.data.domain.Pageable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -14,4 +16,5 @@ public interface PaymentService {
     Mono<PaymentResponseDto> markPaymentSuccess(Long paymentId);
     Mono<PaymentResponseDto> markPaymentFailed(Long paymentId);
     Mono<Boolean> processPayment(Long orderId, BigDecimal amount);
+    Flux<PaymentResponseDto> getAllPayments(Pageable pageable, PaymentStatus status);
 }

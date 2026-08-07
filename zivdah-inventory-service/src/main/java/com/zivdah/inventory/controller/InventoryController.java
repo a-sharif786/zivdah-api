@@ -6,13 +6,18 @@ import com.zivdah.inventory.dto.InventoryResponseDto;
 import com.zivdah.inventory.dto.ReserveStockRequestDto;
 import com.zivdah.inventory.service.InventoryService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/restful/v1/api/inventory")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "*")
 public class InventoryController {
 
     private final InventoryService inventoryService;
@@ -55,5 +60,15 @@ public class InventoryController {
         return inventoryService.confirmStock(dto.getProductId(), dto.getQuantity())
                 .map(r -> ResponseEntity.ok(ApiResponse.<InventoryResponseDto>builder()
                         .status("success").statusCode(200).message("Stock confirmed").data(r).build()));
+    }
+
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<List<InventoryResponseDto>>>> getAllInventory(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+        return inventoryService.getAllInventory(PageRequest.of(page, size))
+                .collectList()
+                .map(list -> ResponseEntity.ok(ApiResponse.<List<InventoryResponseDto>>builder()
+                        .status("success").statusCode(200).message("Inventory retrieved").data(list).build()));
     }
 }

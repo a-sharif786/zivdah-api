@@ -5,7 +5,9 @@ import com.zivdah.notification.dto.NotificationRequestDto;
 import com.zivdah.notification.dto.NotificationResponseDto;
 import com.zivdah.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
@@ -34,5 +36,15 @@ public class NotificationController {
                 .collectList()
                 .map(list -> ResponseEntity.ok(ApiResponse.<List<NotificationResponseDto>>builder()
                         .status("success").statusCode(200).message("User notifications fetched").data(list).build()));
+    }
+
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<List<NotificationResponseDto>>>> getAllNotifications(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+        return notificationService.getAllNotifications(PageRequest.of(page, size))
+                .collectList()
+                .map(list -> ResponseEntity.ok(ApiResponse.<List<NotificationResponseDto>>builder()
+                        .status("success").statusCode(200).message("Notifications retrieved").data(list).build()));
     }
 }

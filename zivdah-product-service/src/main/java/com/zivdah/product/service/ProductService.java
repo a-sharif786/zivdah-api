@@ -11,14 +11,15 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 public interface ProductService {
-    Mono<ProductResponseDto> createProduct(ProductRequestDto dto, FilePart image);
+    Mono<ProductResponseDto> createProduct(ProductRequestDto dto, FilePart image, Long currentUserId, String role);
     Mono<ProductResponseDto> getProductById(Long id);
     Flux<ProductResponseDto> getAllProducts(Pageable pageable);
     Flux<ProductResponseDto> getProductsByCategory(ProductCategory category, Pageable pageable);
     Flux<ProductResponseDto> searchProducts(String keyword, Pageable pageable);
     Flux<ProductResponseDto> getWishlist(Long userId, Pageable pageable);
-    Mono<ProductResponseDto> updateProduct(Long id, ProductRequestDto dto, FilePart image);
-    Mono<Void> deleteProduct(Long id);
+    Mono<ProductResponseDto> updateProduct(Long id, ProductRequestDto dto, FilePart image, Long currentUserId, String role);
+    Mono<Void> deleteProduct(Long id, Long currentUserId, String role);
     Mono<List<ProductCategory>> getAllCategories();
     Mono<ProductResponseDto> updateWishlist(Long userId, Long productId, Boolean fav);
+    Flux<ProductResponseDto> getProductsByVendor(Long vendorId, Pageable pageable);
 }

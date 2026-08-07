@@ -123,7 +123,7 @@ public class UserController {
      * Get addresses by userId
      */
     @GetMapping("/address/user/{userId}")
-    @PreAuthorize("hasRole('USER','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public Mono<ResponseEntity<ApiResponse<List<AddressResponseDTO>>>> getAddressByUserId(
             @PathVariable Long userId,
             ServerHttpRequest request,

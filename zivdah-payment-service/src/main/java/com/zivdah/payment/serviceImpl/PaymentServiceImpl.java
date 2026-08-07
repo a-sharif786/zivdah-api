@@ -10,6 +10,7 @@ import com.zivdah.payment.repository.PaymentRepository;
 import com.zivdah.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -94,6 +95,14 @@ public class PaymentServiceImpl implements PaymentService {
         return paymentRepository.save(payment)
                 .doOnSuccess(p -> log.info("Payment for order {} processed: {}", orderId, success ? "SUCCESS" : "FAILED"))
                 .map(p -> success);
+    }
+
+    @Override
+    public Flux<PaymentResponseDto> getAllPayments(Pageable pageable, PaymentStatus status) {
+        Flux<Payment> payments = status != null
+                ? paymentRepository.findByStatus(status, pageable)
+                : paymentRepository.findAllBy(pageable);
+        return payments.map(this::mapToResponse);
     }
 
     private PaymentResponseDto mapToResponse(Payment p) {

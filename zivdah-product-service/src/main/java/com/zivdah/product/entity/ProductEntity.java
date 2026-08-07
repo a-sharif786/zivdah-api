@@ -38,4 +38,6 @@ public class ProductEntity {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Boolean inStock;
+    // Null = platform-owned (created by ADMIN). Set = owned by that VENDOR userId.
+    private Long vendorId;
 }
