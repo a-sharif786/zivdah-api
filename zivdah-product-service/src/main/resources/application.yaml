@@ -3,3 +3,15 @@ spring:
     name: zivdah-product-service
   profiles:
     active: dev
+  webflux:
+    multipart:
+      max-in-memory-size: 20MB
+      max-disk-usage-per-part: 20MB
+  codec:
+    max-in-memory-size: 20MB
+
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:gvzwkqlf}
+  api-key: ${CLOUDINARY_API_KEY:818952935514721}
+  api-secret: ${CLOUDINARY_API_SECRET:lTfdXwdNr70TTFPFNs06gSteZeE}
+  folder: ${CLOUDINARY_FOLDER:zivdahonlinegrocery}

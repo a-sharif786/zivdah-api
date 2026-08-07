@@ -31,6 +31,7 @@
         <module>zivdah-inventory-service</module>
         <module>zivdah-user-service</module>
         <module>zivdah-review-service</module>
+        <module>zivdah-coupon-service</module>
     </modules>
 
     <properties>

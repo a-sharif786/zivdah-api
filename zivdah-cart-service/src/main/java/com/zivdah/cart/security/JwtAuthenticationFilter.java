@@ -1,59 +1,46 @@
 package com.zivdah.cart.security;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebFilter;
+import org.springframework.web.server.WebFilterChain;
+import reactor.core.publisher.Mono;
 
-import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 @Component
-@Slf4j
 @RequiredArgsConstructor
-public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    @Autowired
-    private  JwtTokenProvider jwtTokenProvider;
+public class JwtAuthenticationFilter implements WebFilter {
+
+    private final JwtTokenProvider jwtTokenProvider;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
-
-        String authHeader = request.getHeader("Authorization");
-
-        log.info("authHeader"+authHeader);
-
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            log.info("authHeader111"+token);
+    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+        String header = exchange.getRequest().getHeaders().getFirst("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            String token = header.substring(7);
             if (jwtTokenProvider.validateToken(token)) {
-                String mobileNumber  = jwtTokenProvider.getMobileNumberFromToken(token);
+                Long userId = jwtTokenProvider.getUserIdFromToken(token);
+                String mobile = jwtTokenProvider.getMobileNumberFromToken(token);
+                String role = jwtTokenProvider.getRoleFromToken(token);
 
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                mobileNumber,
-                                null,
-                                Collections.emptyList() // IMPORTANT: set authorities
-                        );
+                String principal = userId != null ? userId.toString() : mobile;
+                List<SimpleGrantedAuthority> authorities =
+                        role == null
+                                ? Collections.emptyList()
+                                : List.of(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()));
 
-                authentication.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
-                );
-
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                return chain.filter(exchange)
+                        .contextWrite(ReactiveSecurityContextHolder.withAuthentication(
+                                new UsernamePasswordAuthenticationToken(principal, null, authorities)
+                        ));
             }
         }
-
-        filterChain.doFilter(request, response);
+        return chain.filter(exchange);
     }
 }
-

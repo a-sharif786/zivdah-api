@@ -1,14 +1,15 @@
 package com.zivdah.review.controller;
 
+import com.zivdah.review.dto.ApiResponse;
 import com.zivdah.review.dto.ReviewRequestDto;
 import com.zivdah.review.dto.ReviewResponseDto;
-import com.zivdah.review.dto.ApiResponse;
 import com.zivdah.review.service.ReviewService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 
@@ -20,78 +21,61 @@ public class ReviewController {
 
     private final ReviewService reviewService;
 
-    // Create review
     @PostMapping("/create")
-    public ResponseEntity<ApiResponse<ReviewResponseDto>> createReview(
+    public Mono<ResponseEntity<ApiResponse<ReviewResponseDto>>> createReview(
             @Valid @RequestBody ReviewRequestDto dto) {
-
-        ReviewResponseDto response = reviewService.createReview(dto);
-
-        return ResponseEntity.ok(ApiResponse.<ReviewResponseDto>builder()
-                .status("success")
-                .statusCode(HttpStatus.OK.value())
-                .message("Review created successfully")
-                .data(response)
-                .build());
+        return reviewService.createReview(dto)
+                .map(r -> ResponseEntity.status(HttpStatus.CREATED)
+                        .body(ApiResponse.<ReviewResponseDto>builder()
+                                .status("success").statusCode(201)
+                                .message("Review created successfully").data(r).build()));
     }
 
-    // Get review by ID
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<ReviewResponseDto>> getReview(@PathVariable Long id) {
-
-        ReviewResponseDto response = reviewService.getReviewById(id);
-
-        return ResponseEntity.ok(ApiResponse.<ReviewResponseDto>builder()
-                .status("success")
-                .statusCode(HttpStatus.OK.value())
-                .message("Review retrieved successfully")
-                .data(response)
-                .build());
+    public Mono<ResponseEntity<ApiResponse<ReviewResponseDto>>> getReview(@PathVariable Long id) {
+        return reviewService.getReviewById(id)
+                .map(r -> ResponseEntity.ok(ApiResponse.<ReviewResponseDto>builder()
+                        .status("success").statusCode(200)
+                        .message("Review retrieved successfully").data(r).build()));
     }
 
-    // Get all reviews (with optional pagination)
-    @GetMapping("")
-    public ResponseEntity<ApiResponse<List<ReviewResponseDto>>> getAllReviews(
+    @GetMapping
+    public Mono<ResponseEntity<ApiResponse<List<ReviewResponseDto>>>> getAllReviews(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-
-        List<ReviewResponseDto> reviews = reviewService.getAllReviews(page, size);
-
-        return ResponseEntity.ok(ApiResponse.<List<ReviewResponseDto>>builder()
-                .status("success")
-                .statusCode(HttpStatus.OK.value())
-                .message("Reviews retrieved successfully")
-                .data(reviews)
-                .build());
+        return reviewService.getAllReviews(page, size)
+                .collectList()
+                .map(reviews -> ResponseEntity.ok(ApiResponse.<List<ReviewResponseDto>>builder()
+                        .status("success").statusCode(200)
+                        .message("Reviews retrieved successfully").data(reviews).build()));
     }
 
-    // Update review
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<ReviewResponseDto>> updateReview(
-            @PathVariable Long id,
-            @Valid @RequestBody ReviewRequestDto dto) {
-
-        ReviewResponseDto response = reviewService.updateReview(id, dto);
-
-        return ResponseEntity.ok(ApiResponse.<ReviewResponseDto>builder()
-                .status("success")
-                .statusCode(HttpStatus.OK.value())
-                .message("Review updated successfully")
-                .data(response)
-                .build());
+    public Mono<ResponseEntity<ApiResponse<ReviewResponseDto>>> updateReview(
+            @PathVariable Long id, @Valid @RequestBody ReviewRequestDto dto) {
+        return reviewService.updateReview(id, dto)
+                .map(r -> ResponseEntity.ok(ApiResponse.<ReviewResponseDto>builder()
+                        .status("success").statusCode(200)
+                        .message("Review updated successfully").data(r).build()));
     }
 
-    // Delete review
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteReview(@PathVariable Long id) {
+    public Mono<ResponseEntity<ApiResponse<Void>>> deleteReview(@PathVariable Long id) {
+        return reviewService.deleteReview(id)
+                .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
+                        .status("success").statusCode(200)
+                        .message("Review deleted successfully").build()));
+    }
 
-        reviewService.deleteReview(id);
-
-        return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .status("success")
-                .statusCode(HttpStatus.OK.value())
-                .message("Review deleted successfully")
-                .data(null)
-                .build());
+    @GetMapping("/product/{productId}")
+    public Mono<ResponseEntity<ApiResponse<List<ReviewResponseDto>>>> getReviewsByProduct(
+            @PathVariable Long productId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return reviewService.getReviewsByProduct(productId, page, size)
+                .collectList()
+                .map(reviews -> ResponseEntity.ok(ApiResponse.<List<ReviewResponseDto>>builder()
+                        .status("success").statusCode(200)
+                        .message("Product reviews retrieved successfully").data(reviews).build()));
     }
 }

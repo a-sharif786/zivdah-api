@@ -2,8 +2,22 @@ package com.zivdah.order.enums;
 
 public enum OrderStatus {
     CREATED,
+
+    PAYMENT_PENDING,
+
     PAID,
-    SHIPPED,
+
+    CONFIRMED,
+
+    PACKING,
+
+    READY_FOR_DELIVERY,
+
+    OUT_FOR_DELIVERY,
+
     DELIVERED,
-    CANCELLED
+
+    CANCELLED,
+
+    REFUNDED
 }

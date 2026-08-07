@@ -20,7 +20,6 @@ Start docker ====> docker-compose up -d
 
 
 🧪 Verify Redis Cache Is Working
-
 Run:
 
 docker exec -it redis redis-cli

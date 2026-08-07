@@ -3,14 +3,44 @@ package com.zivdah.product.exception;
 import com.zivdah.product.dto.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    // Handle explicit status exceptions (e.g. NOT_FOUND). Without this, the
+    // generic RuntimeException handler below matches first and forces every
+    // status to 400, even when the service explicitly threw a 404/403/etc.
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiResponse<Object>> handleResponseStatusException(ResponseStatusException ex) {
+        ApiResponse<Object> response = ApiResponse.builder()
+                .status("error")
+                .message(ex.getReason())
+                .statusCode(ex.getStatusCode().value())
+                .data(null)
+                .build();
+
+        return new ResponseEntity<>(response, ex.getStatusCode());
+    }
+
+    // Handle authorization failures (@PreAuthorize, role checks)
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Object>> handleAccessDeniedException(AccessDeniedException ex) {
+        ApiResponse<Object> response = ApiResponse.builder()
+                .status("error")
+                .message("Access denied")
+                .statusCode(HttpStatus.FORBIDDEN.value())
+                .data(null)
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+    }
 
     // Handle validation errors (@Valid)
     @ExceptionHandler(MethodArgumentNotValidException.class)

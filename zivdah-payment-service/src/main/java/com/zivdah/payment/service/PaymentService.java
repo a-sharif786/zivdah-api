@@ -2,22 +2,19 @@ package com.zivdah.payment.service;
 
 import com.zivdah.payment.dto.PaymentRequestDto;
 import com.zivdah.payment.dto.PaymentResponseDto;
-import org.springframework.stereotype.Service;
+import com.zivdah.payment.enums.PaymentStatus;
+import org.springframework.data.domain.Pageable;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
-import java.util.List;
-@Service
+
 public interface PaymentService {
-    PaymentResponseDto initiatePayment(PaymentRequestDto dto);
-
-    PaymentResponseDto getPayment(Long paymentId);
-
-    List<PaymentResponseDto> getPaymentsByOrder(Long orderId);
-
-    PaymentResponseDto markPaymentSuccess(Long paymentId);
-
-    PaymentResponseDto markPaymentFailed(Long paymentId);
-
-    // Optional for Kafka consumer
-    boolean processPayment(Long orderId, BigDecimal amount);
+    Mono<PaymentResponseDto> initiatePayment(PaymentRequestDto dto);
+    Mono<PaymentResponseDto> getPayment(Long paymentId);
+    Flux<PaymentResponseDto> getPaymentsByOrder(Long orderId);
+    Mono<PaymentResponseDto> markPaymentSuccess(Long paymentId);
+    Mono<PaymentResponseDto> markPaymentFailed(Long paymentId);
+    Mono<Boolean> processPayment(Long orderId, BigDecimal amount);
+    Flux<PaymentResponseDto> getAllPayments(Pageable pageable, PaymentStatus status);
 }

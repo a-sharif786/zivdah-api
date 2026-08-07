@@ -14,5 +14,6 @@ public class PaymentRequestDto {
     private Long orderId;
     private Long userId;
     private BigDecimal amount;
+    private String currency;
     private PaymentMethod method;
 }

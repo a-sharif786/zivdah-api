@@ -2,24 +2,17 @@ package com.zivdah.user.repository;
 
 import com.zivdah.user.entity.UserAddress;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.r2dbc.repository.Modifying;
+import org.springframework.data.r2dbc.repository.Query;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.util.List;
-import java.util.Optional;
+public interface UserAddressRepository extends ReactiveCrudRepository<UserAddress, Long> {
+    Mono<Long> countByUserId(Long userId);
+    Flux<UserAddress> findByUserId(Long userId, Pageable pageable);
 
-@Repository
-public interface UserAddressRepository extends JpaRepository<UserAddress, Long> {
-    long countByUserId(Long userId);
-
-    // 🔹 Get addresses for a user (optionally pageable)
-    List<UserAddress> findByUserId(Long userId, Pageable pageable);
-
-    // 🔹 Reset default address flag for a user
     @Modifying
-    @Query("UPDATE UserAddress u SET u.isDefault = false WHERE u.userId = :userId")
-    void resetDefaultAddress(Long userId);
-
+    @Query("UPDATE user_addresses SET is_default = false WHERE user_id = :userId")
+    Mono<Integer> resetDefaultAddress(Long userId);
 }

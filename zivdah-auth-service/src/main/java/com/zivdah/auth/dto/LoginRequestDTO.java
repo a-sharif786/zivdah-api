@@ -3,17 +3,19 @@ package com.zivdah.auth.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
 public class LoginRequestDTO {
-    @Size(min = 10, message = "Password must be at least 10 characters")
+    // Provide either mobile or email to identify the account
     private String mobile;
 
-    @Size(min = 6, message = "min 6 digit")
-    private String otp;
+    @Email(message = "Invalid email")
+    private String email;
+
+    @NotBlank(message = "Password is required")
+    private String password;
 
 }

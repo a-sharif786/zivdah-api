@@ -14,4 +14,5 @@ public class AuthUserResponseDTO {
     private String email;
     private String mobile;
     private Role role;
+    private boolean active;
 }

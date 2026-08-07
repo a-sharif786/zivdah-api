@@ -1,12 +1,16 @@
 package com.zivdah.product.service;
 
+import com.zivdah.product.dto.BannerRequestDto;
 import com.zivdah.product.dto.BannerResponseDto;
-import com.zivdah.product.dto.ProductResponseDto;
-import org.springframework.stereotype.Service;
+import org.springframework.http.codec.multipart.FilePart;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.util.List;
-
-@Service
 public interface BannerService {
-    List<BannerResponseDto> getBanners();
+    Flux<BannerResponseDto> getBanners();
+    Flux<BannerResponseDto> getAllBannersForAdmin();
+    Mono<BannerResponseDto> createBanner(BannerRequestDto dto, FilePart image);
+    Mono<BannerResponseDto> updateBanner(Long id, BannerRequestDto dto, FilePart image);
+    Mono<Void> deleteBanner(Long id);
+    Mono<BannerResponseDto> toggleActive(Long id);
 }

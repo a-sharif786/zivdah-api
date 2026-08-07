@@ -1,106 +1,115 @@
 package com.zivdah.payment.serviceImpl;
 
+import com.zivdah.common.event.PaymentCompletedEvent;
 import com.zivdah.payment.dto.PaymentRequestDto;
 import com.zivdah.payment.dto.PaymentResponseDto;
 import com.zivdah.payment.entity.Payment;
 import com.zivdah.payment.enums.PaymentStatus;
+import com.zivdah.payment.kafka.PaymentKafkaProducer;
 import com.zivdah.payment.repository.PaymentRepository;
 import com.zivdah.payment.service.PaymentService;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
-import java.util.stream.Collectors;
-import java.util.List;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
-@Transactional
 @Slf4j
 @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
-    @Autowired
-    private PaymentRepository paymentRepository;
+
+    private final PaymentRepository paymentRepository;
+    private final PaymentKafkaProducer paymentKafkaProducer;
+
     @Override
-    public PaymentResponseDto initiatePayment(PaymentRequestDto dto) {
+    public Mono<PaymentResponseDto> initiatePayment(PaymentRequestDto dto) {
         Payment payment = Payment.builder()
                 .orderId(dto.getOrderId())
                 .userId(dto.getUserId())
                 .amount(dto.getAmount())
                 .method(dto.getMethod())
+                .status(PaymentStatus.PENDING)
                 .transactionId(UUID.randomUUID().toString())
+                .createdAt(LocalDateTime.now())
                 .build();
-
-        return mapToResponse(paymentRepository.save(payment));
+        return paymentRepository.save(payment).map(this::mapToResponse);
     }
 
     @Override
-    public PaymentResponseDto getPayment(Long paymentId) {
+    public Mono<PaymentResponseDto> getPayment(Long paymentId) {
         return paymentRepository.findById(paymentId)
-                .map(this::mapToResponse)
-                .orElseThrow(() -> new RuntimeException("Payment not found"));
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId)))
+                .map(this::mapToResponse);
     }
 
     @Override
-    public List<PaymentResponseDto> getPaymentsByOrder(Long orderId) {
-        return paymentRepository.findByOrderId(orderId)
-                .stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public Flux<PaymentResponseDto> getPaymentsByOrder(Long orderId) {
+        return paymentRepository.findByOrderId(orderId).map(this::mapToResponse);
     }
 
     @Override
-    public PaymentResponseDto markPaymentSuccess(Long paymentId) {
-        Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new RuntimeException("Payment not found"));
-        payment.setStatus(PaymentStatus.SUCCESS);
-        return mapToResponse(paymentRepository.save(payment));
+    public Mono<PaymentResponseDto> markPaymentSuccess(Long paymentId) {
+        return paymentRepository.findById(paymentId)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId)))
+                .flatMap(p -> {
+                    p.setStatus(PaymentStatus.SUCCESS);
+                    return paymentRepository.save(p);
+                })
+                .doOnSuccess(p -> paymentKafkaProducer.publishPaymentCompleted(
+                        PaymentCompletedEvent.builder()
+                                .orderId(p.getOrderId()).userId(p.getUserId()).status("PAID").build()))
+                .map(this::mapToResponse);
     }
 
     @Override
-    public PaymentResponseDto markPaymentFailed(Long paymentId) {
-        Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new RuntimeException("Payment not found"));
-        payment.setStatus(PaymentStatus.FAILED);
-        return mapToResponse(paymentRepository.save(payment));
+    public Mono<PaymentResponseDto> markPaymentFailed(Long paymentId) {
+        return paymentRepository.findById(paymentId)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId)))
+                .flatMap(p -> {
+                    p.setStatus(PaymentStatus.FAILED);
+                    return paymentRepository.save(p);
+                })
+                .doOnSuccess(p -> paymentKafkaProducer.publishPaymentCompleted(
+                        PaymentCompletedEvent.builder()
+                                .orderId(p.getOrderId()).userId(p.getUserId()).status("FAILED").build()))
+                .map(this::mapToResponse);
     }
 
-
     @Override
-    public boolean processPayment(Long orderId, BigDecimal amount) {
-        // Simulate a payment (for demo purposes, random success/failure)
+    public Mono<Boolean> processPayment(Long orderId, BigDecimal amount) {
         boolean success = new java.util.Random().nextBoolean();
-
-        // Save the payment record
         Payment payment = Payment.builder()
-                .orderId(orderId)
-                .amount(amount)
+                .orderId(orderId).amount(amount)
                 .status(success ? PaymentStatus.SUCCESS : PaymentStatus.FAILED)
                 .transactionId(UUID.randomUUID().toString())
+                .createdAt(LocalDateTime.now())
                 .build();
-
-        paymentRepository.save(payment);
-
-        log.info("Payment for order {} processed: {}", orderId, success ? "SUCCESS" : "FAILED");
-
-        return success;
+        return paymentRepository.save(payment)
+                .doOnSuccess(p -> log.info("Payment for order {} processed: {}", orderId, success ? "SUCCESS" : "FAILED"))
+                .map(p -> success);
     }
 
+    @Override
+    public Flux<PaymentResponseDto> getAllPayments(Pageable pageable, PaymentStatus status) {
+        Flux<Payment> payments = status != null
+                ? paymentRepository.findByStatus(status, pageable)
+                : paymentRepository.findAllBy(pageable);
+        return payments.map(this::mapToResponse);
+    }
 
-    private PaymentResponseDto mapToResponse(Payment payment) {
+    private PaymentResponseDto mapToResponse(Payment p) {
         return PaymentResponseDto.builder()
-                .paymentId(payment.getId())
-                .orderId(payment.getOrderId())
-                .userId(payment.getUserId())
-                .amount(payment.getAmount())
-                .method(payment.getMethod())
-                .status(payment.getStatus())
-                .transactionId(payment.getTransactionId())
-                .createdAt(payment.getCreatedAt())
+                .paymentId(p.getId()).orderId(p.getOrderId()).userId(p.getUserId())
+                .amount(p.getAmount()).method(p.getMethod()).status(p.getStatus())
+                .transactionId(p.getTransactionId()).createdAt(p.getCreatedAt())
                 .build();
     }
-
 }

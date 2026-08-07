@@ -6,11 +6,15 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 
@@ -23,145 +27,130 @@ public class UserController {
 
     private final UserService userService;
 
-    // 🔹 Get Profile
-//    @GetMapping("/getProfile")
-//    public ResponseEntity<ApiResponse<UserProfileResponseDTO>> getProfile(Authentication authentication) {
-//
-//
-//        log.info("Authentication Object: {}", authentication.getName());
-//
-//        String mobile = authentication.getName();
-//
-//        UserProfileResponseDTO profile = userService.getProfileByMobile(mobile);
-//
-//        log.info("Authentication Object: {}", profile);
-//        return ResponseEntity.ok(
-//                ApiResponse.<UserProfileResponseDTO>builder()
-//                        .status("success")
-//                        .statusCode(HttpStatus.OK.value())
-//                        .message("Profile fetched successfully")
-//                        .data(profile)
-//                        .build()
-//        );
-//    }
-
 
     @GetMapping("/getProfile")
-    public ResponseEntity<ApiResponse<UserResponseDTO>> getProfile(
-            Authentication authentication) {
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<UserResponseDTO>>> getProfile(ServerHttpRequest request) {
 
-        String mobile = authentication.getName();
+        String token = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
-        UserResponseDTO user =
-                userService.getProfileByMobile(mobile);
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
+                .doOnNext(auth -> {
+                    log.info("Authentication: {}", auth);
+                    log.info("Name: {}", auth.getName());
+                })
+                .flatMap(auth ->
+                        userService.getProfileByUserId(Long.valueOf(auth.getName()), token)
+                )
+                .map(r -> ResponseEntity.ok(
+                        ApiResponse.<UserResponseDTO>builder()
+                                .status("success")
+                                .statusCode(200)
+                                .message("User fetched successfully")
+                                .data(r)
+                                .build()
+                ));
 
-        return ResponseEntity.ok(
-                ApiResponse.<UserResponseDTO>builder()
-                        .status("success")
-                        .statusCode(200)
-                        .message("User fetched successfully")
-                        .data(user)
-                        .build()
-        );
+
     }
-
 
 
     @PutMapping("/updateProfile")
-    public ResponseEntity<ApiResponse<UserResponseDTO>> updateProfile(
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<UserResponseDTO>>> updateProfile(
             Authentication authentication,
+            ServerHttpRequest request,
             @Valid @RequestBody UpdateUserProfileDTO dto) {
 
-        String mobile = authentication.getName(); // JWT subject
-
-        UserResponseDTO updated =
-                userService.updateProfile(mobile, dto);
-
-        return ResponseEntity.ok(
-                ApiResponse.<UserResponseDTO>builder()
+        String mobile = authentication.getName();
+        String token = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        return userService.updateProfile(mobile, dto, token)
+                .map(r -> ResponseEntity.ok(ApiResponse.<UserResponseDTO>builder()
                         .status("success")
-                        .statusCode(HttpStatus.OK.value())
+                        .statusCode(200)
                         .message("Profile updated successfully")
-                        .data(updated)
-                        .build()
-        );
+                        .data(r)
+                        .build()));
     }
-    // 🔹 Add Address
+
+
     @PostMapping("/address")
-    public ResponseEntity<ApiResponse<AddressResponseDTO>> addAddress(
+    @PreAuthorize("hasRole('USER')")
+    public Mono<ResponseEntity<ApiResponse<AddressResponseDTO>>> addAddress(
             Authentication authentication,
-          @Valid  @RequestBody AddressRequestDTO dto) {
+            ServerHttpRequest request,
+            @Valid @RequestBody AddressRequestDTO dto) {
 
         Long userId = Long.parseLong(authentication.getName());
-
-        AddressResponseDTO response = userService.addAddress(userId, dto);
-
-
-        return ResponseEntity.ok(
-                ApiResponse.<AddressResponseDTO>builder()
+        String token = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        return userService.addAddress(userId, dto, token)
+                .map(r -> ResponseEntity.ok(ApiResponse.<AddressResponseDTO>builder()
                         .status("success")
                         .statusCode(201)
                         .message("Address added successfully")
-                        .data(response)
-                        .build()
-        );
+                        .data(r)
+                        .build()));
     }
 
-    // 🔹 Get Addresses (with optional paging)
+
     @GetMapping("/address")
-    public ResponseEntity<ApiResponse<List<AddressResponseDTO>>> getAddresses(
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<List<AddressResponseDTO>>>> getAddresses(
             Authentication authentication,
+            ServerHttpRequest request,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
         Long userId = Long.parseLong(authentication.getName());
-        Pageable pageable = PageRequest.of(page, size);
-
-        List<AddressResponseDTO> addresses = userService.getAddresses(userId, pageable); // you can paginate in service if needed
-
-        return ResponseEntity.ok(
-                ApiResponse.<List<AddressResponseDTO>>builder()
-                        .status("success")
-                        .statusCode(HttpStatus.OK.value())
-                        .message("Addresses retrieved successfully")
-                        .data(addresses)
-                        .build()
-        );
-    }
 
 
-    @PostMapping("/reset-password")
-    public ResponseEntity<ApiResponse<Void>> resetPassword(
-            Authentication authentication,
-            @Valid @RequestBody ResetPasswordDTO dto) {
 
-        Long userId = Long.parseLong(authentication.getName());
+        String token = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
-        userService.resetPassword(userId, dto);
-
-        return ResponseEntity.ok(
-                ApiResponse.<Void>builder()
+        return userService.getAddresses(userId, PageRequest.of(page, size), token)
+                .collectList()
+                .map(list -> ResponseEntity.ok(ApiResponse.<List<AddressResponseDTO>>builder()
                         .status("success")
                         .statusCode(200)
-                        .message("Password reset successfully")
-                        .data(null)
-                        .build()
-        );
+                        .message("Addresses retrieved successfully")
+                        .data(list)
+                        .build()));
+    }
+
+    /**
+     * ADMIN ONLY
+     * Get addresses by userId
+     */
+    @GetMapping("/address/user/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<List<AddressResponseDTO>>>> getAddressByUserId(
+            @PathVariable Long userId,
+            ServerHttpRequest request,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        String token = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        return userService.getAddressesByUserId(
+                        userId,
+                        PageRequest.of(page, size), token
+                )
+
+                .collectList()
+
+                .map(list ->
+                        ResponseEntity.ok(
+                                ApiResponse.<List<AddressResponseDTO>>builder()
+                                        .status("success")
+                                        .statusCode(200)
+                                        .message("User addresses retrieved successfully")
+                                        .data(list)
+                                        .build()
+                        )
+                );
     }
 
 
-    @GetMapping("/all-users")
-    public ResponseEntity<ApiResponse<List<AuthUserDTO>>> getAllUsers() {
 
-        List<AuthUserDTO> users = userService.getAllUsersFromAuth();
 
-        return ResponseEntity.ok(
-                ApiResponse.<List<AuthUserDTO>>builder()
-                        .status("success")
-                        .statusCode(HttpStatus.OK.value())
-                        .message("Users fetched from auth service")
-                        .data(users)
-                        .build()
-        );
-    }
 }

@@ -42,8 +42,6 @@ public class ProductRequestDto implements Serializable {
 
     private String description;
 
-    private String imageUrl;
-
     private Boolean organic;
 
     private Boolean fav;
