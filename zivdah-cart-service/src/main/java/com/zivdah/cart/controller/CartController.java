@@ -6,82 +6,192 @@ import com.zivdah.cart.dto.CartItemResponseDto;
 import com.zivdah.cart.service.CartService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 
-
+@Slf4j
 @RestController
 @RequestMapping("/restful/v1/api/cart")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class CartController {
-    @Autowired
-    private  CartService cartService;
 
-    /** Add item to cart */
+
+    private final CartService cartService;
+
+
+    /**
+     * USER, ADMIN
+     */
     @PostMapping("/add")
-    public ResponseEntity<ApiResponse<CartItemResponseDto>> addToCart(
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
+    public Mono<ResponseEntity<ApiResponse<CartItemResponseDto>>> addToCart(
             @Valid @RequestBody CartItemRequestDto dto) {
-        CartItemResponseDto response = cartService.addToCart(dto);
-        return ResponseEntity.ok(ApiResponse.<CartItemResponseDto>builder()
-                .status("success")
-                .statusCode(HttpStatus.OK.value())
-                .message("Item added to cart successfully")
-                .data(response)
-                .build());
+
+
+        log.info("Cart add request received: {}", dto);
+
+
+        return cartService.addToCart(dto)
+
+                .map(response ->
+                        ResponseEntity.status(HttpStatus.CREATED)
+                                .body(ApiResponse.<CartItemResponseDto>builder()
+                                        .status("success")
+                                        .statusCode(201)
+                                        .message("Item added to cart successfully")
+                                        .data(response)
+                                        .build())
+                );
     }
 
-    /** Get all cart items for a user */
+
+
+    /**
+     * USER -> Own Cart
+     */
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
+    public Mono<ResponseEntity<ApiResponse<List<CartItemResponseDto>>>> getMyCart() {
+
+
+        return cartService.getMyCart()
+
+                .collectList()
+
+                .map(items ->
+                        ResponseEntity.ok(
+                                ApiResponse.<List<CartItemResponseDto>>builder()
+                                        .status("success")
+                                        .statusCode(200)
+                                        .message("Cart items retrieved successfully")
+                                        .data(items)
+                                        .build()
+                        )
+                );
+    }
+
+
+
+    /**
+     * ADMIN
+     */
     @GetMapping("/user/{userId}")
-    public ResponseEntity<ApiResponse<List<CartItemResponseDto>>> getCartByUser(@PathVariable Long userId) {
-        List<CartItemResponseDto> items = cartService.getCartByUser(userId);
-        return ResponseEntity.ok(ApiResponse.<List<CartItemResponseDto>>builder()
-                .status("success")
-                .statusCode(HttpStatus.OK.value())
-                .message("Cart items retrieved successfully")
-                .data(items)
-                .build());
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<List<CartItemResponseDto>>>> getCartByUser(
+            @PathVariable Long userId) {
+
+
+        return cartService.getCartByUser(userId)
+
+                .collectList()
+
+                .map(items ->
+                        ResponseEntity.ok(
+                                ApiResponse.<List<CartItemResponseDto>>builder()
+                                        .status("success")
+                                        .statusCode(200)
+                                        .message("Cart retrieved successfully")
+                                        .data(items)
+                                        .build()
+                        )
+                );
     }
 
-    /** Update quantity of a cart item */
+
+
+    /**
+     * USER, ADMIN
+     */
     @PutMapping("/{cartItemId}")
-    public ResponseEntity<ApiResponse<CartItemResponseDto>> updateQuantity(
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
+    public Mono<ResponseEntity<ApiResponse<CartItemResponseDto>>> updateQuantity(
             @PathVariable Long cartItemId,
             @RequestParam Integer quantity) {
-        CartItemResponseDto response = cartService.updateQuantity(cartItemId, quantity);
-        return ResponseEntity.ok(ApiResponse.<CartItemResponseDto>builder()
-                .status("success")
-                .statusCode(HttpStatus.OK.value())
-                .message("Cart item quantity updated successfully")
-                .data(response)
-                .build());
+        return cartService.updateQuantity(cartItemId, quantity)
+                .map(response ->
+                        ResponseEntity.ok(
+                                ApiResponse.<CartItemResponseDto>builder()
+                                        .status("success")
+                                        .statusCode(200)
+                                        .message("Cart quantity updated successfully")
+                                        .data(response)
+                                        .build()
+                        )
+                );
     }
 
-    /** Remove a cart item */
+
+
+    /**
+     * USER, ADMIN
+     */
     @DeleteMapping("/{cartItemId}")
-    public ResponseEntity<ApiResponse<Void>> removeItem(@PathVariable Long cartItemId) {
-        cartService.removeItem(cartItemId);
-        return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .status("success")
-                .statusCode(HttpStatus.OK.value())
-                .message("Cart item removed successfully")
-                .data(null)
-                .build());
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
+    public Mono<ResponseEntity<ApiResponse<Void>>> removeItem(
+            @PathVariable Long cartItemId) {
+
+
+        return cartService.removeItem(cartItemId)
+
+                .thenReturn(
+                        ResponseEntity.ok(
+                                ApiResponse.<Void>builder()
+                                        .status("success")
+                                        .statusCode(200)
+                                        .message("Cart item removed successfully")
+                                        .build()
+                        )
+                );
     }
 
-    /** Clear all items in a user's cart */
-    @DeleteMapping("/clear/{userId}")
-    public ResponseEntity<ApiResponse<Void>> clearCart(@PathVariable Long userId) {
-        cartService.clearCart(userId);
-        return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .status("success")
-                .statusCode(HttpStatus.OK.value())
-                .message("Cart cleared successfully")
-                .data(null)
-                .build());
+
+    /**
+     * USER
+     * Clear logged-in user's cart
+     */
+    @DeleteMapping("/clear")
+    @PreAuthorize("hasRole('USER')")
+    public Mono<ResponseEntity<ApiResponse<Void>>> clearMyCart() {
+
+        return cartService.clearCart()
+                .thenReturn(
+                        ResponseEntity.ok(
+                                ApiResponse.<Void>builder()
+                                        .status("success")
+                                        .statusCode(200)
+                                        .message("Cart cleared successfully")
+                                        .build()
+                        )
+                );
     }
+
+
+    /**
+     * ADMIN
+     * Clear specific user's cart
+     */
+    @DeleteMapping("/clear/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<Void>>> clearUserCart(
+            @PathVariable Long userId) {
+
+        return cartService.clearCart(userId)
+                .thenReturn(
+                        ResponseEntity.ok(
+                                ApiResponse.<Void>builder()
+                                        .status("success")
+                                        .statusCode(200)
+                                        .message("User cart cleared successfully")
+                                        .build()
+                        )
+                );
+    }
+
 }

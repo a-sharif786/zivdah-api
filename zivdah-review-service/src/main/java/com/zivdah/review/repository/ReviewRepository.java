@@ -1,14 +1,12 @@
 package com.zivdah.review.repository;
 
 import com.zivdah.review.entity.Review;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import reactor.core.publisher.Flux;
 
-import java.util.List;
-
-
-@Repository
-public interface  ReviewRepository extends JpaRepository<Review, Long> {
-    List<Review> findByProductId(Long productId);
-
+public interface ReviewRepository extends ReactiveCrudRepository<Review, Long> {
+    Flux<Review> findAllBy(Pageable pageable);
+    Flux<Review> findByProductId(Long productId);
+    Flux<Review> findByProductId(Long productId, Pageable pageable);
 }

@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class ProductResponseDto implements Serializable {
     private static final long serialVersionUID = 1L;
     private Long id;
@@ -31,4 +31,5 @@ public class ProductResponseDto implements Serializable {
     private Boolean fav;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Long vendorId;
 }

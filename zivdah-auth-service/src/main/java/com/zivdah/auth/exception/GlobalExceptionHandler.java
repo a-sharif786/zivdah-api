@@ -3,6 +3,7 @@ package com.zivdah.auth.exception;
 import com.zivdah.auth.dto.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -11,6 +12,19 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    // Handle authorization failures (@PreAuthorize, role checks)
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Object>> handleAccessDeniedException(AccessDeniedException ex) {
+        ApiResponse<Object> response = ApiResponse.builder()
+                .status("error")
+                .message("Access denied")
+                .statusCode(HttpStatus.FORBIDDEN.value())
+                .data(null)
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+    }
 
     // Handle validation errors (@Valid)
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -11,4 +11,5 @@ public class BannerResponseDto {
     private Long id;
     private String imageUrl;
     private String title;
+    private Boolean active;
 }

@@ -1,0 +1,934 @@
+{
+  "info": {
+    "_postman_id": "b3f2a1c0-5e4d-4a6a-9c1e-zivdah00001",
+    "name": "Zivdah API",
+    "description": "Full API surface for the Zivdah online grocery microservices platform, routed through the API Gateway (localhost:8001). Covers auth, product, cart, order, payment, notification, inventory, user, review, and coupon services.\n\nAuth model: most endpoints require `Authorization: Bearer {{token}}` (set at collection level). Requests that are genuinely public are marked No Auth at the request level. Obtain a token via Auth > Login or Auth > Verify OTP and set it into the `token` collection variable.\n\nNote: every service's JWT filter now correctly extracts userId+role from the token into Spring Security authorities (fixed across cart/order/payment/notification/inventory/review/coupon services to match auth/product/user), so @PreAuthorize role checks are enforced as documented below — a 403 reflects an actual role mismatch, not a backend authority bug.\n\nMulti-vendor support: Product now carries a server-assigned `vendorId` (null = platform/ADMIN-owned, set = created by that VENDOR user). Order line items carry a client-supplied `vendorId` snapshot at checkout, enabling vendor-scoped order visibility.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8001", "description": "API Gateway base URL. Direct service ports (bypass gateway): auth=8002, product=8003, cart=8004, order=8005, payment=8006, notification=8007, inventory=8008, user=8009, review=8010, coupon=8011" },
+    { "key": "token", "value": "", "description": "JWT from login/verify-otp response data.token" },
+    { "key": "userId", "value": "1" },
+    { "key": "vendorId", "value": "1", "description": "A VENDOR-role user's id, used by vendor-scoped endpoints" },
+    { "key": "productId", "value": "1" },
+    { "key": "category", "value": "GROCERY", "description": "One of VEGETABLE, FRUIT, MILK, PULSE, GROCERY" },
+    { "key": "bannerId", "value": "1" },
+    { "key": "cartItemId", "value": "1" },
+    { "key": "orderId", "value": "1" },
+    { "key": "paymentId", "value": "1" },
+    { "key": "reviewId", "value": "1" },
+    { "key": "couponCode", "value": "SAVE10" },
+    { "key": "couponId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Auth Service",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"password123\",\n  \"mobile\": \"9876543210\",\n  \"role\": \"USER\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/auth/register",
+            "description": "Public. role is optional enum: USER, ADMIN, VENDOR."
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"9876543210\",\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"password123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/auth/login",
+            "description": "Public. Provide mobile or email plus password. Response data.token can be copied into the token collection variable."
+          }
+        },
+        {
+          "name": "Send OTP",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"9876543210\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/auth/send-otp",
+            "description": "Public. OTP is currently a static demo placeholder (123456) until a real SMS/email provider is wired up."
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"9876543210\",\n  \"otp\": \"123456\",\n  \"deviceToken\": \"sample-device-token\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/auth/verify-otp",
+            "description": "Public. Returns LoginResponseDTO including token."
+          }
+        },
+        {
+          "name": "Get User By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/auth/byUserId/{{userId}}",
+            "description": "Requires auth. Caller must be the owner (JWT userId matches) or ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Get All Users (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/auth/all-users",
+            "description": "Security matcher permits this path publicly, but @PreAuthorize(hasRole('ADMIN')) is enforced at the method level — a valid ADMIN bearer token is required regardless."
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Updated\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/auth/update-profile/{{userId}}",
+            "description": "Requires auth. Owner or ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Forget Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/auth/forget-password",
+            "description": "Public. Triggers OTP to email for password reset."
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"newPassword123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/auth/reset-password",
+            "description": "Public."
+          }
+        },
+        {
+          "name": "Verify Registration OTP",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"9876543210\",\n  \"email\": \"john.doe@example.com\",\n  \"mobileOtp\": \"123456\",\n  \"emailOtp\": \"123456\",\n  \"deviceToken\": \"sample-device-token\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/auth/verify-registration-otp",
+            "description": "Public. Returns LoginResponseDTO including token."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/auth/logout",
+            "description": "Requires auth."
+          }
+        },
+        {
+          "name": "Update Role (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"VENDOR\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/auth/update-role/{{userId}}",
+            "description": "Requires ROLE_ADMIN. role enum: USER, ADMIN, VENDOR."
+          }
+        },
+        {
+          "name": "Deactivate User",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/auth/deactivate/{{userId}}",
+            "description": "Security matcher permits this publicly, but controller code checks owner-or-admin against the auth context, so a valid bearer token is effectively required."
+          }
+        },
+        {
+          "name": "Activate User (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/auth/activate/{{userId}}",
+            "description": "@PreAuthorize(hasRole('ADMIN')) — requires a valid ADMIN bearer token despite the permitAll security matcher."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product Service",
+      "item": [
+        {
+          "name": "Create Product (Admin/Vendor)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "data", "value": "{\n  \"name\": \"Fresh Tomatoes\",\n  \"category\": \"VEGETABLE\",\n  \"price\": 40.00,\n  \"discountPrice\": 35.00,\n  \"unit\": \"kg\",\n  \"stockQuantity\": 100,\n  \"expiryDate\": \"2026-09-01\",\n  \"description\": \"Farm fresh tomatoes\",\n  \"organic\": true,\n  \"brand\": \"Zivdah Farms\"\n}", "type": "text" },
+                { "key": "image", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/restful/v1/api/products/create",
+            "description": "Requires ROLE_ADMIN or ROLE_VENDOR. Multipart: 'data' part is the JSON ProductRequestDto, 'image' part is the product image file."
+          }
+        },
+        {
+          "name": "Get All Products",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/products/getAll?page=0&size=10",
+            "description": "Public."
+          }
+        },
+        {
+          "name": "Search Products",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/products/search?keyword=tomato&page=0&size=10",
+            "description": "Public."
+          }
+        },
+        {
+          "name": "Get Products By Category",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/products/category/{{category}}?page=0&size=10",
+            "description": "Public. category enum: VEGETABLE, FRUIT, MILK, PULSE, GROCERY."
+          }
+        },
+        {
+          "name": "Get Product By Id",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/products/{{productId}}",
+            "description": "Public."
+          }
+        },
+        {
+          "name": "Update Product (Admin/Vendor)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "data", "value": "{\n  \"name\": \"Fresh Tomatoes\",\n  \"category\": \"VEGETABLE\",\n  \"price\": 42.00,\n  \"discountPrice\": 38.00,\n  \"unit\": \"kg\",\n  \"stockQuantity\": 80,\n  \"expiryDate\": \"2026-09-05\",\n  \"description\": \"Farm fresh tomatoes\",\n  \"organic\": true,\n  \"brand\": \"Zivdah Farms\"\n}", "type": "text" },
+                { "key": "image", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/restful/v1/api/products/{{productId}}",
+            "description": "Requires ROLE_ADMIN or ROLE_VENDOR. 'image' part is optional on update."
+          }
+        },
+        {
+          "name": "Delete Product (Admin/Vendor)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/products/{{productId}}",
+            "description": "Requires ROLE_ADMIN or ROLE_VENDOR."
+          }
+        },
+        {
+          "name": "Get Categories",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/products/categories",
+            "description": "Public."
+          }
+        },
+        {
+          "name": "Get Wishlist",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/products/wishlist?page=0&size=10",
+            "description": "Requires auth. Returns wishlist for the current JWT user."
+          }
+        },
+        {
+          "name": "Toggle Wishlist",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fav\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/products/{{productId}}/wishlist",
+            "description": "Requires auth."
+          }
+        },
+        {
+          "name": "Get Products By Vendor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/products/vendor/{{vendorId}}?page=0&size=10",
+            "description": "Requires ROLE_ADMIN or ROLE_VENDOR. A VENDOR caller may only query their own id (matching the JWT userId) — 403 otherwise. Returns products where vendorId matches; ADMIN-created (platform-owned) products have vendorId=null and are not returned here."
+          }
+        },
+        {
+          "name": "Get All Banners (Public)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/banner/getAll",
+            "description": "Public. Presumably returns only active banners."
+          }
+        },
+        {
+          "name": "Get All Banners (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/banner/all",
+            "description": "Requires ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Create Banner (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "data", "value": "{\n  \"title\": \"Summer Sale\",\n  \"active\": true\n}", "type": "text" },
+                { "key": "image", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/restful/v1/api/banner/create",
+            "description": "Requires ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Update Banner (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "data", "value": "{\n  \"title\": \"Summer Sale Extended\",\n  \"active\": true\n}", "type": "text" },
+                { "key": "image", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/restful/v1/api/banner/{{bannerId}}",
+            "description": "Requires ROLE_ADMIN. 'image' part is optional on update."
+          }
+        },
+        {
+          "name": "Delete Banner (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/banner/{{bannerId}}",
+            "description": "Requires ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Toggle Banner (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/banner/{{bannerId}}/toggle",
+            "description": "Requires ROLE_ADMIN."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cart Service",
+      "item": [
+        {
+          "name": "Add To Cart",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{userId}},\n  \"productId\": {{productId}},\n  \"quantity\": 2,\n  \"price\": 40.00,\n  \"sku\": \"VEG-TOM-1KG\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/cart/add",
+            "description": "Requires ROLE_USER or ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Get My Cart",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/cart",
+            "description": "Requires ROLE_USER or ROLE_ADMIN. Returns the current JWT user's cart."
+          }
+        },
+        {
+          "name": "Get Cart By User (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/cart/user/{{userId}}",
+            "description": "Requires ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Update Cart Item Quantity",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/cart/{{cartItemId}}?quantity=3",
+            "description": "Requires ROLE_USER or ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Delete Cart Item",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/cart/{{cartItemId}}",
+            "description": "Requires ROLE_USER or ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Clear My Cart",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/cart/clear",
+            "description": "Requires ROLE_USER. Known backend bug: current implementation deletes all rows in the cart table rather than scoping to the caller — use with care against a shared environment."
+          }
+        },
+        {
+          "name": "Clear Cart By User (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/cart/clear/{{userId}}",
+            "description": "Requires ROLE_ADMIN."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Order Service",
+      "item": [
+        {
+          "name": "Create Order",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{userId}},\n  \"subTotal\": 400.00,\n  \"gstAmount\": 20.00,\n  \"cgstAmount\": 10.00,\n  \"sgstAmount\": 10.00,\n  \"igstAmount\": 0.00,\n  \"totalTaxAmount\": 20.00,\n  \"deliveryCharge\": 30.00,\n  \"packagingCharge\": 5.00,\n  \"handlingCharge\": 5.00,\n  \"discountAmount\": 0.00,\n  \"couponCode\": \"{{couponCode}}\",\n  \"totalAmount\": 460.00,\n  \"currency\": \"INR\",\n  \"deliveryAddressLine1\": \"123 MG Road\",\n  \"deliveryAddressLine2\": \"Near City Mall\",\n  \"deliveryCity\": \"Bengaluru\",\n  \"deliveryState\": \"Karnataka\",\n  \"deliveryPinCode\": \"560001\",\n  \"deliveryCountry\": \"India\",\n  \"items\": [\n    {\n      \"productId\": {{productId}},\n      \"vendorId\": {{vendorId}},\n      \"quantity\": 2,\n      \"price\": 40.00,\n      \"subtotal\": 80.00\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/orders/create",
+            "description": "Permitted by the security matcher without auth (single-segment wildcard) and has no @PreAuthorize — effectively public in the current backend config. `items[].vendorId` is client-supplied (e.g. copied from the product's vendorId at checkout) and denormalized onto the order line item, enabling vendor-scoped order lookups later."
+          }
+        },
+        {
+          "name": "Get Order By Id",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/orders/{{orderId}}",
+            "description": "Permitted by the security matcher without auth (single-segment wildcard) — effectively public in the current backend config."
+          }
+        },
+        {
+          "name": "Get Orders By User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/orders/user/{{userId}}",
+            "description": "Requires auth (any authenticated user, no specific role check)."
+          }
+        },
+        {
+          "name": "Cancel Order",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/orders/cancel/{{orderId}}",
+            "description": "Requires auth (any authenticated user, no specific role check)."
+          }
+        },
+        {
+          "name": "Get All Orders (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/orders/all?page=0&size=10",
+            "description": "Requires ROLE_ADMIN. Optional query param `status` (e.g. CREATED, CONFIRMED, CANCELLED) filters by OrderStatus."
+          }
+        },
+        {
+          "name": "Get Orders By Vendor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/orders/vendor/{{vendorId}}?page=0&size=10",
+            "description": "Requires ROLE_ADMIN or ROLE_VENDOR. A VENDOR caller may only query their own id — 403 otherwise. Returns orders containing at least one line item from that vendor, with the `items` array filtered to only that vendor's lines. Pagination is over order-item rows, so a page may contain fewer than `size` distinct orders."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment Service",
+      "item": [
+        {
+          "name": "Initiate Payment",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": {{orderId}},\n  \"userId\": {{userId}},\n  \"amount\": 460.00,\n  \"currency\": \"INR\",\n  \"method\": \"UPI\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/payments/initiate",
+            "description": "Permitted by the security matcher without auth (single-segment wildcard) — effectively public in the current backend config. method enum: CARD, UPI, NET_BANKING, WALLET, APPLE_PAY, GOOGLE_PAY, BANK_TRANSFER, COD."
+          }
+        },
+        {
+          "name": "Get Payment By Id",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/payments/{{paymentId}}",
+            "description": "Permitted by the security matcher without auth (single-segment wildcard) — effectively public in the current backend config."
+          }
+        },
+        {
+          "name": "Get Payments By Order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/payments/order/{{orderId}}",
+            "description": "Requires auth — this path has two segments after /payments/ so it falls outside the permitAll wildcard."
+          }
+        },
+        {
+          "name": "Mark Payment Success",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/payments/success/{{paymentId}}",
+            "description": "Permitted by the security matcher without auth (single-segment wildcard) — effectively public in the current backend config; typically called by a payment gateway webhook."
+          }
+        },
+        {
+          "name": "Mark Payment Failed",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/payments/failed/{{paymentId}}",
+            "description": "Permitted by the security matcher without auth (single-segment wildcard) — effectively public in the current backend config; typically called by a payment gateway webhook."
+          }
+        },
+        {
+          "name": "Get All Payments (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/payments/all?page=0&size=10",
+            "description": "Requires ROLE_ADMIN. Optional query param `status` (PENDING, PROCESSING, SUCCESS, FAILED, CANCELLED, REFUNDED) filters by PaymentStatus."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notification Service",
+      "item": [
+        {
+          "name": "Send Notification",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{userId}},\n  \"title\": \"Order Confirmed\",\n  \"message\": \"Your order #{{orderId}} has been confirmed.\",\n  \"fcmToken\": \"\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/notifications/send",
+            "description": "Requires auth. fcmToken is optional if sent via internal service call."
+          }
+        },
+        {
+          "name": "Get Notifications By User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/notifications/user/{{userId}}",
+            "description": "Requires auth."
+          }
+        },
+        {
+          "name": "Get All Notifications (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/notifications?page=0&size=10",
+            "description": "Requires ROLE_ADMIN."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventory Service",
+      "item": [
+        {
+          "name": "Get Inventory By Product",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/inventory/{{productId}}",
+            "description": "Requires auth."
+          }
+        },
+        {
+          "name": "Add Stock",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": {{productId}},\n  \"quantity\": 50\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/inventory/add",
+            "description": "Requires auth."
+          }
+        },
+        {
+          "name": "Reserve Stock",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": {{productId}},\n  \"quantity\": 2\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/inventory/reserve",
+            "description": "Requires auth."
+          }
+        },
+        {
+          "name": "Release Stock",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": {{productId}},\n  \"quantity\": 2\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/inventory/release",
+            "description": "Requires auth."
+          }
+        },
+        {
+          "name": "Confirm Stock",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": {{productId}},\n  \"quantity\": 2\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/inventory/confirm",
+            "description": "Requires auth."
+          }
+        },
+        {
+          "name": "Get All Inventory (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/inventory?page=0&size=10",
+            "description": "Requires ROLE_ADMIN."
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Service",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/user/getProfile",
+            "description": "Requires ROLE_USER or ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Updated\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/user/updateProfile",
+            "description": "Requires ROLE_USER or ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Add Address",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"addressLine1\": \"123 MG Road\",\n  \"addressLine2\": \"Near City Mall\",\n  \"city\": \"Bengaluru\",\n  \"state\": \"Karnataka\",\n  \"pinCode\": \"560001\",\n  \"isDefault\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/user/address",
+            "description": "Requires ROLE_USER."
+          }
+        },
+        {
+          "name": "Get My Addresses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/user/address?page=0&size=10",
+            "description": "Requires ROLE_USER or ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Get Addresses By User (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/user/address/user/{{userId}}?page=0&size=10",
+            "description": "Requires ROLE_ADMIN."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Review Service",
+      "item": [
+        {
+          "name": "Create Review",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{userId}},\n  \"productId\": {{productId}},\n  \"rating\": 5,\n  \"comment\": \"Great quality, fresh produce!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/reviews/create",
+            "description": "Requires auth. rating must be 1-5."
+          }
+        },
+        {
+          "name": "Get Review By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/reviews/{{reviewId}}",
+            "description": "Requires auth."
+          }
+        },
+        {
+          "name": "Get All Reviews",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/reviews?page=0&size=10",
+            "description": "Requires auth."
+          }
+        },
+        {
+          "name": "Update Review",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{userId}},\n  \"productId\": {{productId}},\n  \"rating\": 4,\n  \"comment\": \"Updated my review — still good, delivery was late once.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/reviews/{{reviewId}}",
+            "description": "Requires auth."
+          }
+        },
+        {
+          "name": "Delete Review",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/reviews/{{reviewId}}",
+            "description": "Requires auth."
+          }
+        },
+        {
+          "name": "Get Reviews By Product",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/reviews/product/{{productId}}?page=0&size=10",
+            "description": "Requires auth. Useful for a vendor to see reviews on a specific product they own."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Coupon Service",
+      "item": [
+        {
+          "name": "Create Coupon (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{couponCode}}\",\n  \"description\": \"10% off on orders above 500\",\n  \"discountType\": \"PERCENTAGE\",\n  \"discountValue\": 10,\n  \"minOrderAmount\": 500,\n  \"maxDiscountAmount\": 100,\n  \"usageLimit\": 100,\n  \"validFrom\": \"2026-08-01T00:00:00\",\n  \"validUntil\": \"2026-12-31T23:59:59\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/coupons/create",
+            "description": "Requires ROLE_ADMIN. discountType enum: PERCENTAGE, FIXED."
+          }
+        },
+        {
+          "name": "Get Coupon By Code",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/coupons/{{couponCode}}",
+            "description": "Public."
+          }
+        },
+        {
+          "name": "Get All Coupons (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/coupons/all",
+            "description": "Requires ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Toggle Coupon (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/coupons/{{couponId}}/toggle",
+            "description": "Requires ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Delete Coupon (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/restful/v1/api/coupons/{{couponId}}",
+            "description": "Requires ROLE_ADMIN."
+          }
+        },
+        {
+          "name": "Apply Coupon",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{couponCode}}\",\n  \"orderAmount\": 600.00\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/restful/v1/api/coupons/apply",
+            "description": "Public."
+          }
+        }
+      ]
+    }
+  ]
+}

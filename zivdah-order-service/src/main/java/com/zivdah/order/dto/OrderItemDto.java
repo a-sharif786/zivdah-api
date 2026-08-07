@@ -10,7 +10,15 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Builder
 public class OrderItemDto {
+
+
     private Long productId;
+
+    private Long vendorId;
+
     private Integer quantity;
+
     private BigDecimal price;
+
+    private BigDecimal subtotal;
 }

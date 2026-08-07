@@ -5,5 +5,8 @@ public enum PaymentMethod {
     UPI,
     NET_BANKING,
     WALLET,
+    APPLE_PAY,
+    GOOGLE_PAY,
+    BANK_TRANSFER,
     COD
 }

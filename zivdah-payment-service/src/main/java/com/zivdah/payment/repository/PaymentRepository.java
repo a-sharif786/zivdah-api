@@ -1,10 +1,13 @@
 package com.zivdah.payment.repository;
 
 import com.zivdah.payment.entity.Payment;
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.zivdah.payment.enums.PaymentStatus;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import reactor.core.publisher.Flux;
 
-import java.util.List;
-
-public interface PaymentRepository extends JpaRepository<Payment, Long> {
-    List<Payment> findByOrderId(Long orderId);
+public interface PaymentRepository extends ReactiveCrudRepository<Payment, Long> {
+    Flux<Payment> findByOrderId(Long orderId);
+    Flux<Payment> findAllBy(Pageable pageable);
+    Flux<Payment> findByStatus(PaymentStatus status, Pageable pageable);
 }

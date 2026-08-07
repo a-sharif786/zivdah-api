@@ -6,95 +6,69 @@ import com.zivdah.inventory.dto.InventoryResponseDto;
 import com.zivdah.inventory.dto.ReserveStockRequestDto;
 import com.zivdah.inventory.service.InventoryService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/restful/v1/api/inventory")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "*")
 public class InventoryController {
 
     private final InventoryService inventoryService;
 
-    // 🔍 Get inventory
     @GetMapping("/{productId}")
-    public ResponseEntity<ApiResponse<InventoryResponseDto>> getInventoryByProductId(@PathVariable Long productId) {
-        InventoryResponseDto inventory = inventoryService.getInventoryByProductId(productId);
-        return ResponseEntity.ok(ApiResponse.<InventoryResponseDto>builder()
-                .status("success")
-                .statusCode(HttpStatus.OK.value())
-                .message("Inventory fetched successfully")
-                .data(inventory)
-                .build()
-        );
+    public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> getInventoryByProductId(
+            @PathVariable Long productId) {
+        return inventoryService.getInventoryByProductId(productId)
+                .map(r -> ResponseEntity.ok(ApiResponse.<InventoryResponseDto>builder()
+                        .status("success").statusCode(200).message("Inventory fetched").data(r).build()));
     }
 
-    // ➕ Add stock (Admin)
     @PostMapping("/add")
-    public ResponseEntity<ApiResponse<InventoryResponseDto>> addStock(
+    public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> addStock(
             @RequestBody AddStockRequestDto dto) {
-        InventoryResponseDto inventory = inventoryService.addStock(dto.getProductId(), dto.getQuantity());
-
-        // Wrap the response in ApiResponse
-        return ResponseEntity.ok(
-                ApiResponse.<InventoryResponseDto>builder()
-                        .status("success")
-                        .statusCode(HttpStatus.OK.value())
-                        .message("Stock added successfully")
-                        .data(inventory)
-                        .build()
-        );
+        return inventoryService.addStock(dto.getProductId(), dto.getQuantity())
+                .map(r -> ResponseEntity.ok(ApiResponse.<InventoryResponseDto>builder()
+                        .status("success").statusCode(200).message("Stock added").data(r).build()));
     }
 
-    // 🔒 Reserve stock (Order Created)
     @PostMapping("/reserve")
-    public ResponseEntity<ApiResponse<InventoryResponseDto>> reserveStock(
+    public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> reserveStock(
             @RequestBody ReserveStockRequestDto dto) {
-        InventoryResponseDto inventory = inventoryService.reserveStock(dto.getProductId(), dto.getQuantity());
-        // Wrap the response in ApiResponse
-        return ResponseEntity.ok(
-                ApiResponse.<InventoryResponseDto>builder()
-                        .status("success")
-                        .statusCode(HttpStatus.OK.value())
-                        .message("Reserve Stock added successfully")
-                        .data(inventory)
-                        .build()
-        );
+        return inventoryService.reserveStock(dto.getProductId(), dto.getQuantity())
+                .map(r -> ResponseEntity.ok(ApiResponse.<InventoryResponseDto>builder()
+                        .status("success").statusCode(200).message("Stock reserved").data(r).build()));
     }
 
-    // 🔓 Release stock (Payment Failed)
     @PostMapping("/release")
-    public ResponseEntity<ApiResponse<InventoryResponseDto>> releaseStock(
+    public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> releaseStock(
             @RequestBody ReserveStockRequestDto dto) {
-
-
-        InventoryResponseDto inventory = inventoryService.releaseStock(dto.getProductId(), dto.getQuantity());
-        // Wrap the response in ApiResponse
-        return ResponseEntity.ok(
-                ApiResponse.<InventoryResponseDto>builder()
-                        .status("success")
-                        .statusCode(HttpStatus.OK.value())
-                        .message("Release Stock added successfully")
-                        .data(inventory)
-                        .build()
-        );
+        return inventoryService.releaseStock(dto.getProductId(), dto.getQuantity())
+                .map(r -> ResponseEntity.ok(ApiResponse.<InventoryResponseDto>builder()
+                        .status("success").statusCode(200).message("Stock released").data(r).build()));
     }
 
-    // ✅ Confirm stock (Payment Success)
     @PostMapping("/confirm")
-    public ResponseEntity<ApiResponse<InventoryResponseDto>> confirmStock(
+    public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> confirmStock(
             @RequestBody ReserveStockRequestDto dto) {
+        return inventoryService.confirmStock(dto.getProductId(), dto.getQuantity())
+                .map(r -> ResponseEntity.ok(ApiResponse.<InventoryResponseDto>builder()
+                        .status("success").statusCode(200).message("Stock confirmed").data(r).build()));
+    }
 
-        InventoryResponseDto inventory = inventoryService.confirmStock(dto.getProductId(), dto.getQuantity());
-        // Wrap the response in ApiResponse
-        return ResponseEntity.ok(
-                ApiResponse.<InventoryResponseDto>builder()
-                        .status("success")
-                        .statusCode(HttpStatus.OK.value())
-                        .message("Confirm Stock added successfully")
-                        .data(inventory)
-                        .build()
-        );
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<List<InventoryResponseDto>>>> getAllInventory(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+        return inventoryService.getAllInventory(PageRequest.of(page, size))
+                .collectList()
+                .map(list -> ResponseEntity.ok(ApiResponse.<List<InventoryResponseDto>>builder()
+                        .status("success").statusCode(200).message("Inventory retrieved").data(list).build()));
     }
 }

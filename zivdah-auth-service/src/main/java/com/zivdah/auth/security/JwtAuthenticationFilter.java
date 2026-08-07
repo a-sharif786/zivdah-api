@@ -1,59 +1,119 @@
 package com.zivdah.auth.security;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebFilter;
+import org.springframework.web.server.WebFilterChain;
+import reactor.core.publisher.Mono;
 
-import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 @Component
-@Slf4j
 @RequiredArgsConstructor
-public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    @Autowired
-    private  JwtTokenProvider jwtTokenProvider;
+@Slf4j
+public class JwtAuthenticationFilter implements WebFilter {
+
+    private final JwtTokenProvider jwtTokenProvider;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
 
-        String authHeader = request.getHeader("Authorization");
+        String header = exchange.getRequest().getHeaders().getFirst("Authorization");
 
-        log.info("authHeader"+authHeader);
+        log.info("=================================================");
+        log.info("JWT FILTER EXECUTED");
+        log.info("Authorization Header : {}", header);
 
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            log.info("authHeader111"+token);
-            if (jwtTokenProvider.validateToken(token)) {
-                String mobileNumber  = jwtTokenProvider.getMobileNumberFromToken(token);
-
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                mobileNumber,
-                                null,
-                                Collections.emptyList() // IMPORTANT: set authorities
-                        );
-
-                authentication.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
-                );
-
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            }
+        if (header == null || !header.startsWith("Bearer ")) {
+            log.warn("Bearer token not found.");
+            return chain.filter(exchange);
         }
 
-        filterChain.doFilter(request, response);
+        String token = header.substring(7);
+
+        boolean valid = jwtTokenProvider.validateToken(token);
+
+        log.info("Token Valid : {}", valid);
+
+        if (!valid) {
+            return chain.filter(exchange);
+        }
+
+        Long userId = jwtTokenProvider.getUserIdFromToken(token);
+        String mobile = jwtTokenProvider.getMobileNumberFromToken(token);
+        String role = jwtTokenProvider.getRoleFromToken(token);
+
+        log.info("UserId : {}", userId);
+        log.info("Mobile : {}", mobile);
+        log.info("Role : {}", role);
+
+        String principal = userId != null ? userId.toString() : mobile;
+
+        List<SimpleGrantedAuthority> authorities =
+                role == null
+                        ? Collections.emptyList()
+                        : List.of(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()));
+
+        log.info("Authorities : {}", authorities);
+
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(
+                        principal,
+                        null,
+                        authorities
+                );
+
+        return chain.filter(exchange)
+                .contextWrite(
+                        ReactiveSecurityContextHolder.withAuthentication(authentication)
+                );
     }
 }
-
+//package com.zivdah.auth.security;
+//
+//import lombok.RequiredArgsConstructor;
+//import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+//import org.springframework.security.core.authority.SimpleGrantedAuthority;
+//import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+//import org.springframework.stereotype.Component;
+//import org.springframework.web.server.ServerWebExchange;
+//import org.springframework.web.server.WebFilter;
+//import org.springframework.web.server.WebFilterChain;
+//import reactor.core.publisher.Mono;
+//
+//import java.util.List;
+//
+//@Component
+//@RequiredArgsConstructor
+//public class JwtAuthenticationFilter implements WebFilter {
+//
+//    private final JwtTokenProvider jwtTokenProvider;
+//
+//    @Override
+//    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+//        String header = exchange.getRequest().getHeaders().getFirst("Authorization");
+//        if (header != null && header.startsWith("Bearer ")) {
+//            String token = header.substring(7);
+//            if (jwtTokenProvider.validateToken(token)) {
+//                Long userId = jwtTokenProvider.getUserIdFromToken(token);
+//                String mobile = jwtTokenProvider.getMobileNumberFromToken(token);
+//                String role = jwtTokenProvider.getRoleFromToken(token);
+//                String principal = userId != null ? userId.toString() : mobile;
+//                List<SimpleGrantedAuthority> authorities = role == null
+//                        ? List.of()
+//                        : List.of(new SimpleGrantedAuthority("ROLE_" + role));
+//                return chain.filter(exchange)
+//                        .contextWrite(ReactiveSecurityContextHolder.withAuthentication(
+//                                new UsernamePasswordAuthenticationToken(principal, null, authorities)
+//                        ));
+//            }
+//        }
+//        return chain.filter(exchange);
+//    }
+//}

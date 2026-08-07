@@ -31,6 +31,22 @@
 			<artifactId>jackson-databind</artifactId>
 		</dependency>
 
+		<!-- Needed for FilePart/Mono in the shared upload service. Every consuming
+		     service already depends on this directly, so it's provided here to
+		     avoid pulling a second (potentially mismatched) copy into the fat jar. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webflux</artifactId>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- Cloudinary SDK, shared so any service can reuse the upload logic -->
+		<dependency>
+			<groupId>com.cloudinary</groupId>
+			<artifactId>cloudinary-http44</artifactId>
+			<version>1.38.0</version>
+		</dependency>
+
 	</dependencies>
 </project>
 

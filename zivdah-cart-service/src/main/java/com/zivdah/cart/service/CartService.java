@@ -2,20 +2,16 @@ package com.zivdah.cart.service;
 
 import com.zivdah.cart.dto.CartItemRequestDto;
 import com.zivdah.cart.dto.CartItemResponseDto;
-import com.zivdah.cart.entity.CartItemEntity;
-import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.util.List;
-
-@Service
 public interface CartService {
-    CartItemResponseDto addToCart(CartItemRequestDto request);
+    Mono<CartItemResponseDto> addToCart(CartItemRequestDto request);
+    Flux<CartItemResponseDto> getCartByUser(Long userId);
+    Mono<CartItemResponseDto> updateQuantity(Long cartItemId, Integer quantity);
+    Mono<Void> removeItem(Long cartItemId);
+    Mono<Void> clearCart(Long userId);
+    Mono<Void> clearCart();
+    Flux<CartItemResponseDto> getMyCart();
 
-    List<CartItemResponseDto> getCartByUser(Long userId);
-
-    CartItemResponseDto updateQuantity(Long cartItemId, Integer quantity);
-
-    void removeItem(Long cartItemId);
-
-    void clearCart(Long userId);
 }

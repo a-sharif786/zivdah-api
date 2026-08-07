@@ -10,10 +10,6 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class UpdateUserProfileDTO {
-
     @NotBlank
     private String name;
-
-    @Email
-    private String email;
 }

@@ -1,8 +1,15 @@
 package com.zivdah.payment.enums;
 
 public enum PaymentStatus {
-    INITIATED,
+    PENDING,
+
+    PROCESSING,
+
     SUCCESS,
+
     FAILED,
+
+    CANCELLED,
+
     REFUNDED
 }

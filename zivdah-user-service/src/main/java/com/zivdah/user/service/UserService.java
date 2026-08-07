@@ -2,19 +2,13 @@ package com.zivdah.user.service;
 
 import com.zivdah.user.dto.*;
 import org.springframework.data.domain.Pageable;
-
-import java.util.List;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public interface UserService {
-    UserResponseDTO getProfileByMobile(String mobile);
-    UserResponseDTO updateProfile(String mobile, UpdateUserProfileDTO dto);
-
-
-    void resetPassword(Long userId, ResetPasswordDTO dto);
-
-    AddressResponseDTO addAddress(Long userId, AddressRequestDTO dto);
-
-    List<AddressResponseDTO> getAddresses(Long userId, Pageable pageable);
-
-    List<AuthUserDTO> getAllUsersFromAuth();
+    Mono<UserResponseDTO> getProfileByUserId(Long userId , String token);
+    Mono<UserResponseDTO> updateProfile(String mobile, UpdateUserProfileDTO dto, String token);
+    Mono<AddressResponseDTO> addAddress(Long userId, AddressRequestDTO dto, String token);
+    Flux<AddressResponseDTO> getAddresses(Long userId, Pageable pageable, String token);
+    Flux<AddressResponseDTO> getAddressesByUserId(Long userId, Pageable pageable, String token);
 }

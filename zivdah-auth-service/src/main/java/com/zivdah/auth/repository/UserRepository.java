@@ -1,18 +1,12 @@
 package com.zivdah.auth.repository;
 
 import com.zivdah.auth.entity.UserEntity;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import reactor.core.publisher.Mono;
 
-import java.util.Optional;
-@Repository
-public interface UserRepository  extends JpaRepository<UserEntity, Long> {
-    Optional<UserEntity> findByEmail(String email);
-
-    boolean existsByEmail(String email);
-
-    boolean existsByMobile(String mobile);
-
-    Optional<UserEntity> findByMobile(String mobile);
-
+public interface UserRepository extends ReactiveCrudRepository<UserEntity, Long> {
+    Mono<UserEntity> findByEmail(String email);
+    Mono<Boolean> existsByEmail(String email);
+    Mono<Boolean> existsByMobile(String mobile);
+    Mono<UserEntity> findByMobile(String mobile);
 }
