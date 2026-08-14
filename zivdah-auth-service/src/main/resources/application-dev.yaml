@@ -20,7 +20,9 @@ spring:
     user: postgres
     password: root
     locations: classpath:db/migration
-    baseline-on-migrate: true   # <-- Add this
+    table: flyway_schema_history_auth  # dedicated history table: zivdahDB is shared across services,
+                                        # so each service needs its own version numbering
+    baseline-on-migrate: true   # public schema already has other services' tables
 
 
   mail:

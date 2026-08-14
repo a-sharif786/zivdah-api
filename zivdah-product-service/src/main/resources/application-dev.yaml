@@ -19,6 +19,9 @@ spring:
     user: postgres
     password: root
     locations: classpath:db/migration
+    table: flyway_schema_history_product  # dedicated history table: was implicitly using the shared default
+                                           # flyway_schema_history table that every other service now moves off of
+    baseline-on-migrate: true             # public schema already has other services' tables
 
   data:
     redis:
