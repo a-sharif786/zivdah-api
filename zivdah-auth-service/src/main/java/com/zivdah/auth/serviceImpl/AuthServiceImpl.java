@@ -83,10 +83,12 @@ public class AuthServiceImpl implements AuthService {
         if (!hasMobile && !hasEmail) {
             return Mono.error(new RuntimeException("Mobile or email is required"));
         }
+        if (hasMobile && !hasEmail) {
+            return Mono.error(new RuntimeException(
+                    "Mobile login uses OTP. Call /restful/v1/api/auth/send-otp then /verify-otp instead."));
+        }
 
-        Mono<UserEntity> userMono = hasMobile
-                ? userRepository.findByMobile(request.getMobile())
-                : userRepository.findByEmail(request.getEmail());
+        Mono<UserEntity> userMono = userRepository.findByEmail(request.getEmail());
 
         return userMono
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found")))

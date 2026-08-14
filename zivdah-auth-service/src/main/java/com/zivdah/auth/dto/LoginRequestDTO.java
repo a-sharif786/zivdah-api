@@ -1,8 +1,8 @@
 package com.zivdah.auth.dto;
 
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -15,7 +15,15 @@ public class LoginRequestDTO {
     @Email(message = "Invalid email")
     private String email;
 
-    @NotBlank(message = "Password is required")
+    // Required only for email login. Mobile login uses OTP via /send-otp + /verify-otp.
     private String password;
+
+    @AssertTrue(message = "Password is required")
+    private boolean isPasswordValid() {
+        boolean hasEmail = email != null && !email.isBlank();
+        boolean hasPassword = password != null && !password.isBlank();
+        // If logging in with email, password must be present. Mobile login doesn't need one.
+        return !hasEmail || hasPassword;
+    }
 
 }
