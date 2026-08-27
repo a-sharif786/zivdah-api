@@ -38,7 +38,12 @@ public class SecurityConfig {
                                 "/restful/v1/api/products/search",
                                 "/restful/v1/api/products/category/**",
                                 "/restful/v1/api/products/*",
-                                "/restful/v1/api/banner/getAll"
+                                "/restful/v1/api/banner/getAll",
+                                "/restful/v1/api/category/getAll",
+                                // Also covers GET /category/{id}; GET /category/all stays gated
+                                // by @PreAuthorize("hasRole('ADMIN')") on the controller method,
+                                // same pattern as the /products/* wildcard above.
+                                "/restful/v1/api/category/*"
                         ).permitAll()
                         .anyExchange().authenticated()
                 )
