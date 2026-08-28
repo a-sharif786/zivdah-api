@@ -22,4 +22,5 @@ public interface ProductService {
     Mono<List<ProductCategory>> getAllCategories();
     Mono<ProductResponseDto> updateWishlist(Long userId, Long productId, Boolean fav);
     Flux<ProductResponseDto> getProductsByVendor(Long vendorId, Pageable pageable);
+    Mono<Long> countProducts();
 }

@@ -1,8 +1,11 @@
 package com.zivdah.payment.serviceImpl;
 
 import com.zivdah.common.event.PaymentCompletedEvent;
+import com.zivdah.payment.client.OrderServiceClient;
+import com.zivdah.payment.dto.DailyAmountDto;
 import com.zivdah.payment.dto.PaymentRequestDto;
 import com.zivdah.payment.dto.PaymentResponseDto;
+import com.zivdah.payment.dto.PaymentStatsResponseDto;
 import com.zivdah.payment.entity.Payment;
 import com.zivdah.payment.enums.PaymentStatus;
 import com.zivdah.payment.kafka.PaymentKafkaProducer;
@@ -18,8 +21,14 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -28,6 +37,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final PaymentKafkaProducer paymentKafkaProducer;
+    private final OrderServiceClient orderServiceClient;
 
     @Override
     public Mono<PaymentResponseDto> initiatePayment(PaymentRequestDto dto) {
@@ -61,11 +71,17 @@ public class PaymentServiceImpl implements PaymentService {
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId)))
                 .flatMap(p -> {
                     p.setStatus(PaymentStatus.SUCCESS);
+                    p.setPaidAt(LocalDateTime.now());
                     return paymentRepository.save(p);
                 })
-                .doOnSuccess(p -> paymentKafkaProducer.publishPaymentCompleted(
-                        PaymentCompletedEvent.builder()
-                                .orderId(p.getOrderId()).userId(p.getUserId()).status("PAID").build()))
+                .flatMap(p -> {
+                    paymentKafkaProducer.publishPaymentCompleted(
+                            PaymentCompletedEvent.builder()
+                                    .orderId(p.getOrderId()).userId(p.getUserId()).status("PAID").build());
+                    // Synchronous, in-request update so the order's status is correct immediately —
+                    // does not depend on the Kafka event above ever being consumed.
+                    return orderServiceClient.updatePaymentStatus(p.getOrderId(), "PAID").thenReturn(p);
+                })
                 .map(this::mapToResponse);
     }
 
@@ -77,9 +93,12 @@ public class PaymentServiceImpl implements PaymentService {
                     p.setStatus(PaymentStatus.FAILED);
                     return paymentRepository.save(p);
                 })
-                .doOnSuccess(p -> paymentKafkaProducer.publishPaymentCompleted(
-                        PaymentCompletedEvent.builder()
-                                .orderId(p.getOrderId()).userId(p.getUserId()).status("FAILED").build()))
+                .flatMap(p -> {
+                    paymentKafkaProducer.publishPaymentCompleted(
+                            PaymentCompletedEvent.builder()
+                                    .orderId(p.getOrderId()).userId(p.getUserId()).status("FAILED").build());
+                    return orderServiceClient.updatePaymentStatus(p.getOrderId(), "CANCELLED").thenReturn(p);
+                })
                 .map(this::mapToResponse);
     }
 
@@ -103,6 +122,45 @@ public class PaymentServiceImpl implements PaymentService {
                 ? paymentRepository.findByStatus(status, pageable)
                 : paymentRepository.findAllBy(pageable);
         return payments.map(this::mapToResponse);
+    }
+
+    @Override
+    public Mono<PaymentStatsResponseDto> getStats(LocalDateTime from, LocalDateTime to) {
+
+        Mono<BigDecimal> totalReceivedAllTime = paymentRepository.findByStatus(PaymentStatus.SUCCESS)
+                .map(Payment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Mono<List<Payment>> receivedInRange = paymentRepository
+                .findByStatusAndPaidAtBetween(PaymentStatus.SUCCESS, from, to)
+                .collectList();
+
+        return Mono.zip(totalReceivedAllTime, receivedInRange)
+                .map(t -> {
+                    List<Payment> payments = t.getT2();
+
+                    BigDecimal totalReceivedInRange = payments.stream()
+                            .map(Payment::getAmount)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    // Bucket by calendar day (paidAt), summing amounts, sorted ascending.
+                    Map<LocalDate, BigDecimal> byDay = new TreeMap<>();
+                    for (Payment p : payments) {
+                        LocalDate day = p.getPaidAt().toLocalDate();
+                        byDay.merge(day, p.getAmount(), BigDecimal::add);
+                    }
+
+                    List<DailyAmountDto> series = byDay.entrySet().stream()
+                            .map(e -> DailyAmountDto.builder().date(e.getKey()).amount(e.getValue()).build())
+                            .sorted(Comparator.comparing(DailyAmountDto::getDate))
+                            .collect(Collectors.toList());
+
+                    return PaymentStatsResponseDto.builder()
+                            .totalReceivedAllTime(t.getT1())
+                            .totalReceivedInRange(totalReceivedInRange)
+                            .series(series)
+                            .build();
+                });
     }
 
     private PaymentResponseDto mapToResponse(Payment p) {

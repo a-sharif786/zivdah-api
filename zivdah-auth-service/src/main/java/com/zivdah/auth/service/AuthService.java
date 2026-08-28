@@ -22,4 +22,5 @@ public interface AuthService {
     Mono<UserResponseDTO> updateRole(Long userId, Role role);
     Mono<Void> deactivateAccount(Long userId);
     Mono<Void> activateAccount(Long userId);
+    Mono<UserStatsResponseDTO> getUserStats();
 }

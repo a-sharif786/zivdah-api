@@ -301,6 +301,21 @@ public class AuthServiceImpl implements AuthService {
                 .then();
     }
 
+    @Override
+    public Mono<UserStatsResponseDTO> getUserStats() {
+        return Mono.zip(
+                userRepository.count(),
+                userRepository.countByRole(Role.ADMIN),
+                userRepository.countByRole(Role.VENDOR),
+                userRepository.countByRole(Role.USER)
+        ).map(t -> UserStatsResponseDTO.builder()
+                .totalUsers(t.getT1())
+                .totalAdmins(t.getT2())
+                .totalVendors(t.getT3())
+                .totalCustomers(t.getT4())
+                .build());
+    }
+
     private String generateOtp() {
         return String.valueOf(100000 + new Random().nextInt(900000));
     }

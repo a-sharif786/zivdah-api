@@ -133,6 +133,14 @@ public class ProductController {
                         .status("success").statusCode(200).message("Vendor products retrieved").data(list).build()));
     }
 
+    @GetMapping("/products/count")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<Long>>> countProducts() {
+        return productService.countProducts()
+                .map(count -> ResponseEntity.ok(ApiResponse.<Long>builder()
+                        .status("success").statusCode(200).message("Product count retrieved").data(count).build()));
+    }
+
     @GetMapping("/products/categories")
     public Mono<ResponseEntity<ApiResponse<List<ProductCategory>>>> getAllCategories() {
         return productService.getAllCategories()

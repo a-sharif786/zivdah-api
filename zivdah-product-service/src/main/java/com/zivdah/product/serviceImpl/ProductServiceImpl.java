@@ -183,6 +183,11 @@ public class ProductServiceImpl implements ProductService {
         return productRepository.findByVendorId(vendorId, pageable).map(this::mapToResponse);
     }
 
+    @Override
+    public Mono<Long> countProducts() {
+        return productRepository.count();
+    }
+
     private ProductResponseDto mapToResponse(ProductEntity e) {
         return ProductResponseDto.builder()
                 .id(e.getId()).name(e.getName()).category(e.getCategory())

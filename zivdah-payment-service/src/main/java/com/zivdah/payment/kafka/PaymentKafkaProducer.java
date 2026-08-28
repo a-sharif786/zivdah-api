@@ -15,7 +15,14 @@ public class PaymentKafkaProducer {
     private final KafkaTemplate<String, PaymentCompletedEvent> kafkaTemplate;
 
     public void publishPaymentCompleted(PaymentCompletedEvent event) {
-        kafkaTemplate.send(KafkaTopics.PAYMENT_COMPLETED, event.getOrderId().toString(), event);
-        log.info("Published payment-completed event for order {}: {}", event.getOrderId(), event.getStatus());
+        kafkaTemplate.send(KafkaTopics.PAYMENT_COMPLETED, event.getOrderId().toString(), event)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to publish payment-completed event for order {}: {}",
+                                event.getOrderId(), ex.getMessage(), ex);
+                    } else {
+                        log.info("Published payment-completed event for order {}: {}", event.getOrderId(), event.getStatus());
+                    }
+                });
     }
 }

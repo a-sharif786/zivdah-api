@@ -98,6 +98,14 @@ public class AuthController {
                         .status("success").statusCode(200).message("Users fetched successfully").data(users).build()));
     }
 
+    @GetMapping("/stats")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<UserStatsResponseDTO>>> getUserStats() {
+        return authService.getUserStats()
+                .map(stats -> ResponseEntity.ok(ApiResponse.<UserStatsResponseDTO>builder()
+                        .status("success").statusCode(200).message("User stats retrieved").data(stats).build()));
+    }
+
     @PutMapping("/update-profile/{userId}")
     public Mono<ResponseEntity<ApiResponse<UserResponseDTO>>> updateProfile(
             @PathVariable Long userId, @Valid @RequestBody UpdateUserProfileDTO dto) {

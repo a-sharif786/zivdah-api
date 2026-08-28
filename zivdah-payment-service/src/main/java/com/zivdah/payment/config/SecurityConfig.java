@@ -32,6 +32,7 @@ public class SecurityConfig {
                         // explicit: must be evaluated before the single-segment wildcard below, since
                         // "all" would otherwise also match "/payments/*" the same way "/payments/{paymentId}" does
                         .pathMatchers(HttpMethod.GET, "/restful/v1/api/payments/all").authenticated()
+                        .pathMatchers(HttpMethod.GET, "/restful/v1/api/payments/stats").authenticated()
                         .pathMatchers("/restful/v1/api/payments/*").permitAll()
                         .anyExchange().authenticated()
                 )

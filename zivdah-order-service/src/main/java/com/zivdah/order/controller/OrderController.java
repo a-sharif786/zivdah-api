@@ -3,10 +3,13 @@ package com.zivdah.order.controller;
 import com.zivdah.order.dto.ApiResponse;
 import com.zivdah.order.dto.OrderRequestDto;
 import com.zivdah.order.dto.OrderResponseDto;
+import com.zivdah.order.dto.OrderStatsResponseDto;
+import com.zivdah.order.dto.OrderStatusUpdateRequestDto;
 import com.zivdah.order.enums.OrderStatus;
 import com.zivdah.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -71,6 +75,38 @@ public class OrderController {
         return orderService.cancelOrder(orderId)
                 .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
                         .status("success").statusCode(200).message("Order cancelled successfully").build()));
+    }
+
+    // Admin/vendor-facing lifecycle transition (CONFIRMED, PACKING, DELIVERED, REFUNDED, ...),
+    // validated against the allowed-transition map in OrderServiceImpl.
+    @PatchMapping("/{orderId}/status")
+    @PreAuthorize("hasAnyRole('ADMIN','VENDOR')")
+    public Mono<ResponseEntity<ApiResponse<OrderResponseDto>>> updateStatus(
+            @PathVariable Long orderId, @RequestBody OrderStatusUpdateRequestDto dto) {
+        return orderService.updateStatus(orderId, dto.getStatus())
+                .map(r -> ResponseEntity.ok(ApiResponse.<OrderResponseDto>builder()
+                        .status("success").statusCode(200).message("Order status updated").data(r).build()));
+    }
+
+    // Internal, payment-service-only transition (CREATED -> PAID / CANCELLED). Kept separate
+    // from the admin/vendor endpoint above since it's called service-to-service with no user
+    // JWT — see SecurityConfig, which permits only this exact path without authentication.
+    @PutMapping("/{orderId}/payment-status")
+    public Mono<ResponseEntity<ApiResponse<Void>>> updatePaymentStatus(
+            @PathVariable Long orderId, @RequestBody OrderStatusUpdateRequestDto dto) {
+        return orderService.updatePaymentStatus(orderId, dto.getStatus())
+                .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
+                        .status("success").statusCode(200).message("Order payment status updated").build()));
+    }
+
+    @GetMapping("/stats")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<OrderStatsResponseDto>>> getStats(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+        return orderService.getStats(from, to)
+                .map(r -> ResponseEntity.ok(ApiResponse.<OrderStatsResponseDto>builder()
+                        .status("success").statusCode(200).message("Order stats retrieved").data(r).build()));
     }
 
     @GetMapping("/all")

@@ -4,6 +4,7 @@ import com.zivdah.common.event.OrderCreatedEvent;
 import com.zivdah.order.dto.OrderItemDto;
 import com.zivdah.order.dto.OrderRequestDto;
 import com.zivdah.order.dto.OrderResponseDto;
+import com.zivdah.order.dto.OrderStatsResponseDto;
 import com.zivdah.order.entity.Order;
 import com.zivdah.order.entity.OrderItem;
 import com.zivdah.order.enums.OrderStatus;
@@ -21,9 +22,13 @@ import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -35,6 +40,23 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderKafkaProducer orderKafkaProducer;
+
+    // Allowed forward transitions for the admin/vendor-driven lifecycle. Anything not
+    // listed here (e.g. skipping straight from CREATED to DELIVERED) is rejected.
+    private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS = new EnumMap<>(OrderStatus.class);
+
+    static {
+        ALLOWED_TRANSITIONS.put(OrderStatus.CREATED, EnumSet.of(OrderStatus.PAYMENT_PENDING, OrderStatus.PAID, OrderStatus.CANCELLED));
+        ALLOWED_TRANSITIONS.put(OrderStatus.PAYMENT_PENDING, EnumSet.of(OrderStatus.PAID, OrderStatus.CANCELLED));
+        ALLOWED_TRANSITIONS.put(OrderStatus.PAID, EnumSet.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED, OrderStatus.REFUNDED));
+        ALLOWED_TRANSITIONS.put(OrderStatus.CONFIRMED, EnumSet.of(OrderStatus.PACKING, OrderStatus.CANCELLED, OrderStatus.REFUNDED));
+        ALLOWED_TRANSITIONS.put(OrderStatus.PACKING, EnumSet.of(OrderStatus.READY_FOR_DELIVERY, OrderStatus.REFUNDED));
+        ALLOWED_TRANSITIONS.put(OrderStatus.READY_FOR_DELIVERY, EnumSet.of(OrderStatus.OUT_FOR_DELIVERY, OrderStatus.REFUNDED));
+        ALLOWED_TRANSITIONS.put(OrderStatus.OUT_FOR_DELIVERY, EnumSet.of(OrderStatus.DELIVERED, OrderStatus.REFUNDED));
+        ALLOWED_TRANSITIONS.put(OrderStatus.DELIVERED, EnumSet.of(OrderStatus.REFUNDED));
+        ALLOWED_TRANSITIONS.put(OrderStatus.CANCELLED, EnumSet.noneOf(OrderStatus.class));
+        ALLOWED_TRANSITIONS.put(OrderStatus.REFUNDED, EnumSet.noneOf(OrderStatus.class));
+    }
 
 
     @Override
@@ -253,6 +275,80 @@ public class OrderServiceImpl implements OrderService {
 
 
     @Override
+    public Mono<OrderResponseDto> updateStatus(Long orderId, OrderStatus newStatus) {
+
+        return orderRepository.findById(orderId)
+
+                .switchIfEmpty(
+                        Mono.error(
+                                new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
+                                        "Order not found"
+                                )
+                        )
+                )
+
+                .flatMap(order -> {
+
+                    Set<OrderStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(order.getStatus(), EnumSet.noneOf(OrderStatus.class));
+                    if (!allowed.contains(newStatus)) {
+                        return Mono.error(new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST,
+                                "Cannot transition order from " + order.getStatus() + " to " + newStatus
+                        ));
+                    }
+
+                    order.setStatus(newStatus);
+                    order.setUpdatedAt(LocalDateTime.now());
+
+                    return orderRepository.save(order);
+                })
+
+                .flatMap(savedOrder ->
+                        orderItemRepository
+                                .findByOrderId(savedOrder.getId())
+                                .collectList()
+                                .map(items -> mapToResponse(savedOrder, items))
+                );
+    }
+
+
+
+    @Override
+    public Mono<Void> updatePaymentStatus(Long orderId, OrderStatus newStatus) {
+
+        if (newStatus != OrderStatus.PAID && newStatus != OrderStatus.CANCELLED) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "payment-status can only be set to PAID or CANCELLED"
+            ));
+        }
+
+        return orderRepository.findById(orderId)
+
+                .switchIfEmpty(
+                        Mono.error(
+                                new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
+                                        "Order not found"
+                                )
+                        )
+                )
+
+                .flatMap(order -> {
+
+                    order.setStatus(newStatus);
+                    order.setUpdatedAt(LocalDateTime.now());
+
+                    return orderRepository.save(order);
+                })
+
+                .then();
+    }
+
+
+
+    @Override
     public Flux<OrderResponseDto> getAllOrders(Pageable pageable, OrderStatus status) {
         Flux<Order> orders = status != null
                 ? orderRepository.findByStatus(status, pageable)
@@ -264,6 +360,37 @@ public class OrderServiceImpl implements OrderService {
                         .map(items -> mapToResponse(order, items))
         );
     }
+
+    @Override
+    public Mono<OrderStatsResponseDto> getStats(LocalDateTime from, LocalDateTime to) {
+
+        Mono<Long> totalOrders = orderRepository.count();
+
+        Mono<List<Order>> ordersInRange = orderRepository.findByCreatedAtBetween(from, to).collectList();
+
+        return Mono.zip(totalOrders, ordersInRange)
+                .map(t -> {
+                    List<Order> orders = t.getT2();
+
+                    Map<OrderStatus, Long> statusBreakdown = orders.stream()
+                            .collect(Collectors.groupingBy(Order::getStatus, Collectors.counting()));
+
+                    BigDecimal revenueInRange = orders.stream()
+                            .filter(o -> o.getStatus() != OrderStatus.CANCELLED)
+                            .map(Order::getTotalAmount)
+                            .filter(java.util.Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    return OrderStatsResponseDto.builder()
+                            .totalOrders(t.getT1())
+                            .ordersInRange(orders.size())
+                            .statusBreakdown(statusBreakdown)
+                            .revenueInRange(revenueInRange)
+                            .build();
+                });
+    }
+
+
 
     @Override
     public Flux<OrderResponseDto> getOrdersByVendor(Long vendorId, Pageable pageable) {
