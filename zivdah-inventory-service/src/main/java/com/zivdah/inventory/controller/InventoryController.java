@@ -1,5 +1,6 @@
 package com.zivdah.inventory.controller;
 
+import com.zivdah.inventory.client.ProductServiceClient;
 import com.zivdah.inventory.dto.AddStockRequestDto;
 import com.zivdah.inventory.dto.ApiResponse;
 import com.zivdah.inventory.dto.InventoryResponseDto;
@@ -7,9 +8,14 @@ import com.zivdah.inventory.dto.ReserveStockRequestDto;
 import com.zivdah.inventory.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -21,6 +27,23 @@ import java.util.List;
 public class InventoryController {
 
     private final InventoryService inventoryService;
+    private final ProductServiceClient productServiceClient;
+
+    private Mono<Long> currentUserId() {
+        return ReactiveSecurityContextHolder.getContext()
+                .map(ctx -> ctx.getAuthentication())
+                .map(Authentication::getName)
+                .map(Long::valueOf);
+    }
+
+    private Mono<String> currentRole() {
+        return ReactiveSecurityContextHolder.getContext()
+                .map(ctx -> ctx.getAuthentication())
+                .map(auth -> auth.getAuthorities().stream().findFirst()
+                        .map(GrantedAuthority::getAuthority)
+                        .map(a -> a.replaceFirst("^ROLE_", ""))
+                        .orElse(""));
+    }
 
     @GetMapping("/{productId}")
     public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> getInventoryByProductId(
@@ -30,15 +53,35 @@ public class InventoryController {
                         .status("success").statusCode(200).message("Inventory fetched").data(r).build()));
     }
 
+    // A VENDOR may only add stock for a product they own; ADMIN may add stock for any
+    // product. Ownership isn't known to this service (it only stores productId), so it's
+    // checked via a call to product-service — see ProductServiceClient.
     @PostMapping("/add")
+    @PreAuthorize("hasAnyRole('ADMIN','VENDOR')")
     public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> addStock(
             @RequestBody AddStockRequestDto dto) {
-        return inventoryService.addStock(dto.getProductId(), dto.getQuantity())
+        return Mono.zip(currentUserId(), currentRole())
+                .flatMap(t -> {
+                    if (!"VENDOR".equalsIgnoreCase(t.getT2())) {
+                        return Mono.empty(); // ADMIN — no ownership check
+                    }
+                    Long callerId = t.getT1();
+                    return productServiceClient.getProductVendorId(dto.getProductId())
+                            .filter(callerId::equals)
+                            .switchIfEmpty(Mono.error(new ResponseStatusException(
+                                    HttpStatus.FORBIDDEN, "Not the owner of this product")));
+                })
+                .then(inventoryService.addStock(dto.getProductId(), dto.getQuantity()))
                 .map(r -> ResponseEntity.ok(ApiResponse.<InventoryResponseDto>builder()
                         .status("success").statusCode(200).message("Stock added").data(r).build()));
     }
 
+    // Not driven by any UI today — reserve/release/confirm are invoked internally by
+    // InventoryEventConsumer (a direct service-layer call that bypasses this controller and
+    // its security filter chain entirely), so restricting these HTTP endpoints to ADMIN has
+    // no effect on that flow. Kept ADMIN-reachable only for manual ops/support use.
     @PostMapping("/reserve")
+    @PreAuthorize("hasRole('ADMIN')")
     public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> reserveStock(
             @RequestBody ReserveStockRequestDto dto) {
         return inventoryService.reserveStock(dto.getProductId(), dto.getQuantity())
@@ -47,6 +90,7 @@ public class InventoryController {
     }
 
     @PostMapping("/release")
+    @PreAuthorize("hasRole('ADMIN')")
     public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> releaseStock(
             @RequestBody ReserveStockRequestDto dto) {
         return inventoryService.releaseStock(dto.getProductId(), dto.getQuantity())
@@ -55,6 +99,7 @@ public class InventoryController {
     }
 
     @PostMapping("/confirm")
+    @PreAuthorize("hasRole('ADMIN')")
     public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> confirmStock(
             @RequestBody ReserveStockRequestDto dto) {
         return inventoryService.confirmStock(dto.getProductId(), dto.getQuantity())

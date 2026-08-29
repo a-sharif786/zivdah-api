@@ -1,5 +1,6 @@
 package com.zivdah.product.serviceImpl;
 
+import com.zivdah.common.event.ProductCreatedEvent;
 import com.zivdah.common.upload.CloudinaryUploadResult;
 import com.zivdah.common.upload.CloudinaryUploadService;
 import com.zivdah.common.upload.UploadCategory;
@@ -8,6 +9,7 @@ import com.zivdah.product.dto.ProductResponseDto;
 import com.zivdah.product.entity.ProductEntity;
 import com.zivdah.product.entity.WishlistEntity;
 import com.zivdah.product.enums.ProductCategory;
+import com.zivdah.product.kafka.ProductKafkaProducer;
 import com.zivdah.product.repository.ProductRepository;
 import com.zivdah.product.repository.WishlistRepository;
 import com.zivdah.product.service.ProductService;
@@ -34,6 +36,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final WishlistRepository wishlistRepository;
     private final CloudinaryUploadService cloudinaryUploadService;
+    private final ProductKafkaProducer productKafkaProducer;
 
     @Value("${cloudinary.folder}")
     private String cloudinaryFolder;
@@ -66,7 +69,16 @@ public class ProductServiceImpl implements ProductService {
                     applyUploadResult(entity, uploaded);
                     return productRepository.save(entity);
                 })
-                .doOnSuccess(p -> log.info("Product created: {}", p.getId()))
+                .doOnSuccess(p -> {
+                    log.info("Product created: {}", p.getId());
+                    // Seed an inventory row for this product (async, via Kafka) so checkout
+                    // never fails with "Inventory not found" for a brand-new product — see
+                    // InventoryEventConsumer#onProductCreated in zivdah-inventory-service.
+                    productKafkaProducer.publishProductCreated(ProductCreatedEvent.builder()
+                            .productId(p.getId())
+                            .initialStockQuantity(dto.getStockQuantity() != null ? dto.getStockQuantity() : 0)
+                            .build());
+                })
                 .map(this::mapToResponse);
     }
 
