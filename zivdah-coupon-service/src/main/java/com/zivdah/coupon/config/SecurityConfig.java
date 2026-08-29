@@ -1,5 +1,6 @@
 package com.zivdah.coupon.config;
 
+import com.zivdah.common.logging.CorrelationIdWebFilter;
 import com.zivdah.coupon.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -18,6 +19,11 @@ import org.springframework.security.web.server.context.NoOpServerSecurityContext
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Bean
+    public CorrelationIdWebFilter correlationIdWebFilter() {
+        return new CorrelationIdWebFilter();
+    }
 
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {

@@ -32,6 +32,7 @@
         <module>zivdah-user-service</module>
         <module>zivdah-review-service</module>
         <module>zivdah-coupon-service</module>
+        <module>zivdah-log-server</module>
     </modules>
 
     <properties>

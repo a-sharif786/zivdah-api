@@ -40,11 +40,43 @@
 			<scope>provided</scope>
 		</dependency>
 
-		<!-- Cloudinary SDK, shared so any service can reuse the upload logic -->
+		<!-- Cloudinary SDK, shared so any service can reuse the upload logic. provided: this
+		     pulls in Apache HttpClient 4.4 (see cloudinary-http44's own name/transitive deps),
+		     which collides with the httpclient version Eureka's own Jersey3 replication client
+		     needs (NoSuchMethodError on HttpClientBuilder.setSSLContext) if it leaks transitively
+		     into every service that merely depends on zivdah-common for logging. Only
+		     zivdah-product-service actually uses CloudinaryUploadService, so it declares this
+		     dependency directly itself (compile scope) instead of relying on the transitive copy. -->
 		<dependency>
 			<groupId>com.cloudinary</groupId>
 			<artifactId>cloudinary-http44</artifactId>
 			<version>1.38.0</version>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- Kafka client, used by the shared log-shipping KafkaLogAppender. provided: every
+		     consuming service already depends on spring-kafka directly (or will, once wired
+		     for log shipping), which brings its own kafka-clients onto the runtime classpath. -->
+		<dependency>
+			<groupId>org.apache.kafka</groupId>
+			<artifactId>kafka-clients</artifactId>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- Logback, used by the shared KafkaLogAppender. provided: already pulled in
+		     transitively by every consuming service's spring-boot-starter. -->
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- Needed for CorrelationIdWebFilter/WebFilter interface. Every consuming service
+		     already depends on spring-boot-starter-webflux directly (see above). -->
+		<dependency>
+			<groupId>io.projectreactor</groupId>
+			<artifactId>reactor-core</artifactId>
+			<scope>provided</scope>
 		</dependency>
 
 	</dependencies>

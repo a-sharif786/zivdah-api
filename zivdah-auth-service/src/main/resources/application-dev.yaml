@@ -37,6 +37,9 @@ spring:
           starttls:
             enable: true
 
+  kafka:
+    bootstrap-servers: localhost:9092
+
 eureka:
   instance:
     prefer-ip-address: true

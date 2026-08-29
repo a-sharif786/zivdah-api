@@ -36,6 +36,19 @@
 			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
 		</dependency>
 
+		<!-- Common: KafkaLogAppender + CorrelationIdWebFilter -->
+		<dependency>
+			<groupId>com.zivdah</groupId>
+			<artifactId>zivdah-common</artifactId>
+			<version>1.0.0</version>
+		</dependency>
+
+		<!-- Kafka: transport for KafkaLogAppender to ship this service's logs to zivdah-log-server -->
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka</artifactId>
+		</dependency>
+
 		<!-- Spring Cloud Gateway -->
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>

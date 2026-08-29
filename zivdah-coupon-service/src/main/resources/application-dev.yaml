@@ -23,6 +23,9 @@ spring:
                                           # so each service needs its own version numbering
     baseline-on-migrate: true            # public schema already has other services' tables
 
+  kafka:
+    bootstrap-servers: localhost:9092
+
 eureka:
   instance:
     prefer-ip-address: true
