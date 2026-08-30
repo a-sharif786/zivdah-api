@@ -5,6 +5,7 @@ import com.zivdah.inventory.dto.AddStockRequestDto;
 import com.zivdah.inventory.dto.ApiResponse;
 import com.zivdah.inventory.dto.InventoryResponseDto;
 import com.zivdah.inventory.dto.ReserveStockRequestDto;
+import com.zivdah.inventory.dto.SyncQuantityRequestDto;
 import com.zivdah.inventory.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -45,12 +46,31 @@ public class InventoryController {
                         .orElse(""));
     }
 
+    // Pushes the new availableQuantity to product-service's stockQuantity after THIS service
+    // is the one that changed it (add/reserve/release). Fire-and-forget from the caller's
+    // point of view — syncStockQuantity swallows its own errors so a product-service hiccup
+    // never fails the inventory mutation that's already succeeded.
+    private Mono<InventoryResponseDto> pushToProduct(InventoryResponseDto r) {
+        return productServiceClient.syncStockQuantity(r.getProductId(), r.getAvailableQuantity()).thenReturn(r);
+    }
+
     @GetMapping("/{productId}")
     public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> getInventoryByProductId(
             @PathVariable Long productId) {
         return inventoryService.getInventoryByProductId(productId)
                 .map(r -> ResponseEntity.ok(ApiResponse.<InventoryResponseDto>builder()
                         .status("success").statusCode(200).message("Inventory fetched").data(r).build()));
+    }
+
+    // Internal, no auth — see SecurityConfig. Called by product-service after ITS
+    // stockQuantity changes, to push the new value here directly (a "set", not an "add").
+    // Must never push back to product-service, or the two services would loop forever.
+    @PutMapping("/{productId}/sync-quantity")
+    public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> syncQuantity(
+            @PathVariable Long productId, @RequestBody SyncQuantityRequestDto dto) {
+        return inventoryService.setAvailableQuantitySync(productId, dto.getAvailableQuantity())
+                .map(r -> ResponseEntity.ok(ApiResponse.<InventoryResponseDto>builder()
+                        .status("success").statusCode(200).message("Quantity synced").data(r).build()));
     }
 
     // A VENDOR may only add stock for a product they own; ADMIN may add stock for any
@@ -72,6 +92,7 @@ public class InventoryController {
                                     HttpStatus.FORBIDDEN, "Not the owner of this product")));
                 })
                 .then(inventoryService.addStock(dto.getProductId(), dto.getQuantity()))
+                .flatMap(this::pushToProduct)
                 .map(r -> ResponseEntity.ok(ApiResponse.<InventoryResponseDto>builder()
                         .status("success").statusCode(200).message("Stock added").data(r).build()));
     }
@@ -85,6 +106,7 @@ public class InventoryController {
     public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> reserveStock(
             @RequestBody ReserveStockRequestDto dto) {
         return inventoryService.reserveStock(dto.getProductId(), dto.getQuantity())
+                .flatMap(this::pushToProduct)
                 .map(r -> ResponseEntity.ok(ApiResponse.<InventoryResponseDto>builder()
                         .status("success").statusCode(200).message("Stock reserved").data(r).build()));
     }
@@ -94,6 +116,7 @@ public class InventoryController {
     public Mono<ResponseEntity<ApiResponse<InventoryResponseDto>>> releaseStock(
             @RequestBody ReserveStockRequestDto dto) {
         return inventoryService.releaseStock(dto.getProductId(), dto.getQuantity())
+                .flatMap(this::pushToProduct)
                 .map(r -> ResponseEntity.ok(ApiResponse.<InventoryResponseDto>builder()
                         .status("success").statusCode(200).message("Stock released").data(r).build()));
     }

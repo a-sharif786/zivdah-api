@@ -47,6 +47,23 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
+    public Mono<InventoryResponseDto> setAvailableQuantitySync(Long productId, Integer availableQuantity) {
+        return inventoryRepository.findByProductId(productId)
+                .switchIfEmpty(Mono.just(Inventory.builder()
+                        .productId(productId)
+                        .availableQuantity(0)
+                        .reservedQuantity(0)
+                        .build()))
+                .flatMap(inv -> {
+                    inv.setAvailableQuantity(availableQuantity);
+                    inv.setLastUpdated(LocalDateTime.now());
+                    return inventoryRepository.save(inv);
+                })
+                .doOnSuccess(inv -> log.info("Available quantity synced from product-service for product {}: {}", productId, availableQuantity))
+                .map(this::mapToDto);
+    }
+
+    @Override
     public Mono<InventoryResponseDto> reserveStock(Long productId, Integer quantity) {
         return inventoryRepository.findByProductId(productId)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Inventory not found for product: " + productId)))

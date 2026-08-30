@@ -10,9 +10,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-// Synchronous, service-to-service call into product-service so InventoryController can check
-// "does this VENDOR own the product they're trying to add stock for" before allowing it —
-// inventory-service has no vendorId of its own, only productId. Same pattern as
+import java.util.Map;
+
+// Synchronous, service-to-service call into product-service — used for (1) checking "does
+// this VENDOR own the product they're trying to add stock for" before allowing it, since
+// inventory-service has no vendorId of its own, only productId, and (2) pushing an updated
+// availableQuantity back to product-service's stockQuantity whenever THIS service is the one
+// that changed it (add/reserve/release), so the two stay in sync. Same pattern as
 // zivdah-payment-service's OrderServiceClient.
 @Service
 @Slf4j
@@ -38,6 +42,26 @@ public class ProductServiceClient {
                     log.error("Failed to look up vendorId for product {}: {}", productId, ex.getMessage());
                     return Mono.empty();
                 });
+    }
+
+    /**
+     * Fire-and-forget push: tells product-service to set its stockQuantity to match
+     * inventory's new availableQuantity. Internal endpoint (no auth) — see
+     * ProductController's PUT /products/{id}/sync-stock. Never fails the caller's own
+     * inventory mutation if product-service is unreachable; just logs.
+     */
+    public Mono<Void> syncStockQuantity(Long productId, Integer availableQuantity) {
+        return webClient.put()
+                .uri(PRODUCT_SERVICE_URL + "/{id}/sync-stock", productId)
+                .bodyValue(Map.of("stockQuantity", availableQuantity))
+                .retrieve()
+                .toBodilessEntity()
+                .doOnSuccess(r -> log.info("Product {} stockQuantity synced to {}", productId, availableQuantity))
+                .onErrorResume(ex -> {
+                    log.error("Failed to sync stockQuantity for product {} to {}: {}", productId, availableQuantity, ex.getMessage());
+                    return Mono.empty();
+                })
+                .then();
     }
 
     // Only the fields this check needs — Spring's default Jackson config ignores the rest of

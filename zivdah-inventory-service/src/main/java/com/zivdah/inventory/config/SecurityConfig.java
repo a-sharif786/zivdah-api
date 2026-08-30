@@ -5,6 +5,7 @@ import com.zivdah.inventory.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
@@ -34,6 +35,9 @@ public class SecurityConfig {
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
                 .authorizeExchange(auth -> auth
                         .pathMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/webjars/**").permitAll()
+                        // internal, product-service-only push (see ProductServiceClient in
+                        // zivdah-product-service) — no user JWT available for this call
+                        .pathMatchers(HttpMethod.PUT, "/restful/v1/api/inventory/*/sync-quantity").permitAll()
                         .anyExchange().authenticated()
                 )
                 .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)

@@ -22,6 +22,10 @@ public class ProductResponseDto implements Serializable {
     private BigDecimal discountPrice;
     private String unit;
     private Integer stockQuantity;
+    // Populated from inventory-service (see ProductServiceImpl#enrich); falls back to
+    // stockQuantity itself if inventory-service is unreachable, since the two are kept in
+    // sync and should already match in steady state.
+    private Integer availableQuantity;
     private Boolean inStock;
     private LocalDate expiryDate;
     private String description;

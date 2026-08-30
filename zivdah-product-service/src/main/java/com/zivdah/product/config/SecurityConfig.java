@@ -51,6 +51,9 @@ public class SecurityConfig {
                                 // same pattern as the /products/* wildcard above.
                                 "/restful/v1/api/category/*"
                         ).permitAll()
+                        // internal, inventory-service-only push (see InventoryServiceClient in
+                        // zivdah-inventory-service) — no user JWT available for this call
+                        .pathMatchers(HttpMethod.PUT, "/restful/v1/api/products/*/sync-stock").permitAll()
                         .anyExchange().authenticated()
                 )
                 .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
