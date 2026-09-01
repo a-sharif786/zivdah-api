@@ -1,6 +1,7 @@
 package com.zivdah.order.controller;
 
 import com.zivdah.order.dto.ApiResponse;
+import com.zivdah.order.dto.DeliveryStatusSyncDto;
 import com.zivdah.order.dto.OrderRequestDto;
 import com.zivdah.order.dto.OrderResponseDto;
 import com.zivdah.order.dto.OrderStatsResponseDto;
@@ -72,7 +73,8 @@ public class OrderController {
 
     @PutMapping("/cancel/{orderId}")
     public Mono<ResponseEntity<ApiResponse<Void>>> cancelOrder(@PathVariable Long orderId) {
-        return orderService.cancelOrder(orderId)
+        return Mono.zip(currentUserId(), currentRole())
+                .flatMap(t -> orderService.cancelOrder(orderId, t.getT1(), t.getT2()))
                 .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
                         .status("success").statusCode(200).message("Order cancelled successfully").build()));
     }
@@ -83,7 +85,8 @@ public class OrderController {
     @PreAuthorize("hasAnyRole('ADMIN','VENDOR')")
     public Mono<ResponseEntity<ApiResponse<OrderResponseDto>>> updateStatus(
             @PathVariable Long orderId, @RequestBody OrderStatusUpdateRequestDto dto) {
-        return orderService.updateStatus(orderId, dto.getStatus())
+        return Mono.zip(currentUserId(), currentRole())
+                .flatMap(t -> orderService.updateStatus(orderId, dto.getStatus(), t.getT1(), t.getT2()))
                 .map(r -> ResponseEntity.ok(ApiResponse.<OrderResponseDto>builder()
                         .status("success").statusCode(200).message("Order status updated").data(r).build()));
     }
@@ -97,6 +100,17 @@ public class OrderController {
         return orderService.updatePaymentStatus(orderId, dto.getStatus())
                 .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
                         .status("success").statusCode(200).message("Order payment status updated").build()));
+    }
+
+    // Internal, delivery-service-only sync — no user JWT available for this call (see
+    // SecurityConfig, same pattern as /payment-status above). Best-effort: an unrecognized
+    // deliveryStatus is silently ignored server-side, never a 4xx.
+    @PutMapping("/{orderId}/delivery-status")
+    public Mono<ResponseEntity<ApiResponse<Void>>> syncDeliveryStatus(
+            @PathVariable Long orderId, @RequestBody DeliveryStatusSyncDto dto) {
+        return orderService.syncDeliveryStatus(orderId, dto.getDeliveryStatus())
+                .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
+                        .status("success").statusCode(200).message("Order delivery status synced").build()));
     }
 
     @GetMapping("/stats")

@@ -1,6 +1,7 @@
 package com.zivdah.order.serviceImpl;
 
 import com.zivdah.common.event.OrderCreatedEvent;
+import com.zivdah.common.event.OrderStatusChangedEvent;
 import com.zivdah.order.dto.OrderItemDto;
 import com.zivdah.order.dto.OrderRequestDto;
 import com.zivdah.order.dto.OrderResponseDto;
@@ -248,7 +249,7 @@ public class OrderServiceImpl implements OrderService {
 
 
     @Override
-    public Mono<Void> cancelOrder(Long orderId) {
+    public Mono<Void> cancelOrder(Long orderId, Long currentUserId, String role) {
 
         return orderRepository.findById(orderId)
 
@@ -263,10 +264,20 @@ public class OrderServiceImpl implements OrderService {
 
                 .flatMap(order -> {
 
+                    OrderStatus oldStatus = order.getStatus();
                     order.setStatus(OrderStatus.CANCELLED);
                     order.setUpdatedAt(LocalDateTime.now());
 
-                    return orderRepository.save(order);
+                    return orderRepository.save(order)
+                            .doOnSuccess(saved -> orderKafkaProducer.publishOrderStatusChanged(
+                                    OrderStatusChangedEvent.builder()
+                                            .orderId(saved.getId())
+                                            .userId(saved.getUserId())
+                                            .oldStatus(oldStatus.name())
+                                            .newStatus(OrderStatus.CANCELLED.name())
+                                            .changedByUserId(currentUserId)
+                                            .changedByRole(role)
+                                            .build()));
                 })
 
                 .then();
@@ -275,7 +286,14 @@ public class OrderServiceImpl implements OrderService {
 
 
     @Override
-    public Mono<OrderResponseDto> updateStatus(Long orderId, OrderStatus newStatus) {
+    public Mono<OrderResponseDto> updateStatus(Long orderId, OrderStatus newStatus, Long currentUserId, String role) {
+
+        // Financial action, and there's no real payment-gateway refund integration yet — ADMIN
+        // only, checked up front before touching anything.
+        if (newStatus == OrderStatus.REFUNDED && !"ADMIN".equalsIgnoreCase(role)) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Only ADMIN may mark an order as refunded"));
+        }
 
         return orderRepository.findById(orderId)
 
@@ -288,27 +306,44 @@ public class OrderServiceImpl implements OrderService {
                         )
                 )
 
-                .flatMap(order -> {
+                .flatMap(order ->
+                        orderItemRepository.findByOrderId(orderId).collectList()
+                                .flatMap(items -> {
+                                    // A VENDOR may only transition an order that contains at
+                                    // least one of their own items (an order can span multiple
+                                    // vendors — see OrderItem.vendorId).
+                                    if ("VENDOR".equalsIgnoreCase(role)
+                                            && items.stream().noneMatch(i -> currentUserId.equals(i.getVendorId()))) {
+                                        return Mono.<List<OrderItem>>error(new ResponseStatusException(
+                                                HttpStatus.FORBIDDEN, "Not the owner of this order"));
+                                    }
+                                    return Mono.just(items);
+                                })
+                                .flatMap(items -> {
+                                    Set<OrderStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(order.getStatus(), EnumSet.noneOf(OrderStatus.class));
+                                    if (!allowed.contains(newStatus)) {
+                                        return Mono.error(new ResponseStatusException(
+                                                HttpStatus.BAD_REQUEST,
+                                                "Cannot transition order from " + order.getStatus() + " to " + newStatus
+                                        ));
+                                    }
 
-                    Set<OrderStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(order.getStatus(), EnumSet.noneOf(OrderStatus.class));
-                    if (!allowed.contains(newStatus)) {
-                        return Mono.error(new ResponseStatusException(
-                                HttpStatus.BAD_REQUEST,
-                                "Cannot transition order from " + order.getStatus() + " to " + newStatus
-                        ));
-                    }
+                                    OrderStatus oldStatus = order.getStatus();
+                                    order.setStatus(newStatus);
+                                    order.setUpdatedAt(LocalDateTime.now());
 
-                    order.setStatus(newStatus);
-                    order.setUpdatedAt(LocalDateTime.now());
-
-                    return orderRepository.save(order);
-                })
-
-                .flatMap(savedOrder ->
-                        orderItemRepository
-                                .findByOrderId(savedOrder.getId())
-                                .collectList()
-                                .map(items -> mapToResponse(savedOrder, items))
+                                    return orderRepository.save(order)
+                                            .doOnSuccess(saved -> orderKafkaProducer.publishOrderStatusChanged(
+                                                    OrderStatusChangedEvent.builder()
+                                                            .orderId(saved.getId())
+                                                            .userId(saved.getUserId())
+                                                            .oldStatus(oldStatus.name())
+                                                            .newStatus(newStatus.name())
+                                                            .changedByUserId(currentUserId)
+                                                            .changedByRole(role)
+                                                            .build()))
+                                            .map(saved -> mapToResponse(saved, items));
+                                })
                 );
     }
 
@@ -343,6 +378,25 @@ public class OrderServiceImpl implements OrderService {
                     return orderRepository.save(order);
                 })
 
+                .then();
+    }
+
+    @Override
+    public Mono<Void> syncDeliveryStatus(Long orderId, String deliveryStatus) {
+        OrderStatus mapped = switch (deliveryStatus == null ? "" : deliveryStatus) {
+            case "ON_THE_WAY" -> OrderStatus.OUT_FOR_DELIVERY;
+            case "DELIVERED" -> OrderStatus.DELIVERED;
+            default -> null;
+        };
+        if (mapped == null) {
+            return Mono.empty();
+        }
+        return orderRepository.findById(orderId)
+                .flatMap(order -> {
+                    order.setStatus(mapped);
+                    order.setUpdatedAt(LocalDateTime.now());
+                    return orderRepository.save(order);
+                })
                 .then();
     }
 

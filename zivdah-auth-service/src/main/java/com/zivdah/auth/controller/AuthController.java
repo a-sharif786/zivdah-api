@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
@@ -29,6 +30,13 @@ public class AuthController {
 
     private boolean isAdmin(Authentication auth) {
         return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    private Mono<String> currentRole() {
+        return currentAuth().map(auth -> auth.getAuthorities().stream().findFirst()
+                .map(GrantedAuthority::getAuthority)
+                .map(a -> a.replaceFirst("^ROLE_", ""))
+                .orElse(""));
     }
 
     private Mono<Void> requireOwnerOrAdmin(Long userId) {
@@ -98,6 +106,48 @@ public class AuthController {
                         .status("success").statusCode(200).message("Users fetched successfully").data(users).build()));
     }
 
+    // Internal, no auth — see SecurityConfig. Called by zivdah-notification-service to fan
+    // out admin notifications; no user JWT available for that call. Returns only ids (not
+    // the full user list /all-users exposes) to keep an unauthenticated endpoint's exposure
+    // minimal.
+    @GetMapping("/internal/admin-ids")
+    public Mono<ResponseEntity<ApiResponse<List<Long>>>> getAdminUserIds() {
+        return authService.getAdminUserIds().collectList()
+                .map(ids -> ResponseEntity.ok(ApiResponse.<List<Long>>builder()
+                        .status("success").statusCode(200).message("Admin ids fetched successfully").data(ids).build()));
+    }
+
+    // Registers/refreshes one device's FCM token any time after login — permission is
+    // granted asynchronously and tokens rotate, so this isn't limited to the deviceToken
+    // captured at login/verify-otp time. A user may call this from several
+    // devices/browsers at once; each becomes its own row (see DeviceTokenRequestDTO).
+    @PostMapping("/device-tokens")
+    public Mono<ResponseEntity<ApiResponse<Object>>> registerDeviceToken(@Valid @RequestBody DeviceTokenRequestDTO request) {
+        return Mono.zip(currentAuth().map(auth -> Long.valueOf(auth.getName())), currentRole())
+                .flatMap(t -> authService.registerDeviceToken(t.getT1(), t.getT2(), request.getDeviceType(), request.getFcmToken()))
+                .thenReturn(ResponseEntity.ok(ApiResponse.<Object>builder()
+                        .status("success").statusCode(200).message("Device token registered").data(null).build()));
+    }
+
+    // Internal, no auth — see SecurityConfig. Called by zivdah-notification-service to
+    // resolve every active token for a user (they may be signed in on several devices)
+    // before sending a push. Empty list, not an error, when there are none.
+    @GetMapping("/internal/device-tokens/{userId}")
+    public Mono<ResponseEntity<ApiResponse<List<String>>>> getActiveDeviceTokens(@PathVariable Long userId) {
+        return authService.getActiveDeviceTokens(userId).collectList()
+                .map(tokens -> ResponseEntity.ok(ApiResponse.<List<String>>builder()
+                        .status("success").statusCode(200).message("Device tokens fetched").data(tokens).build()));
+    }
+
+    // Internal, no auth — see SecurityConfig. Called by zivdah-notification-service when
+    // Firebase reports a token as unregistered/invalid, so future sends stop targeting it.
+    @PatchMapping("/internal/device-tokens/deactivate")
+    public Mono<ResponseEntity<ApiResponse<Object>>> deactivateDeviceToken(@Valid @RequestBody DeactivateDeviceTokenDTO request) {
+        return authService.deactivateDeviceToken(request.getFcmToken())
+                .thenReturn(ResponseEntity.ok(ApiResponse.<Object>builder()
+                        .status("success").statusCode(200).message("Device token deactivated").data(null).build()));
+    }
+
     @GetMapping("/stats")
     @PreAuthorize("hasRole('ADMIN')")
     public Mono<ResponseEntity<ApiResponse<UserStatsResponseDTO>>> getUserStats() {
@@ -153,10 +203,13 @@ public class AuthController {
                         }));
     }
 
+    // fcmToken is optional (see LogoutRequestDTO) — when the caller omits it, every device
+    // stays registered for push; this endpoint just clears the JWT session bookkeeping.
     @PostMapping("/logout")
-    public Mono<ResponseEntity<ApiResponse<Object>>> logout() {
+    public Mono<ResponseEntity<ApiResponse<Object>>> logout(@RequestBody(required = false) LogoutRequestDTO request) {
+        String fcmToken = request != null ? request.getFcmToken() : null;
         return currentAuth()
-                .flatMap(auth -> authService.logout(Long.valueOf(auth.getName())))
+                .flatMap(auth -> authService.logout(Long.valueOf(auth.getName()), fcmToken))
                 .thenReturn(ResponseEntity.ok(ApiResponse.<Object>builder()
                         .status("success").message("Logged out successfully").statusCode(200).data(null).build()));
     }

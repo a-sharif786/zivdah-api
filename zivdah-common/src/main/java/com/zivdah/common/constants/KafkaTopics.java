@@ -4,6 +4,10 @@ public class KafkaTopics {
     public static final String ORDER_CREATED = "order-created";
     public static final String PAYMENT_COMPLETED = "payment-completed";
     public static final String PRODUCT_CREATED = "product-created";
+    public static final String ORDER_STATUS_CHANGED = "order-status-changed";
+    public static final String DELIVERY_ASSIGNED = "delivery-assigned";
+    public static final String DELIVERY_FAILED = "delivery-failed";
+    public static final String DELIVERY_COMPLETED = "delivery-completed";
 
     // Log events shipped by com.zivdah.common.logging.KafkaLogAppender from every service,
     // consumed by zivdah-log-server. Keep in sync with the hardcoded <topic> value in

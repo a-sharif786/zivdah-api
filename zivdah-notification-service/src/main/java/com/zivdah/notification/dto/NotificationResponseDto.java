@@ -16,4 +16,11 @@ public class NotificationResponseDto {
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    private String recipientRole;
+    private String notificationType;
+    private String entityType;
+    private Long entityId;
+    private boolean isRead;
+    private LocalDateTime readAt;
 }

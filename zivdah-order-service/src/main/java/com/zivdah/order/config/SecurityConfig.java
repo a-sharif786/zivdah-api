@@ -44,6 +44,9 @@ public class SecurityConfig {
                         // (see OrderController#updatePaymentStatus); the status value itself is restricted
                         // server-side to PAID/CANCELLED
                         .pathMatchers(HttpMethod.PUT, "/restful/v1/api/orders/*/payment-status").permitAll()
+                        // internal, delivery-service-only sync — no user JWT available for this call
+                        // (see OrderController#syncDeliveryStatus)
+                        .pathMatchers(HttpMethod.PUT, "/restful/v1/api/orders/*/delivery-status").permitAll()
 
                         .anyExchange().authenticated()
                 )

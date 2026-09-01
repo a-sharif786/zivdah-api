@@ -45,7 +45,13 @@ public class SecurityConfig {
                                 "/restful/v1/api/auth/deactivate/*",
                                 "/restful/v1/api/auth/activate/*",
                                 "/restful/v1/api/auth/activate/*",
-                                "/restful/v1/api/auth/all-users"
+                                "/restful/v1/api/auth/all-users",
+                                // internal, notification-service-only fan-out lookup — no
+                                // user JWT available for that call (see AuthController). The
+                                // single-segment wildcard covers both /internal/device-tokens/{userId}
+                                // (GET) and /internal/device-tokens/deactivate (PATCH).
+                                "/restful/v1/api/auth/internal/admin-ids",
+                                "/restful/v1/api/auth/internal/device-tokens/*"
                         ).permitAll()
                         .anyExchange().authenticated()
                 )

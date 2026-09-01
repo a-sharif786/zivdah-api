@@ -1,9 +1,11 @@
 package com.zivdah.auth.serviceImpl;
 
 import com.zivdah.auth.dto.*;
+import com.zivdah.auth.entity.DeviceToken;
 import com.zivdah.auth.entity.UserEntity;
 import com.zivdah.auth.entity.UserSession;
 import com.zivdah.auth.enums.Role;
+import com.zivdah.auth.repository.DeviceTokenRepository;
 import com.zivdah.auth.repository.UserRepository;
 import com.zivdah.auth.repository.UserSessionRepository;
 import com.zivdah.auth.security.JwtTokenProvider;
@@ -30,6 +32,7 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
     private final UserSessionRepository userSessionRepository;
+    private final DeviceTokenRepository deviceTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final JavaMailSender mailSender;
@@ -142,15 +145,17 @@ public class AuthServiceImpl implements AuthService {
                         return Mono.error(new RuntimeException("Account is deactivated"));
                     }
                     String token = jwtTokenProvider.generateToken(user.getId(), user.getMobile(), user.getRole().name());
-                    return userSessionRepository.findByUserId(user.getId())
+                    Mono<UserSession> sessionMono = userSessionRepository.findByUserId(user.getId())
                             .defaultIfEmpty(UserSession.builder().userId(user.getId()).build())
                             .flatMap(session -> {
                                 session.setToken(token);
                                 session.setDeviceToken(request.getDeviceToken());
                                 session.setCreatedAt(LocalDateTime.now());
                                 return userSessionRepository.save(session);
-                            })
-                            .thenReturn(token);
+                            });
+                    Mono<Void> deviceTokenMono = registerDeviceToken(
+                            user.getId(), user.getRole().name(), "WEB", request.getDeviceToken());
+                    return sessionMono.then(deviceTokenMono).thenReturn(token);
                 });
     }
 
@@ -165,6 +170,47 @@ public class AuthServiceImpl implements AuthService {
                         .role(user.getRole())
                         .active(user.isActive())
                         .build());
+    }
+
+    @Override
+    public Flux<Long> getAdminUserIds() {
+        return userRepository.findByRole(Role.ADMIN).map(UserEntity::getId);
+    }
+
+    @Override
+    public Mono<Void> registerDeviceToken(Long userId, String role, String deviceType, String fcmToken) {
+        if (fcmToken == null || fcmToken.isBlank()) {
+            return Mono.empty();
+        }
+        String normalizedDeviceType = (deviceType == null || deviceType.isBlank())
+                ? "WEB" : deviceType.toUpperCase();
+        return deviceTokenRepository.findByFcmToken(fcmToken)
+                .defaultIfEmpty(DeviceToken.builder().fcmToken(fcmToken).createdAt(LocalDateTime.now()).build())
+                .flatMap(existing -> {
+                    existing.setUserId(userId);
+                    existing.setUserRole(role);
+                    existing.setDeviceType(normalizedDeviceType);
+                    existing.setActive(true);
+                    existing.setUpdatedAt(LocalDateTime.now());
+                    return deviceTokenRepository.save(existing);
+                })
+                .then();
+    }
+
+    @Override
+    public Flux<String> getActiveDeviceTokens(Long userId) {
+        return deviceTokenRepository.findByUserIdAndIsActiveTrue(userId).map(DeviceToken::getFcmToken);
+    }
+
+    @Override
+    public Mono<Void> deactivateDeviceToken(String fcmToken) {
+        return deviceTokenRepository.findByFcmToken(fcmToken)
+                .flatMap(existing -> {
+                    existing.setActive(false);
+                    existing.setUpdatedAt(LocalDateTime.now());
+                    return deviceTokenRepository.save(existing);
+                })
+                .then();
     }
 
     @Override
@@ -243,23 +289,30 @@ public class AuthServiceImpl implements AuthService {
                     String token = jwtTokenProvider.generateToken(user.getId(), user.getMobile(), user.getRole().name());
 
                     return userRepository.save(user)
-                            .flatMap(saved ->
-                                    userSessionRepository.findByUserId(saved.getId())
-                                            .defaultIfEmpty(UserSession.builder().userId(saved.getId()).build())
-                                            .flatMap(session -> {
-                                                session.setToken(token);
-                                                session.setDeviceToken(request.getDeviceToken());
-                                                session.setCreatedAt(LocalDateTime.now());
-                                                return userSessionRepository.save(session);
-                                            })
-                            )
+                            .flatMap(saved -> {
+                                Mono<UserSession> sessionMono = userSessionRepository.findByUserId(saved.getId())
+                                        .defaultIfEmpty(UserSession.builder().userId(saved.getId()).build())
+                                        .flatMap(session -> {
+                                            session.setToken(token);
+                                            session.setDeviceToken(request.getDeviceToken());
+                                            session.setCreatedAt(LocalDateTime.now());
+                                            return userSessionRepository.save(session);
+                                        });
+                                Mono<Void> deviceTokenMono = registerDeviceToken(
+                                        saved.getId(), saved.getRole().name(), "WEB", request.getDeviceToken());
+                                return sessionMono.then(deviceTokenMono);
+                            })
                             .thenReturn(token);
                 });
     }
 
     @Override
-    public Mono<Void> logout(Long userId) {
-        return userSessionRepository.deleteByUserId(userId);
+    public Mono<Void> logout(Long userId, String fcmToken) {
+        Mono<Void> clearSession = userSessionRepository.deleteByUserId(userId);
+        if (fcmToken == null || fcmToken.isBlank()) {
+            return clearSession;
+        }
+        return clearSession.then(deactivateDeviceToken(fcmToken));
     }
 
     @Override
