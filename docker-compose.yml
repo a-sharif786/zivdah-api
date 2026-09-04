@@ -311,6 +311,521 @@ services:
       - zivdah-network
 
 
+  # ============================================================
+  # PRODUCT SERVICE
+  # ============================================================
+
+  product-service:
+    build:
+      context: ./zivdah-product-service
+      dockerfile: Dockerfile
+
+    container_name: zivdah-product-service
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+
+      SPRING_PROFILES_ACTIVE: prod
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+
+      SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_R2DBC_USERNAME: ${DB_USERNAME}
+
+      SPRING_R2DBC_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_FLYWAY_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_FLYWAY_USER: ${DB_USERNAME}
+
+      SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+
+      SPRING_DATA_REDIS_HOST: ${REDIS_HOST}
+
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT}
+
+      JWT_SECRET: ${JWT_SECRET}
+
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+      kafka:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+      redis:
+        condition: service_healthy
+
+    networks:
+      - zivdah-network
+
+
+  # ============================================================
+  # CART SERVICE
+  # ============================================================
+
+  cart-service:
+    build:
+      context: ./zivdah-cart-service
+      dockerfile: Dockerfile
+
+    container_name: zivdah-cart-service
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+
+      SPRING_PROFILES_ACTIVE: prod
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+
+      SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_R2DBC_USERNAME: ${DB_USERNAME}
+
+      SPRING_R2DBC_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_FLYWAY_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_FLYWAY_USER: ${DB_USERNAME}
+
+      SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+
+      JWT_SECRET: ${JWT_SECRET}
+
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+      kafka:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+    networks:
+      - zivdah-network
+
+
+  # ============================================================
+  # ORDER SERVICE
+  # ============================================================
+
+  order-service:
+    build:
+      context: ./zivdah-order-service
+      dockerfile: Dockerfile
+
+    container_name: zivdah-order-service
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+
+      SPRING_PROFILES_ACTIVE: prod
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+
+      SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_R2DBC_USERNAME: ${DB_USERNAME}
+
+      SPRING_R2DBC_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_FLYWAY_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_FLYWAY_USER: ${DB_USERNAME}
+
+      SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+
+      JWT_SECRET: ${JWT_SECRET}
+
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+      kafka:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+    networks:
+      - zivdah-network
+
+
+  # ============================================================
+  # PAYMENT SERVICE
+  # ============================================================
+
+  payment-service:
+    build:
+      context: ./zivdah-payment-service
+      dockerfile: Dockerfile
+
+    container_name: zivdah-payment-service
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+
+      SPRING_PROFILES_ACTIVE: prod
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+
+      SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_R2DBC_USERNAME: ${DB_USERNAME}
+
+      SPRING_R2DBC_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_FLYWAY_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_FLYWAY_USER: ${DB_USERNAME}
+
+      SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+
+      JWT_SECRET: ${JWT_SECRET}
+
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+      kafka:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+    networks:
+      - zivdah-network
+
+
+  # ============================================================
+  # NOTIFICATION SERVICE
+  # ============================================================
+
+  notification-service:
+    build:
+      context: ./zivdah-notification-service
+      dockerfile: Dockerfile
+
+    container_name: zivdah-notification-service
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+
+      SPRING_PROFILES_ACTIVE: prod
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+
+      SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_R2DBC_USERNAME: ${DB_USERNAME}
+
+      SPRING_R2DBC_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_FLYWAY_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_FLYWAY_USER: ${DB_USERNAME}
+
+      SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+
+      JWT_SECRET: ${JWT_SECRET}
+
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+      kafka:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+    networks:
+      - zivdah-network
+
+
+  # ============================================================
+  # INVENTORY SERVICE
+  # ============================================================
+
+  inventory-service:
+    build:
+      context: ./zivdah-inventory-service
+      dockerfile: Dockerfile
+
+    container_name: zivdah-inventory-service
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+
+      SPRING_PROFILES_ACTIVE: prod
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+
+      SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_R2DBC_USERNAME: ${DB_USERNAME}
+
+      SPRING_R2DBC_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_FLYWAY_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_FLYWAY_USER: ${DB_USERNAME}
+
+      SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+
+      JWT_SECRET: ${JWT_SECRET}
+
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+      kafka:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+    networks:
+      - zivdah-network
+
+
+  # ============================================================
+  # REVIEW SERVICE
+  # ============================================================
+
+  review-service:
+    build:
+      context: ./zivdah-review-service
+      dockerfile: Dockerfile
+
+    container_name: zivdah-review-service
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+
+      SPRING_PROFILES_ACTIVE: prod
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+
+      SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_R2DBC_USERNAME: ${DB_USERNAME}
+
+      SPRING_R2DBC_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_FLYWAY_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_FLYWAY_USER: ${DB_USERNAME}
+
+      SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+
+      JWT_SECRET: ${JWT_SECRET}
+
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+      kafka:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+    networks:
+      - zivdah-network
+
+
+  # ============================================================
+  # COUPON SERVICE
+  # ============================================================
+
+  coupon-service:
+    build:
+      context: ./zivdah-coupon-service
+      dockerfile: Dockerfile
+
+    container_name: zivdah-coupon-service
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+
+      SPRING_PROFILES_ACTIVE: prod
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+
+      SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_R2DBC_USERNAME: ${DB_USERNAME}
+
+      SPRING_R2DBC_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_FLYWAY_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_FLYWAY_USER: ${DB_USERNAME}
+
+      SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+
+      JWT_SECRET: ${JWT_SECRET}
+
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+      kafka:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+    networks:
+      - zivdah-network
+
+
+  # ============================================================
+  # LOG SERVER
+  # ============================================================
+
+  log-server:
+    build:
+      context: ./zivdah-log-server
+      dockerfile: Dockerfile
+
+    container_name: zivdah-log-server
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+
+      SPRING_PROFILES_ACTIVE: prod
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+
+      SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_R2DBC_USERNAME: ${DB_USERNAME}
+
+      SPRING_R2DBC_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_FLYWAY_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_FLYWAY_USER: ${DB_USERNAME}
+
+      SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+      kafka:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+    networks:
+      - zivdah-network
+
+
+  # ============================================================
+  # DELIVERY SERVICE
+  # ============================================================
+
+  delivery-service:
+    build:
+      context: ./zivdah-delivery-service
+      dockerfile: Dockerfile
+
+    container_name: zivdah-delivery-service
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+
+      SPRING_PROFILES_ACTIVE: prod
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+
+      SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_R2DBC_USERNAME: ${DB_USERNAME}
+
+      SPRING_R2DBC_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_FLYWAY_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_FLYWAY_USER: ${DB_USERNAME}
+
+      SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+
+      JWT_SECRET: ${JWT_SECRET}
+
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+      kafka:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+    networks:
+      - zivdah-network
+
+
 # ==============================================================
 # VOLUMES
 # ==============================================================
