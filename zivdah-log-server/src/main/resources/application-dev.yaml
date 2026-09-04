@@ -1,0 +1,56 @@
+server:
+  port: 8012
+
+spring:
+  application:
+    name: zivdah-log-server
+
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/zivdahDB
+    username: postgres
+    password: root
+    pool:
+      initial-size: 5
+      max-size: 20
+      max-idle-time: 30m
+
+  flyway:
+    url: jdbc:postgresql://localhost:5432/zivdahDB
+    user: postgres
+    password: root
+    locations: classpath:db/migration
+    table: flyway_schema_history_logserver # dedicated history table: zivdahDB is shared across
+                                            # services, so each service needs its own version
+                                            # numbering (see zivdah-order-service's application-dev.yaml)
+    baseline-on-migrate: true              # public schema already has other services' tables;
+                                            # baseline this new history table at V1 instead of
+                                            # erroring on non-empty schema
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+    # This module doesn't itself publish log events (it's the consumer, not a log-shipping
+    # service) — no producer block needed. spring.kafka.producer.bootstrap-servers is still
+    # read by every OTHER service's KafkaLogAppender via <springProperty>; see
+    # zivdah-common/src/main/resources/logback/kafka-appender-include.xml.
+    consumer:
+      group-id: log-server-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: com.zivdah.common.event
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.zivdah.common.event.LogEvent
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+
+logging:
+  level:
+    root: INFO

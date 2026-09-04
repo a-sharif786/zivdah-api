@@ -157,7 +157,7 @@ public class CartController {
      * Clear logged-in user's cart
      */
     @DeleteMapping("/clear")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public Mono<ResponseEntity<ApiResponse<Void>>> clearMyCart() {
 
         return cartService.clearCart()

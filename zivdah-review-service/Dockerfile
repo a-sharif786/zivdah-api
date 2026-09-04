@@ -4,3 +4,4 @@ VOLUME /tmp
 # Copy the jar file from your target folder
 COPY target/*.jar app.jar
 ENTRYPOINT ["java","-jar","/app.jar"]
+

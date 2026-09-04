@@ -1,0 +1,3067 @@
+{
+  "info": {
+    "_postman_id": "38b6e912-acaa-438d-ac88-aab118f99c6b",
+    "name": "Zivdah API — Admin, User & Vendor",
+    "description": "All zivdah-api microservice endpoints, routed through the API gateway\n(http://localhost:8001), covering the three roles enforced by the backend:\nADMIN, USER (customer) and VENDOR (merchant).\n\nStart with folder \"0. Bootstrap\" to register/login and populate\n{{adminToken}} / {{userToken}} / {{vendorToken}} automatically.\n\nRequests flagged with ⚠ in their description hit endpoints where the live\nbackend currently has weaker auth than you might expect (missing\n@PreAuthorize / ownership checks, or an unintentionally public route) —\nthey are included as-is to match the real API, not as a recommendation.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "54875269",
+    "_collection_link": "https://go.postman.co/collection/54875269-38b6e912-acaa-438d-ac88-aab118f99c6b?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "0. Bootstrap — Register & Login",
+      "item": [
+        {
+          "name": "Register - Customer (USER)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Asha Kumar\",\n  \"email\": \"asha.customer@example.com\",\n  \"password\": \"Passw0rd!\",\n  \"mobile\": \"9800000001\",\n  \"role\": \"USER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Creates a customer account. In this dev setup OTP is a static placeholder (\"123456\") rather than real SMS/email — see verify-registration-otp below.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Register - Vendor (VENDOR)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ravi Traders\",\n  \"email\": \"ravi.vendor@example.com\",\n  \"password\": \"Passw0rd!\",\n  \"mobile\": \"9800000002\",\n  \"role\": \"VENDOR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Creates a vendor (merchant) account.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Registration OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const data = json.data;",
+                  "    if (data && data.token) {",
+                  "        const role = (data.role || '').toString().toUpperCase();",
+                  "        if (role === 'ADMIN') {",
+                  "            pm.collectionVariables.set('adminToken', data.token);",
+                  "            pm.collectionVariables.set('adminUserId', data.id);",
+                  "        } else if (role === 'VENDOR') {",
+                  "            pm.collectionVariables.set('vendorToken', data.token);",
+                  "            pm.collectionVariables.set('vendorId', data.id);",
+                  "        } else {",
+                  "            pm.collectionVariables.set('userToken', data.token);",
+                  "            pm.collectionVariables.set('userId', data.id);",
+                  "        }",
+                  "        console.log('Captured token for role', role);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"9800000001\",\n  \"email\": \"asha.customer@example.com\",\n  \"mobileOtp\": \"123456\",\n  \"emailOtp\": \"123456\",\n  \"deviceToken\": \"postman-device-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-registration-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "verify-registration-otp"
+              ]
+            },
+            "description": "Completes registration for the customer above and returns a JWT. Run once per registered account (adjust mobile/email to match whichever account you just registered, e.g. the vendor).\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const data = json.data;",
+                  "    if (data && data.token) {",
+                  "        const role = (data.role || '').toString().toUpperCase();",
+                  "        if (role === 'ADMIN') {",
+                  "            pm.collectionVariables.set('adminToken', data.token);",
+                  "            pm.collectionVariables.set('adminUserId', data.id);",
+                  "        } else if (role === 'VENDOR') {",
+                  "            pm.collectionVariables.set('vendorToken', data.token);",
+                  "            pm.collectionVariables.set('vendorId', data.id);",
+                  "        } else {",
+                  "            pm.collectionVariables.set('userToken', data.token);",
+                  "            pm.collectionVariables.set('userId', data.id);",
+                  "        }",
+                  "        console.log('Captured token for role', role);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"asha.customer@example.com\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Email+password login. Auto-captures {{userToken}} and {{userId}}.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Vendor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const data = json.data;",
+                  "    if (data && data.token) {",
+                  "        const role = (data.role || '').toString().toUpperCase();",
+                  "        if (role === 'ADMIN') {",
+                  "            pm.collectionVariables.set('adminToken', data.token);",
+                  "            pm.collectionVariables.set('adminUserId', data.id);",
+                  "        } else if (role === 'VENDOR') {",
+                  "            pm.collectionVariables.set('vendorToken', data.token);",
+                  "            pm.collectionVariables.set('vendorId', data.id);",
+                  "        } else {",
+                  "            pm.collectionVariables.set('userToken', data.token);",
+                  "            pm.collectionVariables.set('userId', data.id);",
+                  "        }",
+                  "        console.log('Captured token for role', role);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ravi.vendor@example.com\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Auto-captures {{vendorToken}} and {{vendorId}}.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const data = json.data;",
+                  "    if (data && data.token) {",
+                  "        const role = (data.role || '').toString().toUpperCase();",
+                  "        if (role === 'ADMIN') {",
+                  "            pm.collectionVariables.set('adminToken', data.token);",
+                  "            pm.collectionVariables.set('adminUserId', data.id);",
+                  "        } else if (role === 'VENDOR') {",
+                  "            pm.collectionVariables.set('vendorToken', data.token);",
+                  "            pm.collectionVariables.set('vendorId', data.id);",
+                  "        } else {",
+                  "            pm.collectionVariables.set('userToken', data.token);",
+                  "            pm.collectionVariables.set('userId', data.id);",
+                  "        }",
+                  "        console.log('Captured token for role', role);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@zivdah.local\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Requires a pre-seeded ADMIN account (see folder description). Auto-captures {{adminToken}} and {{adminUserId}}.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Send Mobile OTP (login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"9800000001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://168.144.123.121:8080/restful/v1/api/auth/send-otp",
+              "protocol": "http",
+              "host": [
+                "168",
+                "144",
+                "123",
+                "121"
+              ],
+              "port": "8080",
+              "path": [
+                "restful",
+                "v1",
+                "api",
+                "auth",
+                "send-otp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Mobile OTP (login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {\n    const json = pm.response.json();\n    const data = json.data;\n    if (data && data.token) {\n        const role = (data.role || '').toString().toUpperCase();\n        if (role === 'ADMIN') {\n            pm.collectionVariables.set('adminToken', data.token);\n            pm.collectionVariables.set('adminUserId', data.id);\n        } else if (role === 'VENDOR') {\n            pm.collectionVariables.set('vendorToken', data.token);\n            pm.collectionVariables.set('vendorId', data.id);\n        } else {\n            pm.collectionVariables.set('userToken', data.token);\n            pm.collectionVariables.set('userId', data.id);\n        }\n        console.log('Captured token for role', role);\n    }\n}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"9800000001\",\n  \"otp\": \"123456\",\n  \"deviceToken\": \"postman-device-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl_live}}/auth/verify-otp",
+              "host": [
+                "{{baseUrl_live}}"
+              ],
+              "path": [
+                "auth",
+                "verify-otp"
+              ]
+            },
+            "description": "Completes mobile-OTP login and returns a JWT. Auto-captures token by role.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Update User Role -> ADMIN",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ADMIN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/update-role/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "update-role",
+                "{{userId}}"
+              ]
+            },
+            "description": "Bootstrap helper: promotes {{userId}} to ADMIN. Must be called with an existing admin token — i.e. you need at least one admin already (seeded in DB) to create the next one.\n\nRequires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Forget Password (send OTP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"asha.customer@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/forget-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forget-password"
+              ]
+            },
+            "description": "No authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"asha.customer@example.com\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"NewPassw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            },
+            "description": "No authentication required."
+          },
+          "response": []
+        }
+      ],
+      "description": "Run these first. Login/OTP-verify requests auto-capture the JWT + user id into\ncollection variables (adminToken/userToken/vendorToken) via a test script, based\non the role in the response — every other request in this collection already\nreferences those variables.\n\nADMIN accounts cannot self-register (blocked in AuthServiceImpl.register()).\nSeed one directly in the DB (role='ADMIN'), or register a normal user then have\nan existing admin call \"Update User Role -> ADMIN\" below to promote them."
+    },
+    {
+      "name": "1. Auth Service",
+      "item": [
+        {
+          "name": "Get User By Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/byUserId/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "byUserId",
+                "{{userId}}"
+              ]
+            },
+            "description": "Requires the caller to be the resource owner OR role ADMIN (manual check, not @PreAuthorize). Using {{userToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "List All Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl_live}}/auth/all-users",
+              "host": [
+                "{{baseUrl_live}}"
+              ],
+              "path": [
+                "auth",
+                "all-users"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Own Profile (name)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Asha Kumar Updated\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/update-profile/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "update-profile",
+                "{{userId}}"
+              ]
+            },
+            "description": "Requires the caller to be the resource owner OR role ADMIN (manual check, not @PreAuthorize). Using {{userToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Requires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/deactivate/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "deactivate",
+                "{{userId}}"
+              ]
+            },
+            "description": "Requires the caller to be the resource owner OR role ADMIN (manual check, not @PreAuthorize). Using {{userToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Activate User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/activate/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "activate",
+                "{{userId}}"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/auth"
+    },
+    {
+      "name": "2. User Service",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/getProfile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "getProfile"
+              ]
+            },
+            "description": "Requires role: ADMIN or USER. Using {{userToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Asha Kumar\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/updateProfile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "updateProfile"
+              ]
+            },
+            "description": "Requires role: ADMIN or USER. Using {{userToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Add Address",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const val = json?.data?.id;",
+                  "    if (val !== undefined && val !== null) {",
+                  "        pm.collectionVariables.set('addressId', val);",
+                  "        console.log('Captured addressId =', val);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"addressLine1\": \"221B Baker Street\",\n  \"addressLine2\": \"Near City Mall\",\n  \"city\": \"Bengaluru\",\n  \"state\": \"Karnataka\",\n  \"pinCode\": \"560001\",\n  \"isDefault\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/address",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "address"
+              ]
+            },
+            "description": "Requires role: USER."
+          },
+          "response": []
+        },
+        {
+          "name": "List My Addresses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/address?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "address"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Requires role: ADMIN or USER. Using {{userToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: List User's Addresses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/address/user/{{userId}}?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "address",
+                "user",
+                "{{userId}}"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/user"
+    },
+    {
+      "name": "3. Cart Service",
+      "item": [
+        {
+          "name": "Add To Cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const val = json?.data?.id;",
+                  "    if (val !== undefined && val !== null) {",
+                  "        pm.collectionVariables.set('cartItemId', val);",
+                  "        console.log('Captured cartItemId =', val);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 2,\n  \"price\": 49.5,\n  \"sku\": \"VEG-TOMATO-1KG\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cart/add",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "add"
+              ]
+            },
+            "description": "NOTE: userId is read from the request body, not the JWT — set it explicitly.\n\nRequires role: ADMIN or USER. Using {{userToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Cart",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cart",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart"
+              ]
+            },
+            "description": "Requires role: ADMIN or USER. Using {{userToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Get User's Cart",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cart/user/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "user",
+                "{{userId}}"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Cart Item Quantity",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cart/{{cartItemId}}?quantity=3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "{{cartItemId}}"
+              ],
+              "query": [
+                {
+                  "key": "quantity",
+                  "value": "3"
+                }
+              ]
+            },
+            "description": "Requires role: ADMIN or USER. Using {{userToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Cart Item",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cart/{{cartItemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "{{cartItemId}}"
+              ]
+            },
+            "description": "Requires role: ADMIN or USER. Using {{userToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Clear My Cart",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cart/clear",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "clear"
+              ]
+            },
+            "description": "Requires role: USER."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Clear User's Cart",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cart/clear/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "clear",
+                "{{userId}}"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/cart"
+    },
+    {
+      "name": "4. Product Service",
+      "item": [
+        {
+          "name": "Create Product (multipart)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const val = json?.data?.id;",
+                  "    if (val !== undefined && val !== null) {",
+                  "        pm.collectionVariables.set('productId', val);",
+                  "        console.log('Captured productId =', val);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "data",
+                  "value": "{\"name\":\"Fresh Tomato\",\"category\":\"VEGETABLE\",\"price\":49.5,\"discountPrice\":39.5,\"unit\":\"1kg\",\"stockQuantity\":100,\"expiryDate\":\"2026-09-30\",\"description\":\"Farm-fresh tomatoes\",\"organic\":true,\"fav\":false,\"brand\":\"FarmFresh\"}",
+                  "type": "text",
+                  "contentType": "application/json"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "value": null
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/products/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "create"
+              ]
+            },
+            "description": "Vendor-created products are auto-tagged with the caller's vendorId; admin-created products are platform-owned (vendorId=null).\n\nRequires role: ADMIN or VENDOR. Vendors are restricted to their own vendorId/records (403 otherwise); Admins can access any. Using {{vendorToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/getAll?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "getAll"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "No authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Search Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/search?keyword=tomato&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "keyword",
+                  "value": "tomato"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "No authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Products By Category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/category/VEGETABLE?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "category",
+                "VEGETABLE"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "No authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "{{productId}}"
+              ]
+            },
+            "description": "No authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Product (multipart)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "data",
+                  "value": "{\"name\":\"Fresh Tomato\",\"category\":\"VEGETABLE\",\"price\":45,\"discountPrice\":39.5,\"unit\":\"1kg\",\"stockQuantity\":100,\"expiryDate\":\"2026-09-30\",\"description\":\"Farm-fresh tomatoes\",\"organic\":true,\"fav\":false,\"brand\":\"FarmFresh\"}",
+                  "type": "text",
+                  "contentType": "application/json"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "value": null
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "{{productId}}"
+              ]
+            },
+            "description": "Vendors may only update products they own (403 otherwise). \"image\" part is optional on update.\n\nRequires role: ADMIN or VENDOR. Vendors are restricted to their own vendorId/records (403 otherwise); Admins can access any. Using {{vendorToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "{{productId}}"
+              ]
+            },
+            "description": "Requires role: ADMIN or VENDOR. Vendors are restricted to their own vendorId/records (403 otherwise); Admins can access any. Using {{vendorToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Vendor's Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/products/vendor/{{vendorId}}?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "vendor",
+                "{{vendorId}}"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Requires role: ADMIN or VENDOR. Vendors are restricted to their own vendorId/records (403 otherwise); Admins can access any. Using {{vendorToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        },
+        {
+          "name": "List Product Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "categories"
+              ]
+            },
+            "description": "No authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Wishlist",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/products/wishlist?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "wishlist"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Requires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Add/Remove Wishlist Item",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fav\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}/wishlist",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "{{productId}}",
+                "wishlist"
+              ]
+            },
+            "description": "Set fav=true to add to wishlist, fav=false to remove.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Public: Get Banners",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/banner/getAll",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "banner",
+                "getAll"
+              ]
+            },
+            "description": "No authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Get All Banners",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/banner/all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "banner",
+                "all"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Create Banner (multipart)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const val = json?.data?.id;",
+                  "    if (val !== undefined && val !== null) {",
+                  "        pm.collectionVariables.set('bannerId', val);",
+                  "        console.log('Captured bannerId =', val);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "data",
+                  "value": "{\"title\":\"Diwali Sale\",\"active\":true}",
+                  "type": "text",
+                  "contentType": "application/json"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "value": null
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/banner/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "banner",
+                "create"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Update Banner (multipart)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "data",
+                  "value": "{\"title\":\"Diwali Mega Sale\",\"active\":true}",
+                  "type": "text",
+                  "contentType": "application/json"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "value": null
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/banner/{{bannerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "banner",
+                "{{bannerId}}"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Delete Banner",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/banner/{{bannerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "banner",
+                "{{bannerId}}"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Toggle Banner Active",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/banner/{{bannerId}}/toggle",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "banner",
+                "{{bannerId}}",
+                "toggle"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/products. Category enum: VEGETABLE | FRUIT | MILK | PULSE | GROCERY."
+    },
+    {
+      "name": "5. Category Service",
+      "item": [
+        {
+          "name": "Get All Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/category/getAll",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "getAll"
+              ]
+            },
+            "description": "Public — returns only active=true categories.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Get All Categories (incl. inactive)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/category/all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "all"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Category By Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/category/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "{{categoryId}}"
+              ]
+            },
+            "description": "No authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Create Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const val = json?.data?.id;",
+                  "    if (val !== undefined && val !== null) {",
+                  "        pm.collectionVariables.set('categoryId', val);",
+                  "        console.log('Captured categoryId =', val);",
+                  "    }",
+                  "}",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const val = json?.data?.slug;",
+                  "    if (val !== undefined && val !== null) {",
+                  "        pm.collectionVariables.set('categorySlug', val);",
+                  "        console.log('Captured categorySlug =', val);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Organic Vegetables\",\n  \"slug\": null,\n  \"parentId\": null,\n  \"imageUrl\": null,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/category/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "create"
+              ]
+            },
+            "description": "slug is optional — auto-generated from name (and de-duplicated with -2, -3, ... on collision) when omitted. parentId nests this as a subcategory of another category.\n\nRequires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Update Category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Organic Vegetables & Herbs\",\n  \"slug\": null,\n  \"parentId\": null,\n  \"imageUrl\": null,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/category/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "{{categoryId}}"
+              ]
+            },
+            "description": "Slug stays stable across updates unless you explicitly pass a new one here.\n\nRequires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Toggle Category Active",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/category/{{categoryId}}/toggle",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "{{categoryId}}",
+                "toggle"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/category/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "{{categoryId}}"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/category. Additive normalized category lookup (distinct from the fixed ProductCategory enum used on products.category) — supports nesting via parentId."
+    },
+    {
+      "name": "6. Coupon Service",
+      "item": [
+        {
+          "name": "Admin: Create Coupon",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const val = json?.data?.code;",
+                  "    if (val !== undefined && val !== null) {",
+                  "        pm.collectionVariables.set('couponCode', val);",
+                  "        console.log('Captured couponCode =', val);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"WELCOME10\",\n  \"description\": \"10% off on first order\",\n  \"discountType\": \"PERCENTAGE\",\n  \"discountValue\": 10,\n  \"minOrderAmount\": 200,\n  \"maxDiscountAmount\": 100,\n  \"usageLimit\": 500,\n  \"validFrom\": \"2026-08-25T00:00:00\",\n  \"validUntil\": \"2026-12-31T23:59:59\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coupons/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coupons",
+                "create"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Coupon By Code",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/coupons/{{couponCode}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coupons",
+                "{{couponCode}}"
+              ]
+            },
+            "description": "No authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: List All Coupons",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/coupons/all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coupons",
+                "all"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Toggle Coupon Active",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/coupons/{{couponId}}/toggle",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coupons",
+                "{{couponId}}",
+                "toggle"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Delete Coupon",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/coupons/{{couponId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coupons",
+                "{{couponId}}"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Apply Coupon",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{couponCode}}\",\n  \"orderAmount\": 500\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coupons/apply",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coupons",
+                "apply"
+              ]
+            },
+            "description": "No authentication required."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/coupons. discountType enum: PERCENTAGE | FIXED."
+    },
+    {
+      "name": "7. Inventory Service",
+      "item": [
+        {
+          "name": "Get Inventory For Product",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventory/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventory",
+                "{{productId}}"
+              ]
+            },
+            "description": "Requires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Add Stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/inventory/add",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventory",
+                "add"
+              ]
+            },
+            "description": "⚠ No @PreAuthorize on this endpoint in the current backend — any authenticated user (plain USER role) can add stock, not just ADMIN/VENDOR.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Reserve Stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/inventory/reserve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventory",
+                "reserve"
+              ]
+            },
+            "description": "⚠ No @PreAuthorize on this endpoint in the current backend.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Release Stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/inventory/release",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventory",
+                "release"
+              ]
+            },
+            "description": "⚠ No @PreAuthorize on this endpoint in the current backend.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm Stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/inventory/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventory",
+                "confirm"
+              ]
+            },
+            "description": "⚠ No @PreAuthorize on this endpoint in the current backend.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: List All Inventory",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventory?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventory"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/inventory"
+    },
+    {
+      "name": "8. Order Service",
+      "item": [
+        {
+          "name": "Create Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const val = json?.data?.id;",
+                  "    if (val !== undefined && val !== null) {",
+                  "        pm.collectionVariables.set('orderId', val);",
+                  "        console.log('Captured orderId =', val);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"subTotal\": 99,\n  \"gstAmount\": 4.95,\n  \"cgstAmount\": 2.48,\n  \"sgstAmount\": 2.48,\n  \"igstAmount\": 0,\n  \"totalTaxAmount\": 4.95,\n  \"deliveryCharge\": 20,\n  \"packagingCharge\": 5,\n  \"handlingCharge\": 0,\n  \"discountAmount\": 0,\n  \"couponCode\": null,\n  \"totalAmount\": 128.95,\n  \"currency\": \"INR\",\n  \"deliveryAddressLine1\": \"221B Baker Street\",\n  \"deliveryAddressLine2\": \"Near City Mall\",\n  \"deliveryCity\": \"Bengaluru\",\n  \"deliveryState\": \"Karnataka\",\n  \"deliveryPinCode\": \"560001\",\n  \"deliveryCountry\": \"India\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"vendorId\": \"{{vendorId}}\",\n      \"quantity\": 2,\n      \"price\": 49.5,\n      \"subtotal\": 99\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/orders/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "create"
+              ]
+            },
+            "description": "⚠ This endpoint currently requires NO authentication at all (SecurityConfig's single-segment permitAll wildcard matches it, and there's no @PreAuthorize backstop) — anyone can create an order as any userId. Included here as-is to match the live backend; consider locking this down.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Order By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}"
+              ]
+            },
+            "description": "⚠ No authentication required in the current backend — any order is readable by ID.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Get User's Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/user/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "user",
+                "{{userId}}"
+              ]
+            },
+            "description": "⚠ Requires a valid JWT but no ownership check — any authenticated user can list any other user's orders in the current backend.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Order",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/cancel/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "cancel",
+                "{{orderId}}"
+              ]
+            },
+            "description": "⚠ Requires a valid JWT but no ownership check — any authenticated user can cancel any order in the current backend.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: List All Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/all?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "all"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "CREATED",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Vendor's Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/vendor/{{vendorId}}?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "vendor",
+                "{{vendorId}}"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Requires role: ADMIN or VENDOR. Vendors are restricted to their own vendorId/records (403 otherwise); Admins can access any. Using {{vendorToken}} by default — swap to {{adminToken}} to test as admin."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/orders"
+    },
+    {
+      "name": "9. Payment Service",
+      "item": [
+        {
+          "name": "Initiate Payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const val = json?.data?.id;",
+                  "    if (val !== undefined && val !== null) {",
+                  "        pm.collectionVariables.set('paymentId', val);",
+                  "        console.log('Captured paymentId =', val);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"userId\": \"{{userId}}\",\n  \"amount\": 128.95,\n  \"currency\": \"INR\",\n  \"method\": \"UPI\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payments/initiate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "initiate"
+              ]
+            },
+            "description": "⚠ This endpoint currently requires NO authentication at all (same permitAll-wildcard gap as orders/create) — anyone can initiate a payment for any order/user.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payment By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/{{paymentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "{{paymentId}}"
+              ]
+            },
+            "description": "⚠ No authentication required in the current backend — full payment details (gateway response, transaction id) are readable by ID.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Order's Payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments/order/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "order",
+                "{{orderId}}"
+              ]
+            },
+            "description": "Requires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Payment Success",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments/success/{{paymentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "success",
+                "{{paymentId}}"
+              ]
+            },
+            "description": "⚠ Requires a valid JWT but no role/ownership check — any authenticated USER can mark any payment as successful in the current backend.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Payment Failed",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments/failed/{{paymentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "failed",
+                "{{paymentId}}"
+              ]
+            },
+            "description": "⚠ Requires a valid JWT but no role/ownership check in the current backend.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: List All Payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments/all?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "all"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "SUCCESS",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/payments. method enum: CARD | UPI | NET_BANKING | WALLET | APPLE_PAY | GOOGLE_PAY | BANK_TRANSFER | COD."
+    },
+    {
+      "name": "10. Notification Service",
+      "item": [
+        {
+          "name": "Send Notification",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const val = json?.data?.id;",
+                  "    if (val !== undefined && val !== null) {",
+                  "        pm.collectionVariables.set('notificationId', val);",
+                  "        console.log('Captured notificationId =', val);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"title\": \"Order Confirmed\",\n  \"message\": \"Your order #{{orderId}} has been confirmed.\",\n  \"fcmToken\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications/send",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "send"
+              ]
+            },
+            "description": "⚠ Requires a valid JWT but no ownership check — any authenticated user can send a notification \"as the system\" to any userId.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Get User's Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/user/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "user",
+                "{{userId}}"
+              ]
+            },
+            "description": "⚠ Requires a valid JWT but no ownership check — any authenticated user can read any other user's notifications.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: List All Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/notifications"
+    },
+    {
+      "name": "11. Review Service",
+      "item": [
+        {
+          "name": "Create Review",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const val = json?.data?.id;",
+                  "    if (val !== undefined && val !== null) {",
+                  "        pm.collectionVariables.set('reviewId', val);",
+                  "        console.log('Captured reviewId =', val);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"productId\": \"{{productId}}\",\n  \"rating\": 5,\n  \"comment\": \"Excellent quality, very fresh!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reviews/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews",
+                "create"
+              ]
+            },
+            "description": "Requires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Review By Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reviews/{{reviewId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews",
+                "{{reviewId}}"
+              ]
+            },
+            "description": "Requires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "List All Reviews",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reviews?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Requires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Review",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"productId\": \"{{productId}}\",\n  \"rating\": 4,\n  \"comment\": \"Updated: still good, one item was slightly bruised.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reviews/{{reviewId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews",
+                "{{reviewId}}"
+              ]
+            },
+            "description": "⚠ No ownership check in the current backend — any authenticated user can update any other user's review by id.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Review",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reviews/{{reviewId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews",
+                "{{reviewId}}"
+              ]
+            },
+            "description": "⚠ No ownership check in the current backend — any authenticated user can delete any other user's review by id.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product's Reviews",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reviews/product/{{productId}}?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews",
+                "product",
+                "{{productId}}"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Requires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/reviews"
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8001/restful/v1/api"
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "userToken",
+      "value": ""
+    },
+    {
+      "key": "vendorToken",
+      "value": ""
+    },
+    {
+      "key": "adminUserId",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "vendorId",
+      "value": ""
+    },
+    {
+      "key": "addressId",
+      "value": ""
+    },
+    {
+      "key": "productId",
+      "value": ""
+    },
+    {
+      "key": "bannerId",
+      "value": ""
+    },
+    {
+      "key": "categoryId",
+      "value": ""
+    },
+    {
+      "key": "categorySlug",
+      "value": ""
+    },
+    {
+      "key": "couponCode",
+      "value": "WELCOME10"
+    },
+    {
+      "key": "couponId",
+      "value": ""
+    },
+    {
+      "key": "cartItemId",
+      "value": ""
+    },
+    {
+      "key": "orderId",
+      "value": ""
+    },
+    {
+      "key": "paymentId",
+      "value": ""
+    },
+    {
+      "key": "notificationId",
+      "value": ""
+    },
+    {
+      "key": "reviewId",
+      "value": ""
+    }
+  ]
+}

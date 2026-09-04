@@ -3,6 +3,7 @@ package com.zivdah.product.controller;
 import com.zivdah.product.dto.ApiResponse;
 import com.zivdah.product.dto.ProductRequestDto;
 import com.zivdah.product.dto.ProductResponseDto;
+import com.zivdah.product.dto.SyncStockRequestDto;
 import com.zivdah.product.dto.WishlistRequestDto;
 import com.zivdah.product.enums.ProductCategory;
 import com.zivdah.product.service.ProductService;
@@ -107,6 +108,17 @@ public class ProductController {
                         .status("success").statusCode(200).message("Product updated successfully").data(r).build()));
     }
 
+    // Internal, no auth — see SecurityConfig. Called by inventory-service after ITS
+    // availableQuantity changes, to push the new value here directly. Must never push back
+    // to inventory-service, or the two services would loop forever.
+    @PutMapping("/products/{id}/sync-stock")
+    public Mono<ResponseEntity<ApiResponse<Void>>> syncStock(
+            @PathVariable Long id, @RequestBody SyncStockRequestDto dto) {
+        return productService.syncStockQuantity(id, dto.getStockQuantity())
+                .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
+                        .status("success").statusCode(200).message("Stock synced").build()));
+    }
+
     @DeleteMapping("/products/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','VENDOR')")
     public Mono<ResponseEntity<ApiResponse<Void>>> deleteProduct(@PathVariable Long id) {
@@ -131,6 +143,14 @@ public class ProductController {
                 })
                 .map(list -> ResponseEntity.ok(ApiResponse.<List<ProductResponseDto>>builder()
                         .status("success").statusCode(200).message("Vendor products retrieved").data(list).build()));
+    }
+
+    @GetMapping("/products/count")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<Long>>> countProducts() {
+        return productService.countProducts()
+                .map(count -> ResponseEntity.ok(ApiResponse.<Long>builder()
+                        .status("success").statusCode(200).message("Product count retrieved").data(count).build()));
     }
 
     @GetMapping("/products/categories")

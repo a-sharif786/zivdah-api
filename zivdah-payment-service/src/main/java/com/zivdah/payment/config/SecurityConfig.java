@@ -1,5 +1,6 @@
 package com.zivdah.payment.config;
 
+import com.zivdah.common.logging.CorrelationIdWebFilter;
 import com.zivdah.payment.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -21,6 +22,11 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
+    public CorrelationIdWebFilter correlationIdWebFilter() {
+        return new CorrelationIdWebFilter();
+    }
+
+    @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
@@ -32,6 +38,7 @@ public class SecurityConfig {
                         // explicit: must be evaluated before the single-segment wildcard below, since
                         // "all" would otherwise also match "/payments/*" the same way "/payments/{paymentId}" does
                         .pathMatchers(HttpMethod.GET, "/restful/v1/api/payments/all").authenticated()
+                        .pathMatchers(HttpMethod.GET, "/restful/v1/api/payments/stats").authenticated()
                         .pathMatchers("/restful/v1/api/payments/*").permitAll()
                         .anyExchange().authenticated()
                 )

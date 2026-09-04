@@ -1,0 +1,27 @@
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="unknown-service"/>
+    <include resource="logback/kafka-appender-include.xml"/>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder><pattern>${CONSOLE_LOG_PATTERN}</pattern></encoder>
+    </appender>
+
+    <!-- Framework-internal DEBUG tracing some services enable via logging.level in
+         application-dev.yaml (org.springframework.security/web, io.r2dbc) is useful on the
+         console locally, but must not flood the centralized log server — route it to CONSOLE
+         only and stop it from also reaching root's ASYNC_KAFKA appender. -->
+    <logger name="org.springframework.security" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="org.springframework.web" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="io.r2dbc" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_KAFKA"/>
+    </root>
+</configuration>

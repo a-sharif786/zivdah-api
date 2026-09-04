@@ -1,6 +1,7 @@
 package com.zivdah.auth.config;
 
 import com.zivdah.auth.security.JwtAuthenticationFilter;
+import com.zivdah.common.logging.CorrelationIdWebFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +19,11 @@ import org.springframework.security.web.server.context.NoOpServerSecurityContext
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Bean
+    public CorrelationIdWebFilter correlationIdWebFilter() {
+        return new CorrelationIdWebFilter();
+    }
 
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
@@ -39,7 +45,13 @@ public class SecurityConfig {
                                 "/restful/v1/api/auth/deactivate/*",
                                 "/restful/v1/api/auth/activate/*",
                                 "/restful/v1/api/auth/activate/*",
-                                "/restful/v1/api/auth/all-users"
+                                "/restful/v1/api/auth/all-users",
+                                // internal, notification-service-only fan-out lookup — no
+                                // user JWT available for that call (see AuthController). The
+                                // single-segment wildcard covers both /internal/device-tokens/{userId}
+                                // (GET) and /internal/device-tokens/deactivate (PATCH).
+                                "/restful/v1/api/auth/internal/admin-ids",
+                                "/restful/v1/api/auth/internal/device-tokens/*"
                         ).permitAll()
                         .anyExchange().authenticated()
                 )

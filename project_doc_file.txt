@@ -1,0 +1,881 @@
+======================For company server============
+#credentails
+Host: 192.168.1.121
+Port: 22
+User: hsn7
+Password: Gllfl#321
+
+
+
+
+#on filezilla
+mkdir -p /home/hsn7/server
+/opt/swordedgeapigateway/jar   ======= put jar here
+
+#on putty
+sudo mkdir -p /opt/swordedgeapigateway/jar
+/home/hsn7/server ======= store server.sh file
+
+
+
+vi server.sh
+or
+nano server.sh
+#!/bin/bash
+# 👉 JAR file path
+JAR="/opt/swordedgeapigateway/jar/swordage-0.0.1-SNAPSHOT.jar"
+COMMAND="$1"
+start_server() {
+    echo "Starting..."
+    nohup java -jar "$JAR" > output.log 2>&1 &
+    echo $! > server.pid
+    echo "Started with PID $(cat server.pid)"
+}
+
+stop_server() {
+    if [ -f server.pid ]; then
+        PID=$(cat server.pid)
+        echo "Stopping PID $PID..."
+        kill $PID
+        rm server.pid
+        echo "Stopped."
+    else
+        echo "Server not running."
+    fi
+}
+
+restart_server() {
+    stop_server
+    sleep 2
+    start_server
+}
+
+if [ "$COMMAND" == "start" ]; then
+    start_server
+elif [ "$COMMAND" == "stop" ]; then
+    stop_server
+elif [ "$COMMAND" == "restart" ]; then
+    restart_server
+else
+    echo "Usage: ./server.sh start | stop | restart"
+fi
+
+
+
+Start:
+./server.sh start
+
+Stop:
+./server.sh stop
+
+Restart:
+./server.sh restart
+
+
+# install java on server
+sudo apt update && sudo apt upgrade -y
+sudo apt install openjdk-21-jdk -y
+java -version
+
+
+
+
+#instal postgres on server
+sudo apt update && sudo apt upgrade -y
+sudo apt install postgresql postgresql-contrib -y
+
+
+
+#start, restart, stop postgres
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+sudo systemctl status postgresql
+
+
+
+# check postgres post
+ss -plnt | grep 543
+
+
+
+
+#build and clean jar file of project
+mvn clean install -DskipTests
+mvn clean compile -DskipTests
+mvn clean package -DskipTests
+
+
+
+
+
+# production
+spring:
+  application:
+    name: swordage
+#  production
+#  r2dbc:
+#    url: r2dbc:postgresql://localhost:5432/swordedgedb
+#    username: postgres
+#    password: root
+#    driver-class-name: org.postgresql.Driver
+
+
+  #local
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/swordageDB
+    username: postgres
+    password: root
+    driver-class-name: org.postgresql.Driver
+
+  flyway:
+    enabled: false
+    baseline-on-migrate: true
+
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+
+#local
+server:
+  port: 8083
+  address: 0.0.0.0
+
+#production
+#server:
+#  port: 8080
+#  address: 0.0.0.0
+
+
+
+aws:
+  s3:
+    bucketName: swordedge-document
+  region: ap-south-1
+
+cors:
+  allowed-origins:
+    - http://localhost:3000
+    - http://localhost:5173
+    - https://dev.swordedge.in
+    - https://swordedge.in
+    - https://api.swordedge.in
+    - https://www.swordedge.com
+
+razorpay:
+  key: ${RAZORPAY_KEY:rzp_test_SFbkby3DYACZHb}
+  secret: ${RAZORPAY_SECRET:uCFi4URbTpD2Z9GoTa4u9he5}
+
+
+
+#open postgres
+sudo -i -u postgres
+psql
+
+#list all databases
+\l
+
+
+# connect to databases
+\c gllfldb
+
+
+#list tables in databases
+\dt
+
+
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    full_name VARCHAR(100) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    phone VARCHAR(20),
+    role VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+
+INSERT INTO users (email, full_name, password, phone, role)
+VALUES ('cs@gllfl.com', 'CS', 'csgllfl@321', '9321994628', 'CS');
+
+
+INSERT INTO users (email, full_name, password, phone, role)
+VALUES ('boss@gllfl.com', 'ADMIN', 'boss@321', '9321994628', 'MERKETING');
+
+INSERT INTO users (email, full_name, password, phone, role)
+VALUES ('boss@gllfl.com', 'ADMIN', 'boss@321', '9321994628', 'ADMIN');
+
+INSERT INTO users (email, full_name, password, phone, role)
+VALUES ('boss@gllfl.com', 'ADMIN', 'boss@321', '9321994628', 'ADMIN');
+
+
+
+
+# for internal access
+ curl --location 'http://192.168.1.121:8080/api/users/login' --header 'Content-Type: application/json' --data-raw '{
+  "email": "cs@swordedge.com",
+  "password": "csswordedge@321"
+}'
+
+
+
+=====================================================================================deploy on server ====================================================================================================
+dev_path = https://api.swordedge.com/api
+
+
+
+
+
+++++++++++++++++++++++++++++++++========================================================Resend Email++++++++++++++++++++++++++++++++++++++++++++++===================================================
+Url: https://resend.com/onboarding
+email: sunder.sharma@gllfl.com
+password: Passw0rd%$#54321
+API key: re_Z4wX8rZA_PNVW7mJvMSnTQeeVZp1L8XYC4
+
+
+
+++++++++++++++++++++++++++++++++++==================================================Production Server+++++++++++++++++++++======================
+# created at first time
+Perfect 👍
+Using PuTTY + FileZilla is absolutely fine.
+Below is a step-by-step guide written specifically for PuTTY & FileZilla users, no Linux jargon overload.
+
+🟢 PART 1: Connect to Server (PuTTY)
+PuTTY Settings
+
+Host Name: 43.204.111.236
+
+Port: 22
+
+Connection type: SSH
+
+Username: ubuntu (recommended)
+(If your server only allows root, use root for now)
+
+Click Open
+
+🟢 PART 2: Install Java (PuTTY)
+sudo apt update
+sudo apt install openjdk-17-jdk -y
+java -version
+
+
+✔ Must show Java 17
+
+🟢 PART 3: Install PostgreSQL (PuTTY)
+sudo apt install postgresql postgresql-contrib -y
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+
+
+Check:
+
+sudo systemctl status postgresql
+
+🟢 PART 4: Create Database & User (PuTTY)
+Enter PostgreSQL
+sudo -i -u postgres
+psql
+
+Run these commands (copy-paste one by one):
+CREATE DATABASE gllfldb;
+
+CREATE USER postgres WITH PASSWORD 'postgres';
+
+GRANT ALL PRIVILEGES ON DATABASE gllfldb TO gllfl_user;
+ALTER DATABASE gllfldb OWNER TO gllfl_user;
+
+
+Exit:
+
+\q
+exit
+
+🟢 PART 5: Create Application Folders (PuTTY)
+sudo mkdir -p /opt/gllflapigateway/jar/Gllfl-Backend-0.0.1-SNAPSHOT.jar
+sudo chown -R ubuntu:ubuntu /opt/gllflapigateway/jar
+
+🟢 PART 6: Upload JAR (FileZilla)
+FileZilla Settings
+
+Upload Path
+Local file:
+target/Gllfl-Backend-0.0.1-SNAPSHOT.jar
+
+Remote path:
+/opt/gllflapigateway/jar/Gllfl-Backend-0.0.1-SNAPSHOT.jar
+
+
+
+vi server.sh
+or
+nano server.sh
+#!/bin/bash
+# 👉 JAR file path
+JAR="/opt/gllflapigateway/jar/Gllfl-Backend-0.0.1-SNAPSHOT.jar"
+COMMAND="$1"
+start_server() {
+    echo "Starting..."
+    nohup java -jar "$JAR" > output.log 2>&1 &
+    echo $! > server.pid
+    echo "Started with PID $(cat server.pid)"
+}
+
+stop_server() {
+    if [ -f server.pid ]; then
+        PID=$(cat server.pid)
+        echo "Stopping PID $PID..."
+        kill $PID
+        rm server.pid
+        echo "Stopped."
+    else
+        echo "Server not running."
+    fi
+}
+
+restart_server() {
+    stop_server
+    sleep 2
+    start_server
+}
+
+if [ "$COMMAND" == "start" ]; then
+    start_server
+elif [ "$COMMAND" == "stop" ]; then
+    stop_server
+elif [ "$COMMAND" == "restart" ]; then
+    restart_server
+else
+    echo "Usage: ./server.sh start | stop | restart"
+fi
+
+
+Start:
+./server.sh start
+
+Stop:
+./server.sh stop
+
+Restart:
+./server.sh restart
+
+
+# Logs file
+Restart your server
+cd /home/ubuntu/server
+./server.sh restart
+tail -f output.log
+
+
+
+
+
+
+#Credentials Production
+
+Website URL: https://swordedgeapi.in/
+Host: 192.168.1.121
+Port : 22
+User: hsn7
+Password: Gllfl#321
+
+
+
+
+
+
+######===========================================create localtunnel =====================================================
+npm install -g localtunnel
+lt --port 8082 --subdomain swordedgeapi
+http://swordedgeapi.loca.lt/api/auth
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+=========================================================take backup===================================
+find /etc -name postgresql.conf
+
+nano /etc/postgresql/16/main/postgresql.conf
+listen_addresses = '*'
+
+Step 3: Edit pg_hba.conf
+find /etc -name pg_hba.conf
+nano /etc/postgresql/16/main/pg_hba.conf
+host    all    all    168.144.24.174/32    scram-sha-256
+
+=====================================================
+Then start production:
+
+set -a
+source .env
+set +a
+
+ java -jar target/swordage-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
+
+
+Dev
+For local development:
+ java -jar target/swordage-0.0.1-SNAPSHOT.jar --spring.profiles.active=dev
+
+
+
+Run:
+mvn clean package -DskipTests
+Then:
+java -jar target/swordage-0.0.1-SNAPSHOT.jar --spring.profiles.active=dev
+
+
+# install docker
+apt update
+apt install -y docker.io docker-compose-v2
+docker --version
+docker compose version
+systemctl enable docker
+systemctl start docker
+systemctl status docker
+
+docker compose build
+docker compose ps
+
+
+
+# Start your Docker app
+docker compose up -d
+
+check
+docker compose ps
+
+Logs
+docker compose logs --tail=100 app
+docker compose logs --tail=100 user-service
+Check Nginx
+nginx -t
+systemctl reload nginx
+
+docker compose down
+docker compose up -d --build
+
+
+#Check what Docker is actually receiving
+docker exec -it swordage-app env | grep DB
+
+
+# server.sh for docker and .env 
+#!/bin/bash
+
+JAR="/opt/apps/swordage-0.0.1-SNAPSHOT.jar"
+ENV_FILE="/opt/apps/.env"
+
+# Load environment variables from .env
+if [ -f "$ENV_FILE" ]; then
+    set -a
+    source "$ENV_FILE"
+    set +a
+else
+    echo "ERROR: .env file not found at $ENV_FILE"
+    exit 1
+fi
+
+COMMAND="$1"
+
+start_server() {
+    echo "Starting..."
+    nohup java -jar "$JAR" > app.log 2>&1 &
+    echo $! > server.pid
+    echo "Started with PID $(cat server.pid)"
+}
+
+stop_server() {
+    if [ -f server.pid ]; then
+        PID=$(cat server.pid)
+
+        if kill -0 "$PID" 2>/dev/null; then
+            echo "Stopping PID $PID..."
+            kill "$PID"
+            rm -f server.pid
+            echo "Stopped."
+        else
+            echo "Process $PID is not running."
+            rm -f server.pid
+        fi
+    else
+        echo "Server not running."
+    fi
+}
+
+restart_server() {
+    stop_server
+    sleep 2
+    start_server
+}
+
+if [ "$COMMAND" == "start" ]; then
+    start_server
+elif [ "$COMMAND" == "stop" ]; then
+    stop_server
+elif [ "$COMMAND" == "restart" ]; then
+    restart_server
+else
+    echo "Usage: ./server.sh start | stop | restart"
+fi
+
+
+
+#Check the Docker PostgreSQL database
+
+docker exec -it zivdah-postgres psql -U postgres -d postgres
+docker exec -it zivdah-postgres psql -U postgres -c "\l"
+docker exec -it zivdah-postgres psql -U postgres -d zivdah_db
+
+
+
+#4. Restore into the Docker PostgreSQL
+
+docker exec -i zivdah-postgres pg_restore \
+  -U postgres \
+  -d zivdah_db \
+  --clean \
+  --if-exists \
+  < zivdah_db.backup
+
+
+  root@Zivdah-Backend-Server:/opt/new_zivdah_backend# docker exec -i zivdah-postgres psql \
+  -U postgres \
+  -d zivdah_db \
+  < zivdah_db.sql
+
+
+
+docker exec -i zivdah-postgres pg_restore \
+  -U postgres \
+  -d zivdah_db \
+  --clean \
+  --if-exists \
+  < zivdah_db.backup
+
+
+
+# Restore 
+  docker exec zivdah-postgres psql --version
+  docker exec zivdah-postgres pg_restore --version
+  cd /opt/new_zivdah_backend
+
+docker exec -i zivdah-postgres pg_restore -l < zivdah_db_pg16.sql
+
+docker exec -i zivdah-postgres pg_restore \
+  -U postgres \
+  -d zivdah_db \
+  --no-owner \
+  --no-privileges \
+  < /opt/new_zivdah_backend/zivdah_db_pg16.sql
+
+  docker exec -it zivdah-postgres psql \
+  -U postgres \
+  -d zivdah_db
+
+  \dt
+
+
+  docker compose restart auth-service user-service
+docker network inspect zivdah-network --format '{{range .Containers}}{{.Name}} {{end}}'
+
+docker compose logs --tail=100 user-service
+docker exec zivdah-user-service printenv | grep -E 'R2DBC|DB_|FLYWAY'
+
+
+
+
+
+```bash
+#!/bin/bash
+
+# ============================================================
+# Zivdah Backend Server
+# Docker Compose + .env
+# ============================================================
+
+set -e
+
+APP_DIR="/opt/new_zivdah_backend"
+COMPOSE_FILE="$APP_DIR/docker-compose.yml"
+ENV_FILE="$APP_DIR/.env"
+
+# ------------------------------------------------------------
+# Go to application directory
+# ------------------------------------------------------------
+cd "$APP_DIR" || {
+    echo "ERROR: Cannot access $APP_DIR"
+    exit 1
+}
+
+# ------------------------------------------------------------
+# Check required files
+# ------------------------------------------------------------
+if [ ! -f "$COMPOSE_FILE" ]; then
+    echo "ERROR: docker-compose.yml not found at:"
+    echo "$COMPOSE_FILE"
+    exit 1
+fi
+
+if [ ! -f "$ENV_FILE" ]; then
+    echo "ERROR: .env file not found at:"
+    echo "$ENV_FILE"
+    exit 1
+fi
+
+# ------------------------------------------------------------
+# Docker check
+# ------------------------------------------------------------
+if ! command -v docker >/dev/null 2>&1; then
+    echo "ERROR: Docker is not installed."
+    exit 1
+fi
+
+if ! docker info >/dev/null 2>&1; then
+    echo "ERROR: Docker is not running or current user has no Docker access."
+    exit 1
+fi
+
+COMMAND="$1"
+
+# ------------------------------------------------------------
+# Functions
+# ------------------------------------------------------------
+
+start_server() {
+    echo "=========================================="
+    echo "Starting Zivdah Backend"
+    echo "=========================================="
+
+    docker compose \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        up -d
+
+    echo ""
+    echo "Services:"
+    docker compose \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        ps
+}
+
+stop_server() {
+    echo "=========================================="
+    echo "Stopping Zivdah Backend"
+    echo "=========================================="
+
+    docker compose \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        stop
+
+    echo "Backend stopped."
+}
+
+restart_server() {
+    echo "=========================================="
+    echo "Restarting Zivdah Backend"
+    echo "=========================================="
+
+    docker compose \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        restart
+
+    echo ""
+    echo "Services:"
+    docker compose \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        ps
+}
+
+update_server() {
+    echo "=========================================="
+    echo "Updating Zivdah Backend"
+    echo "=========================================="
+
+    docker compose \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        up -d --build
+
+    echo ""
+    echo "Services:"
+    docker compose \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        ps
+}
+
+rebuild_server() {
+    echo "=========================================="
+    echo "Rebuilding Zivdah Backend"
+    echo "=========================================="
+
+    docker compose \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        down
+
+    docker compose \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        build --no-cache
+
+    docker compose \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        up -d
+
+    echo ""
+    echo "Services:"
+    docker compose \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        ps
+}
+
+status_server() {
+    echo "=========================================="
+    echo "Zivdah Backend Status"
+    echo "=========================================="
+
+    docker compose \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        ps
+}
+
+logs_server() {
+    if [ -n "$2" ]; then
+        docker compose \
+            --env-file "$ENV_FILE" \
+            -f "$COMPOSE_FILE" \
+            logs --tail=100 "$2"
+    else
+        docker compose \
+            --env-file "$ENV_FILE" \
+            -f "$COMPOSE_FILE" \
+            logs --tail=100
+    fi
+}
+
+follow_logs() {
+    if [ -n "$2" ]; then
+        docker compose \
+            --env-file "$ENV_FILE" \
+            -f "$COMPOSE_FILE" \
+            logs -f "$2"
+    else
+        docker compose \
+            --env-file "$ENV_FILE" \
+            -f "$COMPOSE_FILE" \
+            logs -f
+    fi
+}
+
+down_server() {
+    echo "=========================================="
+    echo "Stopping and Removing Zivdah Containers"
+    echo "=========================================="
+
+    docker compose \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        down
+
+    echo "Containers removed."
+    echo "Docker volumes were NOT removed."
+}
+
+# ------------------------------------------------------------
+# Command handling
+# ------------------------------------------------------------
+
+case "$COMMAND" in
+
+    start)
+        start_server
+        ;;
+
+    stop)
+        stop_server
+        ;;
+
+    restart)
+        restart_server
+        ;;
+
+    update)
+        update_server
+        ;;
+
+    rebuild)
+        rebuild_server
+        ;;
+
+    status)
+        status_server
+        ;;
+
+    logs)
+        logs_server "$@"
+        ;;
+
+    follow)
+        follow_logs "$@"
+        ;;
+
+    down)
+        down_server
+        ;;
+
+    *)
+        echo ""
+        echo "Zivdah Backend Server"
+        echo ""
+        echo "Usage:"
+        echo "  ./server.sh start"
+        echo "  ./server.sh stop"
+        echo "  ./server.sh restart"
+        echo "  ./server.sh update"
+        echo "  ./server.sh rebuild"
+        echo "  ./server.sh status"
+        echo "  ./server.sh logs"
+        echo "  ./server.sh logs user-service"
+        echo "  ./server.sh follow"
+        echo "  ./server.sh follow user-service"
+        echo "  ./server.sh down"
+        echo ""
+        echo "Commands:"
+        echo "  start    Start all containers"
+        echo "  stop     Stop containers"
+        echo "  restart  Restart containers"
+        echo "  update   Build changed images and start"
+        echo "  rebuild  Full no-cache rebuild"
+        echo "  status   Show service status"
+        echo "  logs     Show last 100 log lines"
+        echo "  follow   Follow live logs"
+        echo "  down     Stop and remove containers"
+        echo ""
+        exit 1
+        ;;
+
+esac
+```

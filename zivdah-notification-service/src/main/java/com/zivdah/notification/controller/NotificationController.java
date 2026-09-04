@@ -31,11 +31,18 @@ public class NotificationController {
 
     @GetMapping("/user/{userId}")
     public Mono<ResponseEntity<ApiResponse<List<NotificationResponseDto>>>> getUserNotifications(
-            @PathVariable Long userId) {
-        return notificationService.getNotificationsByUser(userId)
+            @PathVariable Long userId, @RequestParam(defaultValue = "false") boolean unreadOnly) {
+        return notificationService.getNotificationsByUser(userId, unreadOnly)
                 .collectList()
                 .map(list -> ResponseEntity.ok(ApiResponse.<List<NotificationResponseDto>>builder()
                         .status("success").statusCode(200).message("User notifications fetched").data(list).build()));
+    }
+
+    @PatchMapping("/{notificationId}/read")
+    public Mono<ResponseEntity<ApiResponse<NotificationResponseDto>>> markAsRead(@PathVariable Long notificationId) {
+        return notificationService.markAsRead(notificationId)
+                .map(r -> ResponseEntity.ok(ApiResponse.<NotificationResponseDto>builder()
+                        .status("success").statusCode(200).message("Notification marked read").data(r).build()));
     }
 
     @GetMapping

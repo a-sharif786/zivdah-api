@@ -1,0 +1,55 @@
+server:
+  port: 8002
+  address: 0.0.0.0
+
+spring:
+  application:
+    name: zivdah-auth-service
+
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:root}
+    pool:
+      initial-size: 5
+      max-size: 20
+      max-idle-time: 30m
+
+  flyway:
+    url: jdbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
+    user: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:root}
+    locations: classpath:db/migration
+    table: flyway_schema_history_auth  # dedicated history table: zivdah_db is shared across services,
+                                        # so each service needs its own version numbering
+    baseline-on-migrate: true   # public schema already has other services' tables
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://eureka-server:8761/eureka}
+
+logging:
+  level:
+    root: WARN
+    com.zivdah: INFO
+
+jwt:
+  secret: ${JWT_SECRET}

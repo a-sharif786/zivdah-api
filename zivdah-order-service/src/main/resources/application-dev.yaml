@@ -19,6 +19,10 @@ spring:
     user: postgres
     password: root
     locations: classpath:db/migration
+    table: flyway_schema_history_order   # dedicated history table: zivdahDB is shared across services,
+                                          # so each service needs its own version numbering (see V2 checksum collision with product-service)
+    baseline-on-migrate: true            # public schema already has other services' tables; baseline this new
+                                          # history table at V1 (already-run init) instead of erroring on non-empty schema
 
   kafka:
     bootstrap-servers: localhost:9092
@@ -44,8 +48,11 @@ eureka:
     prefer-ip-address: true
   client:
     service-url:
-      defaultZone: http://localhost:8762/eureka
+      defaultZone: http://localhost:8761/eureka
 
 logging:
   level:
     org.springframework.security: DEBUG
+
+jwt:
+  secret: my_super_secret_key_that_is_at_least_32_characters_long_123456

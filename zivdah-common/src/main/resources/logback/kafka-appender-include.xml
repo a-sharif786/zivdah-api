@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Shared Kafka log-shipping appender, defined once here and pulled into every service via
+  <include resource="logback/kafka-appender-include.xml"/> from that service's own thin
+  logback-spring.xml. Logback's <include> resolves through the classloader, so this works
+  across the zivdah-common jar boundary — same "define once in common, thin per-service
+  wiring" pattern used for CloudinaryUploadService/CloudinaryConfig.
+
+  Root element must be <included> (not <configuration>) — this file is only ever pulled in via
+  <include>, never parsed standalone.
+-->
+<included>
+    <springProperty scope="context" name="kafkaBootstrapServers"
+                     source="spring.kafka.bootstrap-servers" defaultValue="localhost:9092"/>
+
+    <!-- topic value must match KafkaTopics.APP_LOGS in zivdah-common (Logback XML can't
+         reference the Java constant directly) -->
+    <appender name="KAFKA" class="com.zivdah.common.logging.KafkaLogAppender">
+        <bootstrapServers>${kafkaBootstrapServers}</bootstrapServers>
+        <topic>app-logs</topic>
+    </appender>
+
+    <appender name="ASYNC_KAFKA" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="KAFKA"/>
+        <includeCallerData>false</includeCallerData>
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+    </appender>
+</included>

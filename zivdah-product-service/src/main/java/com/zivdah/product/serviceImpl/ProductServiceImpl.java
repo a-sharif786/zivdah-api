@@ -1,13 +1,16 @@
 package com.zivdah.product.serviceImpl;
 
+import com.zivdah.common.event.ProductCreatedEvent;
 import com.zivdah.common.upload.CloudinaryUploadResult;
 import com.zivdah.common.upload.CloudinaryUploadService;
 import com.zivdah.common.upload.UploadCategory;
+import com.zivdah.product.client.InventoryServiceClient;
 import com.zivdah.product.dto.ProductRequestDto;
 import com.zivdah.product.dto.ProductResponseDto;
 import com.zivdah.product.entity.ProductEntity;
 import com.zivdah.product.entity.WishlistEntity;
 import com.zivdah.product.enums.ProductCategory;
+import com.zivdah.product.kafka.ProductKafkaProducer;
 import com.zivdah.product.repository.ProductRepository;
 import com.zivdah.product.repository.WishlistRepository;
 import com.zivdah.product.service.ProductService;
@@ -34,12 +37,24 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final WishlistRepository wishlistRepository;
     private final CloudinaryUploadService cloudinaryUploadService;
+    private final ProductKafkaProducer productKafkaProducer;
+    private final InventoryServiceClient inventoryServiceClient;
 
     @Value("${cloudinary.folder}")
     private String cloudinaryFolder;
 
     private String productsFolder() {
         return cloudinaryFolder + "/products";
+    }
+
+    // Adds the real availableQuantity from inventory-service to an already-built DTO. Falls
+    // back to the product's own stockQuantity if inventory-service is unreachable or has no
+    // row yet (e.g. right after creation, before the async product-created event lands) —
+    // the two are kept in sync, so that's the correct value either way.
+    private Mono<ProductResponseDto> enrich(ProductResponseDto dto) {
+        return inventoryServiceClient.getAvailableQuantity(dto.getId())
+                .map(qty -> dto.toBuilder().availableQuantity(qty).build())
+                .defaultIfEmpty(dto.toBuilder().availableQuantity(dto.getStockQuantity()).build());
     }
 
     @Override
@@ -66,37 +81,49 @@ public class ProductServiceImpl implements ProductService {
                     applyUploadResult(entity, uploaded);
                     return productRepository.save(entity);
                 })
-                .doOnSuccess(p -> log.info("Product created: {}", p.getId()))
-                .map(this::mapToResponse);
+                .doOnSuccess(p -> {
+                    log.info("Product created: {}", p.getId());
+                    // Seed an inventory row for this product (async, via Kafka) so checkout
+                    // never fails with "Inventory not found" for a brand-new product — see
+                    // InventoryEventConsumer#onProductCreated in zivdah-inventory-service.
+                    productKafkaProducer.publishProductCreated(ProductCreatedEvent.builder()
+                            .productId(p.getId())
+                            .initialStockQuantity(dto.getStockQuantity() != null ? dto.getStockQuantity() : 0)
+                            .build());
+                })
+                .map(this::mapToResponse)
+                .flatMap(this::enrich);
     }
 
     @Override
     public Mono<ProductResponseDto> getProductById(Long id) {
         return productRepository.findById(id)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found: " + id)))
-                .map(this::mapToResponse);
+                .map(this::mapToResponse)
+                .flatMap(this::enrich);
     }
 
     @Override
     public Flux<ProductResponseDto> getAllProducts(Pageable pageable) {
-        return productRepository.findAllBy(pageable).map(this::mapToResponse);
+        return productRepository.findAllBy(pageable).map(this::mapToResponse).flatMap(this::enrich);
     }
 
     @Override
     public Flux<ProductResponseDto> getProductsByCategory(ProductCategory category, Pageable pageable) {
-        return productRepository.findByCategory(category, pageable).map(this::mapToResponse);
+        return productRepository.findByCategory(category, pageable).map(this::mapToResponse).flatMap(this::enrich);
     }
 
     @Override
     public Flux<ProductResponseDto> searchProducts(String keyword, Pageable pageable) {
-        return productRepository.findByNameContainingIgnoreCase(keyword, pageable).map(this::mapToResponse);
+        return productRepository.findByNameContainingIgnoreCase(keyword, pageable).map(this::mapToResponse).flatMap(this::enrich);
     }
 
     @Override
     public Flux<ProductResponseDto> getWishlist(Long userId, Pageable pageable) {
         return wishlistRepository.findByUserId(userId, pageable)
                 .flatMap(wishlist -> productRepository.findById(wishlist.getProductId()))
-                .map(entity -> mapToResponse(entity).toBuilder().fav(true).build());
+                .map(entity -> mapToResponse(entity).toBuilder().fav(true).build())
+                .flatMap(this::enrich);
     }
 
     @Override
@@ -130,7 +157,11 @@ public class ProductServiceImpl implements ProductService {
                             .flatMap(saved -> cloudinaryUploadService.delete(oldPublicId, oldResourceType).thenReturn(saved));
                 })
                 .doOnSuccess(p -> log.info("Product updated: {}", p.getId()))
-                .map(this::mapToResponse);
+                .flatMap(p -> inventoryServiceClient.setAvailableQuantitySync(p.getId(), p.getStockQuantity()).thenReturn(p))
+                // We just told inventory-service to set availableQuantity = this stockQuantity,
+                // so build the response with that value directly rather than reading it back
+                // (also avoids masking our own push with a stale/failed lookup).
+                .map(p -> mapToResponse(p).toBuilder().availableQuantity(p.getStockQuantity()).build());
     }
 
     @Override
@@ -180,7 +211,26 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Flux<ProductResponseDto> getProductsByVendor(Long vendorId, Pageable pageable) {
-        return productRepository.findByVendorId(vendorId, pageable).map(this::mapToResponse);
+        return productRepository.findByVendorId(vendorId, pageable).map(this::mapToResponse).flatMap(this::enrich);
+    }
+
+    @Override
+    public Mono<Long> countProducts() {
+        return productRepository.count();
+    }
+
+    @Override
+    public Mono<Void> syncStockQuantity(Long id, Integer stockQuantity) {
+        return productRepository.findById(id)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found: " + id)))
+                .flatMap(entity -> {
+                    entity.setStockQuantity(stockQuantity);
+                    entity.setInStock(stockQuantity != null && stockQuantity > 0);
+                    entity.setUpdatedAt(LocalDateTime.now());
+                    return productRepository.save(entity);
+                })
+                .doOnSuccess(p -> log.info("stockQuantity synced from inventory-service for product {}: {}", id, stockQuantity))
+                .then();
     }
 
     private ProductResponseDto mapToResponse(ProductEntity e) {

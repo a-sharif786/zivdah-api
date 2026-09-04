@@ -2,10 +2,12 @@ package com.zivdah.inventory.kafka;
 
 import com.zivdah.common.event.OrderCreatedEvent;
 import com.zivdah.common.event.PaymentCompletedEvent;
+import com.zivdah.common.event.ProductCreatedEvent;
 import com.zivdah.inventory.entity.Inventory;
 import com.zivdah.inventory.entity.InventoryReservation;
 import com.zivdah.inventory.repository.InventoryRepository;
 import com.zivdah.inventory.repository.InventoryReservationRepository;
+import com.zivdah.inventory.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -22,6 +24,16 @@ public class InventoryEventConsumer {
 
     private final InventoryRepository inventoryRepository;
     private final InventoryReservationRepository reservationRepository;
+    private final InventoryService inventoryService;
+
+    @KafkaListener(topics = "product-created", groupId = "inventory-group")
+    public void onProductCreated(ProductCreatedEvent event) {
+        int initialQuantity = event.getInitialStockQuantity() != null ? event.getInitialStockQuantity() : 0;
+        // Reuses the existing upsert-safe addStock — safe to seed even if a row somehow
+        // already exists (e.g. a redelivered message), it just adds on top rather than erroring.
+        inventoryService.addStock(event.getProductId(), initialQuantity).block();
+        log.info("Inventory seeded for new product {} with initial quantity {}", event.getProductId(), initialQuantity);
+    }
 
     @KafkaListener(topics = "order-created", groupId = "inventory-group")
     public void onOrderCreated(OrderCreatedEvent event) {

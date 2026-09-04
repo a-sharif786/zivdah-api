@@ -1,5 +1,6 @@
 package com.zivdah.product.config;
 
+import com.zivdah.common.logging.CorrelationIdWebFilter;
 import com.zivdah.product.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -21,6 +22,11 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
+    public CorrelationIdWebFilter correlationIdWebFilter() {
+        return new CorrelationIdWebFilter();
+    }
+
+    @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
@@ -38,8 +44,16 @@ public class SecurityConfig {
                                 "/restful/v1/api/products/search",
                                 "/restful/v1/api/products/category/**",
                                 "/restful/v1/api/products/*",
-                                "/restful/v1/api/banner/getAll"
+                                "/restful/v1/api/banner/getAll",
+                                "/restful/v1/api/category/getAll",
+                                // Also covers GET /category/{id}; GET /category/all stays gated
+                                // by @PreAuthorize("hasRole('ADMIN')") on the controller method,
+                                // same pattern as the /products/* wildcard above.
+                                "/restful/v1/api/category/*"
                         ).permitAll()
+                        // internal, inventory-service-only push (see InventoryServiceClient in
+                        // zivdah-inventory-service) — no user JWT available for this call
+                        .pathMatchers(HttpMethod.PUT, "/restful/v1/api/products/*/sync-stock").permitAll()
                         .anyExchange().authenticated()
                 )
                 .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)

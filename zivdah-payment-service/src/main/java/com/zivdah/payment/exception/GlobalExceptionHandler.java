@@ -6,10 +6,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     // Handle validation errors (@Valid)
@@ -20,6 +22,8 @@ public class GlobalExceptionHandler {
                 .stream()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .collect(Collectors.joining(", "));
+
+        log.warn("Validation failed: {}", errors);
 
         ApiResponse<Object> response = ApiResponse.builder()
                 .status("error")
@@ -34,6 +38,8 @@ public class GlobalExceptionHandler {
     // Handle runtime exceptions (custom or general)
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<Object>> handleRuntimeException(RuntimeException ex) {
+        log.warn("Request failed: {}", ex.getMessage());
+
         ApiResponse<Object> response = ApiResponse.builder()
                 .status("error")
                 .message(ex.getMessage())
@@ -47,6 +53,8 @@ public class GlobalExceptionHandler {
     // Handle generic exceptions
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleException(Exception ex) {
+        log.error("Unhandled exception", ex);
+
         ApiResponse<Object> response = ApiResponse.builder()
                 .status("error")
                 .message("Internal server error")

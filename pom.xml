@@ -28,10 +28,12 @@
         <module>zivdah-order-service</module>
         <module>zivdah-payment-service</module>
         <module>zivdah-notification-service</module>
+        <module>zivdah-delivery-service</module>
         <module>zivdah-inventory-service</module>
         <module>zivdah-user-service</module>
         <module>zivdah-review-service</module>
         <module>zivdah-coupon-service</module>
+        <module>zivdah-log-server</module>
     </modules>
 
     <properties>

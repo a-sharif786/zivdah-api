@@ -3,15 +3,18 @@ package com.zivdah.payment.controller;
 import com.zivdah.payment.dto.ApiResponse;
 import com.zivdah.payment.dto.PaymentRequestDto;
 import com.zivdah.payment.dto.PaymentResponseDto;
+import com.zivdah.payment.dto.PaymentStatsResponseDto;
 import com.zivdah.payment.enums.PaymentStatus;
 import com.zivdah.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -58,6 +61,16 @@ public class PaymentController {
         return paymentService.markPaymentFailed(paymentId)
                 .map(r -> ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
                         .status("success").statusCode(200).message("Payment marked as failed").data(r).build()));
+    }
+
+    @GetMapping("/stats")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<PaymentStatsResponseDto>>> getStats(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+        return paymentService.getStats(from, to)
+                .map(r -> ResponseEntity.ok(ApiResponse.<PaymentStatsResponseDto>builder()
+                        .status("success").statusCode(200).message("Payment stats retrieved").data(r).build()));
     }
 
     @GetMapping("/all")

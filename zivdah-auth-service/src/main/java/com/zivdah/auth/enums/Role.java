@@ -3,5 +3,6 @@ package com.zivdah.auth.enums;
 public enum Role {
     USER,
     ADMIN,
-    VENDOR
+    VENDOR,
+    DELIVERY_BOY
 }

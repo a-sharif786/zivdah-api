@@ -22,4 +22,12 @@ public interface ProductService {
     Mono<List<ProductCategory>> getAllCategories();
     Mono<ProductResponseDto> updateWishlist(Long userId, Long productId, Boolean fav);
     Flux<ProductResponseDto> getProductsByVendor(Long vendorId, Pageable pageable);
+    Mono<Long> countProducts();
+
+    /**
+     * Sets stockQuantity (and recomputed inStock) to an absolute value — used only by the
+     * internal sync-from-inventory-service path. Never call this from anything that should
+     * also push the new value back to inventory-service; it's the receiving side of that sync.
+     */
+    Mono<Void> syncStockQuantity(Long id, Integer stockQuantity);
 }

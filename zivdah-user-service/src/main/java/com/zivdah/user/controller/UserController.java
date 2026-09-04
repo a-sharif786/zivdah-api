@@ -76,7 +76,7 @@ public class UserController {
 
 
     @PostMapping("/address")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public Mono<ResponseEntity<ApiResponse<AddressResponseDTO>>> addAddress(
             Authentication authentication,
             ServerHttpRequest request,

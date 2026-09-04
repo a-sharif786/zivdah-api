@@ -23,25 +23,20 @@ public class JwtAuthenticationFilter implements WebFilter {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-
         String header = exchange.getRequest().getHeaders().getFirst("Authorization");
 
-        log.info("=================================================");
-        log.info("JWT FILTER EXECUTED");
-        log.info("Authorization Header : {}", header);
+        log.debug("JWT filter executed. Authorization header present: {}", header != null);
 
         if (header == null || !header.startsWith("Bearer ")) {
-            log.warn("Bearer token not found.");
+            log.debug("Bearer token not found.");
             return chain.filter(exchange);
         }
 
         String token = header.substring(7);
-
         boolean valid = jwtTokenProvider.validateToken(token);
 
-        log.info("Token Valid : {}", valid);
-
         if (!valid) {
+            log.debug("JWT token failed validation.");
             return chain.filter(exchange);
         }
 
@@ -49,29 +44,22 @@ public class JwtAuthenticationFilter implements WebFilter {
         String mobile = jwtTokenProvider.getMobileNumberFromToken(token);
         String role = jwtTokenProvider.getRoleFromToken(token);
 
-        log.info("UserId : {}", userId);
-        log.info("Mobile : {}", mobile);
-        log.info("Role : {}", role);
+        // Claim values (userId/mobile/role) are logged at DEBUG only — they're PII and this
+        // filter's log lines are now shipped to the centralized zivdah-log-server, so INFO
+        // (the default level) must not carry them.
+        log.debug("JWT validated — userId={}, mobile={}, role={}", userId, mobile, role);
 
         String principal = userId != null ? userId.toString() : mobile;
-
         List<SimpleGrantedAuthority> authorities =
                 role == null
                         ? Collections.emptyList()
                         : List.of(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()));
 
-        log.info("Authorities : {}", authorities);
-
-        UsernamePasswordAuthenticationToken authentication =
-                new UsernamePasswordAuthenticationToken(
-                        principal,
-                        null,
-                        authorities
-                );
+        log.info("JWT authentication succeeded");
 
         return chain.filter(exchange)
-                .contextWrite(
-                        ReactiveSecurityContextHolder.withAuthentication(authentication)
-                );
+                .contextWrite(ReactiveSecurityContextHolder.withAuthentication(
+                        new UsernamePasswordAuthenticationToken(principal, null, authorities)
+                ));
     }
 }

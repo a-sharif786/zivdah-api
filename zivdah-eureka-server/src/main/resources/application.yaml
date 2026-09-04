@@ -1,9 +1,12 @@
 server:
-  port: 8762
+  port: 8761
 
 spring:
   application:
     name: zivdah-eureka-server
+
+  kafka:
+    bootstrap-servers: localhost:9092
 
 eureka:
   client:
