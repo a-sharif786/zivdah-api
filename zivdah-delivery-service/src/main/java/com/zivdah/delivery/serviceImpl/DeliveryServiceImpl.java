@@ -14,6 +14,7 @@ import com.zivdah.delivery.repository.DeliveryRepository;
 import com.zivdah.delivery.service.DeliveryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -56,23 +57,53 @@ public class DeliveryServiceImpl implements DeliveryService {
         ALLOWED_TRANSITIONS.put(CANCELLED, EnumSet.noneOf(DeliveryStatus.class));
     }
 
+    // Deliberately not @Transactional: the first step is an outbound WebClient call to
+    // order-service (OrderServiceClient#getVendorIds) — a DB transaction must never span an
+    // external network call. Each per-vendor row is instead made idempotent on its own (see
+    // createOneIfAbsent's duplicate handling) rather than wrapping the whole method.
     @Override
     public Mono<Void> createPendingDeliveriesForOrder(Long orderId, Long userId) {
+        log.info("Creating pending deliveries for order {} (user {})", orderId, userId);
         return orderServiceClient.getVendorIds(orderId)
+                .doOnNext(vendorIds -> {
+                    if (vendorIds.isEmpty()) {
+                        log.warn("Order {} resolved to zero vendor groups — no delivery record will be created", orderId);
+                    }
+                })
                 .flatMapMany(Flux::fromIterable)
-                .flatMap(vendorId -> deliveryRepository.findByOrderIdAndVendorId(orderId, vendorId)
-                        .switchIfEmpty(Mono.defer(() -> {
-                            LocalDateTime now = LocalDateTime.now();
-                            return deliveryRepository.save(Delivery.builder()
+                .flatMap(vendorId -> createOneIfAbsent(orderId, vendorId, userId))
+                .then();
+    }
+
+    // One row per (orderId, vendorId) — vendorId null means "no specific vendor" (platform-owned
+    // items on the order, see OrderServiceClient#getVendorIds). findByOrderIdAndVendorId +
+    // switchIfEmpty is a check-then-act, not atomic: a redelivered/duplicate "order confirmed"
+    // Kafka event racing this same call is caught by the DB's partial unique indexes
+    // (uq_deliveries_order_vendor / uq_deliveries_order_no_vendor) and treated as a no-op here
+    // rather than failing the whole listener (see OrderEventConsumer, which .block()s this).
+    private Mono<Delivery> createOneIfAbsent(Long orderId, Long vendorId, Long userId) {
+        return deliveryRepository.findByOrderIdAndVendorId(orderId, vendorId)
+                .doOnNext(existing -> log.info(
+                        "Delivery already exists for order {} vendor {} (delivery {}) — skipping duplicate creation",
+                        orderId, vendorId, existing.getId()))
+                .switchIfEmpty(Mono.defer(() -> {
+                    LocalDateTime now = LocalDateTime.now();
+                    return deliveryRepository.save(Delivery.builder()
                                     .orderId(orderId)
                                     .vendorId(vendorId)
                                     .userId(userId)
                                     .status(PENDING)
                                     .createdAt(now)
                                     .updatedAt(now)
-                                    .build());
-                        })))
-                .then();
+                                    .build())
+                            .doOnSuccess(saved -> log.info(
+                                    "Created delivery {} for order {} vendor {}", saved.getId(), orderId, vendorId))
+                            .onErrorResume(DataIntegrityViolationException.class, ex -> {
+                                log.warn("Duplicate delivery creation for order {} vendor {} — already created concurrently: {}",
+                                        orderId, vendorId, ex.getMessage());
+                                return deliveryRepository.findByOrderIdAndVendorId(orderId, vendorId);
+                            });
+                }));
     }
 
     @Override
@@ -91,16 +122,20 @@ public class DeliveryServiceImpl implements DeliveryService {
                     delivery.setUpdatedAt(LocalDateTime.now());
                     return deliveryRepository.save(delivery);
                 })
-                .doOnSuccess(saved -> deliveryKafkaProducer.publishDeliveryAssigned(
-                        DeliveryAssignedEvent.builder()
-                                .deliveryId(saved.getId())
-                                .orderId(saved.getOrderId())
-                                .vendorId(saved.getVendorId())
-                                .userId(saved.getUserId())
-                                .deliveryBoyId(saved.getDeliveryBoyId())
-                                .assignedByUserId(currentUserId)
-                                .assignedByRole(role)
-                                .build()))
+                .doOnSuccess(saved -> {
+                    log.info("Delivery {} (order {}) assigned to delivery boy {} by {} #{}",
+                            saved.getId(), saved.getOrderId(), deliveryBoyId, role, currentUserId);
+                    deliveryKafkaProducer.publishDeliveryAssigned(
+                            DeliveryAssignedEvent.builder()
+                                    .deliveryId(saved.getId())
+                                    .orderId(saved.getOrderId())
+                                    .vendorId(saved.getVendorId())
+                                    .userId(saved.getUserId())
+                                    .deliveryBoyId(saved.getDeliveryBoyId())
+                                    .assignedByUserId(currentUserId)
+                                    .assignedByRole(role)
+                                    .build());
+                })
                 .map(this::mapToDto);
     }
 
@@ -121,6 +156,7 @@ public class DeliveryServiceImpl implements DeliveryService {
                                 return Mono.<Delivery>error(new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                         "Cannot transition delivery from " + delivery.getStatus() + " to " + newStatus));
                             }
+                            DeliveryStatus oldStatus = delivery.getStatus();
                             delivery.setStatus(newStatus);
                             delivery.setUpdatedAt(LocalDateTime.now());
                             if (newStatus == FAILED) {
@@ -128,6 +164,9 @@ public class DeliveryServiceImpl implements DeliveryService {
                                 delivery.setFailureNote(failureNote);
                             }
                             return deliveryRepository.save(delivery)
+                                    .doOnSuccess(saved -> log.info(
+                                            "Delivery {} (order {}) status {} -> {} by {} #{}",
+                                            saved.getId(), saved.getOrderId(), oldStatus, newStatus, role, currentUserId))
                                     .flatMap(saved -> publishForStatus(saved, newStatus, currentUserId, role).thenReturn(saved));
                         })))
                 .map(this::mapToDto);
@@ -238,8 +277,12 @@ public class DeliveryServiceImpl implements DeliveryService {
         return deliveryRepository.findByVendorId(vendorId, pageable).map(this::mapToDto);
     }
 
+    // deliveryBoyId always comes from the caller's JWT identity (DeliveryController#currentUserId,
+    // never a request param) — every delivery boy sees only what's assigned to them.
     @Override
     public Flux<DeliveryResponseDto> getMyDeliveries(Long deliveryBoyId, Pageable pageable) {
+        log.debug("Retrieving deliveries for delivery boy {} (page {}, size {})",
+                deliveryBoyId, pageable.getPageNumber(), pageable.getPageSize());
         return deliveryRepository.findByDeliveryBoyId(deliveryBoyId, pageable).map(this::mapToDto);
     }
 

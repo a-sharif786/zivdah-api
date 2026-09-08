@@ -33,7 +33,9 @@ public class SecurityConfig {
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
                 .authorizeExchange(auth -> auth
-                        .pathMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/webjars/**").permitAll()
+                        .pathMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/webjars/**",
+                            "/restful/v1/api/user/address"
+                        ).permitAll()
                         // Every endpoint in UserController operates on the caller's own
                         // identity (Authentication is a required method parameter, not
                         // optional) — none of them are meant to be public. The previous

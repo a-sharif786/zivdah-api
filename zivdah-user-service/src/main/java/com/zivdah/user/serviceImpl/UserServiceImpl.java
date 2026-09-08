@@ -6,6 +6,8 @@ import com.zivdah.user.repository.UserAddressRepository;
 import com.zivdah.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
@@ -23,12 +25,15 @@ public class UserServiceImpl implements UserService {
 
     private final UserAddressRepository userAddressRepository;
     private final WebClient webClient;
-    private static final String AUTH_SERVICE_URL = "http://localhost:8001/restful/v1/api/auth";
+
+    @Value("${auth.service.url}")
+    private String authServiceUrl;
+
 
     @Override
     public Mono<UserResponseDTO> getProfileByUserId(Long userId, String token) {
         return webClient.get()
-                .uri(AUTH_SERVICE_URL + "/byUserId/{userId}", userId)
+                .uri(authServiceUrl + "/byUserId/{userId}", userId)
                 .header(HttpHeaders.AUTHORIZATION, token)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ApiResponse<UserResponseDTO>>() {})
@@ -51,7 +56,7 @@ public class UserServiceImpl implements UserService {
 
 
         Mono<UserResponseDTO> userMono = webClient.get()
-                .uri(AUTH_SERVICE_URL + "/byUserId/{userId}", userId)
+                .uri(authServiceUrl + "/byUserId/{userId}", userId)
                 .header(HttpHeaders.AUTHORIZATION, token)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ApiResponse<UserResponseDTO>>() {})
@@ -69,7 +74,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public Mono<UserResponseDTO> updateProfile(String mobile, UpdateUserProfileDTO dto, String token) {
         return webClient.put()
-                .uri(AUTH_SERVICE_URL + "/update-profile/{mobile}", mobile)
+                .uri(authServiceUrl + "/update-profile/{mobile}", mobile)
                 .header(HttpHeaders.AUTHORIZATION, token)
 
                 .bodyValue(dto)
@@ -84,7 +89,7 @@ public class UserServiceImpl implements UserService {
     public Mono<AddressResponseDTO> addAddress(Long userId, AddressRequestDTO dto,String token) {
 
         Mono<UserResponseDTO> userMono = webClient.get()
-                .uri(AUTH_SERVICE_URL + "/byUserId/{userId}", userId)
+                .uri(authServiceUrl + "/byUserId/{userId}", userId)
                 .header(HttpHeaders.AUTHORIZATION, token)
 
                 .retrieve()
@@ -150,7 +155,7 @@ public class UserServiceImpl implements UserService {
     public Flux<AddressResponseDTO> getAddresses(Long userId, Pageable pageable,String token) {
 
         Mono<UserResponseDTO> userMono = webClient.get()
-                .uri(AUTH_SERVICE_URL + "/byUserId/{userId}", userId)
+                .uri(authServiceUrl + "/byUserId/{userId}", userId)
                 .header(HttpHeaders.AUTHORIZATION, token)
 
                 .retrieve()

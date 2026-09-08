@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -60,9 +61,17 @@ public class OrderServiceImpl implements OrderService {
     }
 
 
+    // Order + its OrderItems must land together — a failed item save (e.g. a bad
+    // vendorId/product row) must not leave an item-less Order behind for the delivery/vendor
+    // flows to trip over later. Spring Boot auto-configures a ReactiveTransactionManager for
+    // the single R2DBC ConnectionFactory this service already has, so this rolls the whole
+    // save (order + all items) back on any error in the chain below.
     @Override
+    @Transactional
     public Mono<OrderResponseDto> createOrder(OrderRequestDto dto) {
 
+        log.info("Creating order for user {} with {} item(s)", dto.getUserId(),
+                dto.getItems() == null ? 0 : dto.getItems().size());
 
         Order order = Order.builder()
                 .userId(dto.getUserId())

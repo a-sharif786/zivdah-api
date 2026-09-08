@@ -1,5 +1,6 @@
 spring:
   application:
     name: zivdah-user-service
+
   profiles:
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:dev}

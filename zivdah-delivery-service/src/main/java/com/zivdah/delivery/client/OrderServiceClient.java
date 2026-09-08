@@ -12,7 +12,6 @@ import reactor.core.publisher.Mono;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 // Synchronous, service-to-service call into order-service — used to resolve "which vendor(s)
 // are on this order" when auto-creating one Delivery row per vendor once an order is
@@ -28,8 +27,12 @@ public class OrderServiceClient {
 
     private final WebClient webClient;
 
-    /** Empty list (not an error) if the order doesn't exist, has no vendor-owned items, or
-     *  the call fails — callers should treat that as "nothing to create", not retry. */
+    /** One entry per distinct vendor on the order, PLUS a {@code null} entry if any item is
+     *  platform-owned (see OrderItemDto#vendorId — most products in this catalog have no
+     *  vendor at all) — callers create one Delivery per distinct entry, null included, so a
+     *  platform-only order still gets a delivery record instead of silently getting none.
+     *  Empty list (not an error) only if the order doesn't exist, has no items, or the call
+     *  fails — callers should treat that as "nothing to create", not retry. */
     public Mono<List<Long>> getVendorIds(Long orderId) {
         return webClient.get()
                 .uri(ORDER_SERVICE_URL + "/{orderId}", orderId)
@@ -39,11 +42,13 @@ public class OrderServiceClient {
                     if (resp.getData() == null || resp.getData().getItems() == null) {
                         return List.<Long>of();
                     }
-                    return resp.getData().getItems().stream()
+                    List<Long> vendorIds = resp.getData().getItems().stream()
                             .map(ItemSummary::getVendorId)
-                            .filter(Objects::nonNull)
                             .distinct()
                             .toList();
+                    log.info("Order {} resolved to vendor groups {} (null = platform-owned items present)",
+                            orderId, vendorIds);
+                    return vendorIds;
                 })
                 .onErrorResume(ex -> {
                     log.error("Failed to look up vendor ids for order {}: {}", orderId, ex.getMessage());
