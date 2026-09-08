@@ -161,15 +161,23 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public Flux<AuthUserResponseDTO> getAllUsers() {
-        return userRepository.findAll()
-                .map(user -> AuthUserResponseDTO.builder()
-                        .userId(user.getId())
-                        .name(user.getName())
-                        .email(user.getEmail())
-                        .mobile(user.getMobile())
-                        .role(user.getRole())
-                        .active(user.isActive())
-                        .build());
+        return userRepository.findAll().map(this::toAuthUserResponseDTO);
+    }
+
+    @Override
+    public Flux<AuthUserResponseDTO> getUsersByRole(Role role) {
+        return userRepository.findByRole(role).map(this::toAuthUserResponseDTO);
+    }
+
+    private AuthUserResponseDTO toAuthUserResponseDTO(UserEntity user) {
+        return AuthUserResponseDTO.builder()
+                .userId(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .mobile(user.getMobile())
+                .role(user.getRole())
+                .active(user.isActive())
+                .build();
     }
 
     @Override

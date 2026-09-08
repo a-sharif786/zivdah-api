@@ -71,7 +71,11 @@ public class DeliveryServiceImpl implements DeliveryService {
                     }
                 })
                 .flatMapMany(Flux::fromIterable)
-                .flatMap(vendorId -> createOneIfAbsent(orderId, vendorId, userId))
+                // Optional.empty() = platform-owned/no-vendor group — unwrapped to a plain
+                // nullable Long only here, as a normal method argument, never as a Flux
+                // element itself (Reactive Streams forbids null elements in a sequence; see
+                // OrderServiceClient#getVendorIds).
+                .flatMap(vendorId -> createOneIfAbsent(orderId, vendorId.orElse(null), userId))
                 .then();
     }
 
@@ -117,14 +121,25 @@ public class DeliveryServiceImpl implements DeliveryService {
                     if ("VENDOR".equalsIgnoreCase(role) && !currentUserId.equals(delivery.getVendorId())) {
                         return Mono.<Delivery>error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the owner of this delivery"));
                     }
+                    // Once a delivery boy is assigned, only ADMIN may reassign it to someone
+                    // else — a VENDOR re-calling this (accidental double-click, stale UI, or a
+                    // deliberate attempt) must not silently steal an order out from under the
+                    // delivery boy already working it.
+                    if (delivery.getDeliveryBoyId() != null && !"ADMIN".equalsIgnoreCase(role)) {
+                        return Mono.<Delivery>error(new ResponseStatusException(HttpStatus.CONFLICT,
+                                "Delivery is already assigned to delivery boy " + delivery.getDeliveryBoyId()
+                                        + " — only ADMIN may reassign it"));
+                    }
+                    boolean isReassignment = delivery.getDeliveryBoyId() != null;
                     delivery.setDeliveryBoyId(deliveryBoyId);
                     delivery.setAssignedAt(LocalDateTime.now());
                     delivery.setUpdatedAt(LocalDateTime.now());
-                    return deliveryRepository.save(delivery);
+                    return deliveryRepository.save(delivery)
+                            .doOnSuccess(saved -> log.info("{} delivery {} (order {}) to delivery boy {} by {} #{}",
+                                    isReassignment ? "Reassigned" : "Assigned",
+                                    saved.getId(), saved.getOrderId(), deliveryBoyId, role, currentUserId));
                 })
                 .doOnSuccess(saved -> {
-                    log.info("Delivery {} (order {}) assigned to delivery boy {} by {} #{}",
-                            saved.getId(), saved.getOrderId(), deliveryBoyId, role, currentUserId);
                     deliveryKafkaProducer.publishDeliveryAssigned(
                             DeliveryAssignedEvent.builder()
                                     .deliveryId(saved.getId())

@@ -1,6 +1,7 @@
 package com.zivdah.auth.controller;
 
 import com.zivdah.auth.dto.*;
+import com.zivdah.auth.enums.Role;
 import com.zivdah.auth.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -104,6 +105,17 @@ public class AuthController {
         return authService.getAllUsers().collectList()
                 .map(users -> ResponseEntity.ok(ApiResponse.<List<AuthUserResponseDTO>>builder()
                         .status("success").statusCode(200).message("Users fetched successfully").data(users).build()));
+    }
+
+    // Narrower than /all-users (ADMIN-only) — lets a VENDOR resolve the delivery-boy pool
+    // for zivdah-delivery-service's POST /delivery/{id}/assign without exposing every other
+    // user's details to them (see AuthService#getUsersByRole).
+    @GetMapping("/delivery-boys")
+    @PreAuthorize("hasAnyRole('ADMIN','VENDOR')")
+    public Mono<ResponseEntity<ApiResponse<List<AuthUserResponseDTO>>>> getDeliveryBoys() {
+        return authService.getUsersByRole(Role.DELIVERY_BOY).collectList()
+                .map(users -> ResponseEntity.ok(ApiResponse.<List<AuthUserResponseDTO>>builder()
+                        .status("success").statusCode(200).message("Delivery boys fetched successfully").data(users).build()));
     }
 
     // Internal, no auth — see SecurityConfig. Called by zivdah-notification-service to fan

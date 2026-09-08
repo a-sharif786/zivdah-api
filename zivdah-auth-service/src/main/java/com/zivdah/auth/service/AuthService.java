@@ -15,6 +15,13 @@ public interface AuthService {
     Mono<String> verifyOtp(VerifyLoginOtpDTO request);
     Flux<AuthUserResponseDTO> getAllUsers();
 
+    // Narrower than getAllUsers (ADMIN-only) — lets a VENDOR resolve the delivery-boy
+    // pool for assignment (see zivdah-delivery-service's /assign) without exposing every
+    // other user's email/mobile/role to them. Returns both active and inactive delivery
+    // boys so callers can still resolve the name of one already assigned before being
+    // deactivated; filtering to active-only for an assignment dropdown is a UI concern.
+    Flux<AuthUserResponseDTO> getUsersByRole(Role role);
+
     // Internal, service-to-service use only (see AuthController's unauthenticated
     // /internal/admin-ids endpoint) — just the ids, to keep an unauthenticated endpoint's
     // data exposure minimal.

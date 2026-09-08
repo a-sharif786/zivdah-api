@@ -23,8 +23,31 @@ spring:
                                           # so each service needs its own version numbering
     baseline-on-migrate: true            # public schema already has other services' tables
 
+  # Without an explicit producer/consumer block, Spring Boot falls back to plain String
+  # (de)serializers — DeliveryKafkaProducer's payloads would go out unserialized and
+  # OrderEventConsumer would receive the raw JSON text instead of a deserialized
+  # OrderStatusChangedEvent, throwing MessageConversionException on every message (confirmed
+  # live: "Cannot convert from [java.lang.String] to [OrderStatusChangedEvent]" for every
+  # order-status-changed message, so no delivery was ever created for any order). Mirrors
+  # zivdah-order-service's own (working) config exactly.
   kafka:
     bootstrap-servers: localhost:9092
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: true
+
+    consumer:
+      group-id: delivery-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: com.zivdah.common.event
+        spring.json.use.type.headers: true
 
 eureka:
   instance:

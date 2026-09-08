@@ -12,6 +12,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 // Synchronous, service-to-service call into order-service — used to resolve "which vendor(s)
 // are on this order" when auto-creating one Delivery row per vendor once an order is
@@ -27,26 +28,33 @@ public class OrderServiceClient {
 
     private final WebClient webClient;
 
-    /** One entry per distinct vendor on the order, PLUS a {@code null} entry if any item is
-     *  platform-owned (see OrderItemDto#vendorId — most products in this catalog have no
-     *  vendor at all) — callers create one Delivery per distinct entry, null included, so a
-     *  platform-only order still gets a delivery record instead of silently getting none.
+    /** One entry per distinct vendor on the order, PLUS an {@code Optional.empty()} entry if
+     *  any item is platform-owned (see OrderItemDto#vendorId — most products in this catalog
+     *  have no vendor at all) — callers create one Delivery per distinct entry, empty included,
+     *  so a platform-only order still gets a delivery record instead of silently getting none.
+     *  Wrapped in Optional rather than a raw nullable Long because callers feed this into a
+     *  reactive Flux (Flux.fromIterable) — Reactive Streams forbids null elements in a
+     *  sequence, so the "no vendor" case has to be a real, non-null Optional.empty() object,
+     *  not a null Long, or the Flux throws NullPointerException("iterator returned a null
+     *  value") the moment it hits one (confirmed live: this exact NPE fired from
+     *  createPendingDeliveriesForOrder before this method was wrapped in Optional).
      *  Empty list (not an error) only if the order doesn't exist, has no items, or the call
      *  fails — callers should treat that as "nothing to create", not retry. */
-    public Mono<List<Long>> getVendorIds(Long orderId) {
+    public Mono<List<Optional<Long>>> getVendorIds(Long orderId) {
         return webClient.get()
                 .uri(ORDER_SERVICE_URL + "/{orderId}", orderId)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ApiResponse<OrderSummary>>() {})
                 .map(resp -> {
                     if (resp.getData() == null || resp.getData().getItems() == null) {
-                        return List.<Long>of();
+                        return List.<Optional<Long>>of();
                     }
-                    List<Long> vendorIds = resp.getData().getItems().stream()
+                    List<Optional<Long>> vendorIds = resp.getData().getItems().stream()
                             .map(ItemSummary::getVendorId)
+                            .map(Optional::ofNullable)
                             .distinct()
                             .toList();
-                    log.info("Order {} resolved to vendor groups {} (null = platform-owned items present)",
+                    log.info("Order {} resolved to vendor groups {} (empty = platform-owned items present)",
                             orderId, vendorIds);
                     return vendorIds;
                 })
