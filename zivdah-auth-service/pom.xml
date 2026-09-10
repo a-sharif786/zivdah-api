@@ -65,10 +65,11 @@
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
-        <!-- Mail -->
+        <!-- Mail (Resend) -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-mail</artifactId>
+            <groupId>com.resend</groupId>
+            <artifactId>resend-java</artifactId>
+            <version>4.23.0</version>
         </dependency>
         <!-- Validation -->
         <dependency>

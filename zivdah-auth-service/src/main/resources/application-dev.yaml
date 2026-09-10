@@ -25,18 +25,6 @@ spring:
     baseline-on-migrate: true   # public schema already has other services' tables
 
 
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: uravi0704@gmail.com
-    password: <GMAIL_APP_PASSWORD>
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-
   kafka:
     bootstrap-servers: localhost:9092
 
@@ -51,7 +39,9 @@ logging:
   level:
     org.springframework.security: DEBUG
 
-
+resend:
+  api-key: ${RESEND_API_KEY}
+  from-email: ${RESEND_FROM_EMAIL}
 
 jwt:
   secret: my_super_secret_key_that_is_at_least_32_characters_long_123456

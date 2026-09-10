@@ -24,18 +24,6 @@ spring:
                                         # so each service needs its own version numbering
     baseline-on-migrate: true   # public schema already has other services' tables
 
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
 
@@ -50,6 +38,10 @@ logging:
   level:
     root: WARN
     com.zivdah: INFO
+
+resend:
+  api-key: ${RESEND_API_KEY}
+  from-email: ${RESEND_FROM_EMAIL:zivdahonlinegrocery@gmail.com}
 
 jwt:
   secret: ${JWT_SECRET}

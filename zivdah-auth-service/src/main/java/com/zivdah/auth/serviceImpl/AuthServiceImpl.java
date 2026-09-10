@@ -1,5 +1,7 @@
 package com.zivdah.auth.serviceImpl;
 
+import com.resend.Resend;
+import com.resend.services.emails.model.CreateEmailOptions;
 import com.zivdah.auth.dto.*;
 import com.zivdah.auth.entity.DeviceToken;
 import com.zivdah.auth.entity.UserEntity;
@@ -12,8 +14,7 @@ import com.zivdah.auth.security.JwtTokenProvider;
 import com.zivdah.auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -35,7 +36,10 @@ public class AuthServiceImpl implements AuthService {
     private final DeviceTokenRepository deviceTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
-    private final JavaMailSender mailSender;
+    private final Resend resend;
+
+    @Value("${resend.from-email}")
+    private String fromEmail;
 
     // In-memory OTP store (use Redis in production)
     private final Map<String, String> otpStorage = new ConcurrentHashMap<>();
@@ -245,14 +249,17 @@ public class AuthServiceImpl implements AuthService {
                     if (!Boolean.TRUE.equals(exists)) return Mono.just(false);
                     String otp = generateOtp();
                     otpStorage.put(email, otp);
-                    return Mono.fromRunnable(() -> {
-                                SimpleMailMessage msg = new SimpleMailMessage();
-                                msg.setTo(email);
-                                msg.setSubject("Password Reset OTP");
-                                msg.setText("Your OTP: " + otp + " (valid for 10 minutes)");
-                                mailSender.send(msg);
+                    return Mono.fromCallable(() -> {
+                                CreateEmailOptions params = CreateEmailOptions.builder()
+                                        .from(fromEmail)
+                                        .to(email)
+                                        .subject("Password Reset OTP")
+                                        .text("Your OTP: " + otp + " (valid for 10 minutes)")
+                                        .build();
+                                return resend.emails().send(params);
                             })
                             .subscribeOn(Schedulers.boundedElastic())
+                            .doOnError(e -> log.error("Failed to send password reset OTP to {}", email, e))
                             .thenReturn(true);
                 });
     }
