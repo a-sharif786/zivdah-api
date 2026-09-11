@@ -42,6 +42,13 @@ spring:
         spring.json.trusted.packages: com.zivdah.common.event
         spring.json.use.type.headers: true
 
+# Reached over the compose network by product-service's Compose service name (see
+# docker-compose.yml's "product-service:" key), NOT localhost — see
+# zivdah-delivery-service's application-prod.yaml for the full explanation (same class of bug,
+# same fix, applied there first after it silently broke delivery-row creation in production).
+product-service:
+  url: ${PRODUCT_SERVICE_URL:http://product-service:8003/restful/v1/api/products}
+
 eureka:
   instance:
     prefer-ip-address: true

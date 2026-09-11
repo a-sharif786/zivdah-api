@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -24,7 +25,17 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class OrderServiceClient {
 
-    private static final String ORDER_SERVICE_URL = "http://localhost:8005/restful/v1/api/orders";
+    // Externalized per-profile (see application-dev.yaml / application-prod.yaml) rather than
+    // hardcoded to localhost:8005 — that hostname only ever resolved in dev/UAT, where every
+    // service runs as a separate process on one host. In production each service is its own
+    // Docker container, so "localhost" resolves to this container itself (nothing listens on
+    // 8005 there), the call fails, and getVendorIds' onErrorResume below swallows it into an
+    // empty vendor list — which looks identical to a legitimately vendor-less order, so
+    // createPendingDeliveriesForOrder silently skips creating any Delivery row. Confirmed live:
+    // every order confirmed in production got zero delivery records while dev/UAT worked fine,
+    // with only an easy-to-miss ERROR/WARN log pair as the trace.
+    @Value("${order-service.url}")
+    private String orderServiceUrl;
 
     private final WebClient webClient;
 
@@ -42,7 +53,7 @@ public class OrderServiceClient {
      *  fails — callers should treat that as "nothing to create", not retry. */
     public Mono<List<Optional<Long>>> getVendorIds(Long orderId) {
         return webClient.get()
-                .uri(ORDER_SERVICE_URL + "/{orderId}", orderId)
+                .uri(orderServiceUrl + "/{orderId}", orderId)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ApiResponse<OrderSummary>>() {})
                 .map(resp -> {
@@ -70,7 +81,7 @@ public class OrderServiceClient {
      *  triggered it, Delivery is still the source of truth for fulfillment. */
     public Mono<Void> syncOrderDeliveryStatus(Long orderId, String deliveryStatus) {
         return webClient.put()
-                .uri(ORDER_SERVICE_URL + "/{orderId}/delivery-status", orderId)
+                .uri(orderServiceUrl + "/{orderId}/delivery-status", orderId)
                 .bodyValue(new DeliveryStatusSyncBody(deliveryStatus))
                 .retrieve()
                 .bodyToMono(Void.class)

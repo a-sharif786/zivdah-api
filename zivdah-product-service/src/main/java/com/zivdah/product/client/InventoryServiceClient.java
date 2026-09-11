@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -22,7 +23,14 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class InventoryServiceClient {
 
-    private static final String INVENTORY_SERVICE_URL = "http://localhost:8008/restful/v1/api/inventory";
+    // Externalized per-profile (see application-dev.yaml / application-prod.yaml) — must not be
+    // hardcoded to localhost:8008, which only resolves in dev/UAT where every service is a
+    // separate process on one host. In production each service is its own Docker container, so
+    // localhost would resolve to this container itself and the call would fail every time (see
+    // zivdah-delivery-service's OrderServiceClient, where this exact hardcoding silently
+    // dropped delivery-row creation in production).
+    @Value("${inventory-service.url}")
+    private String inventoryServiceUrl;
 
     private final WebClient webClient;
 
@@ -33,7 +41,7 @@ public class InventoryServiceClient {
      */
     public Mono<Integer> getAvailableQuantity(Long productId) {
         return webClient.get()
-                .uri(INVENTORY_SERVICE_URL + "/{productId}", productId)
+                .uri(inventoryServiceUrl + "/{productId}", productId)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ApiResponse<InventorySummary>>() {})
                 .mapNotNull(resp -> resp.getData() != null ? resp.getData().getAvailableQuantity() : null)
@@ -51,7 +59,7 @@ public class InventoryServiceClient {
      */
     public Mono<Void> setAvailableQuantitySync(Long productId, Integer stockQuantity) {
         return webClient.put()
-                .uri(INVENTORY_SERVICE_URL + "/{productId}/sync-quantity", productId)
+                .uri(inventoryServiceUrl + "/{productId}/sync-quantity", productId)
                 .bodyValue(Map.of("availableQuantity", stockQuantity != null ? stockQuantity : 0))
                 .retrieve()
                 .toBodilessEntity()

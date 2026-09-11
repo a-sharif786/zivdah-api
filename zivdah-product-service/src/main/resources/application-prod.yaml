@@ -37,6 +37,13 @@ spring:
       properties:
         spring.json.add.type.headers: true
 
+# Reached over the compose network by inventory-service's Compose service name (see
+# docker-compose.yml's "inventory-service:" key), NOT localhost — see
+# zivdah-delivery-service's application-prod.yaml for the full explanation (same class of bug,
+# same fix, applied there first after it silently broke delivery-row creation in production).
+inventory-service:
+  url: ${INVENTORY_SERVICE_URL:http://inventory-service:8008/restful/v1/api/inventory}
+
 eureka:
   instance:
     prefer-ip-address: true

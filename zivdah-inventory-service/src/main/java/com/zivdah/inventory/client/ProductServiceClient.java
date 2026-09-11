@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -23,7 +24,14 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ProductServiceClient {
 
-    private static final String PRODUCT_SERVICE_URL = "http://localhost:8003/restful/v1/api/products";
+    // Externalized per-profile (see application-dev.yaml / application-prod.yaml) — must not be
+    // hardcoded to localhost:8003, which only resolves in dev/UAT where every service is a
+    // separate process on one host. In production each service is its own Docker container, so
+    // localhost would resolve to this container itself and the call would fail every time (see
+    // zivdah-delivery-service's OrderServiceClient, where this exact hardcoding silently
+    // dropped delivery-row creation in production).
+    @Value("${product-service.url}")
+    private String productServiceUrl;
 
     private final WebClient webClient;
 
@@ -34,7 +42,7 @@ public class ProductServiceClient {
      */
     public Mono<Long> getProductVendorId(Long productId) {
         return webClient.get()
-                .uri(PRODUCT_SERVICE_URL + "/{id}", productId)
+                .uri(productServiceUrl + "/{id}", productId)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ApiResponse<ProductSummary>>() {})
                 .mapNotNull(resp -> resp.getData() != null ? resp.getData().getVendorId() : null)
@@ -52,7 +60,7 @@ public class ProductServiceClient {
      */
     public Mono<Void> syncStockQuantity(Long productId, Integer availableQuantity) {
         return webClient.put()
-                .uri(PRODUCT_SERVICE_URL + "/{id}/sync-stock", productId)
+                .uri(productServiceUrl + "/{id}/sync-stock", productId)
                 .bodyValue(Map.of("stockQuantity", availableQuantity))
                 .retrieve()
                 .toBodilessEntity()

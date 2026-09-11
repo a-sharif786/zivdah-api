@@ -37,6 +37,11 @@ spring:
       properties:
         spring.json.add.type.headers: true
 
+# inventory-service runs on the same host in dev (see zivdah-inventory-service's own
+# application-dev.yaml, port 8008) — see application-prod.yaml for why this differs there.
+inventory-service:
+  url: http://localhost:8008/restful/v1/api/inventory
+
 eureka:
   instance:
     prefer-ip-address: true

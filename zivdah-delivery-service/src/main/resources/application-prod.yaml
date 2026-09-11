@@ -45,6 +45,19 @@ spring:
         spring.json.trusted.packages: com.zivdah.common.event
         spring.json.use.type.headers: true
 
+# Reached over the compose network by order-service's Compose service name (see
+# docker-compose.yml's "order-service:" key — that's the DNS name on zivdah-network, not the
+# "zivdah-order-service" container_name), NOT localhost: unlike dev, where every service is a
+# separate process on one host, each service here is its own container, so localhost only
+# ever reaches this container's own loopback — never order-service's. Getting this wrong
+# doesn't crash anything: OrderServiceClient#getVendorIds catches the connection failure and
+# returns an empty vendor list, which createPendingDeliveriesForOrder treats as "no vendors on
+# this order" and silently skips creating any Delivery row instead of erroring — confirmed
+# live as the cause of production orders landing in `orders` with zero matching `deliveries`
+# rows while dev/UAT (same host, so localhost worked) was unaffected.
+order-service:
+  url: ${ORDER_SERVICE_URL:http://order-service:8005/restful/v1/api/orders}
+
 eureka:
   instance:
     prefer-ip-address: true
