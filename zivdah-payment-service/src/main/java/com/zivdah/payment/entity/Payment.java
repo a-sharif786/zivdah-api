@@ -41,5 +41,8 @@ public class Payment {
     private String failureReason;
     // Refund
     private String refundTransactionId;
+    // Cumulative amount refunded so far (supports topping up a partial refund, capped at `amount`)
+    private BigDecimal refundAmount;
+    private LocalDateTime refundedAt;
 
 }

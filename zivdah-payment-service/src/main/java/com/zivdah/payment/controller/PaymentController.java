@@ -4,6 +4,7 @@ import com.zivdah.payment.dto.ApiResponse;
 import com.zivdah.payment.dto.PaymentRequestDto;
 import com.zivdah.payment.dto.PaymentResponseDto;
 import com.zivdah.payment.dto.PaymentStatsResponseDto;
+import com.zivdah.payment.dto.RefundRequestDto;
 import com.zivdah.payment.enums.PaymentStatus;
 import com.zivdah.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
@@ -61,6 +62,25 @@ public class PaymentController {
         return paymentService.markPaymentFailed(paymentId)
                 .map(r -> ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
                         .status("success").statusCode(200).message("Payment marked as failed").data(r).build()));
+    }
+
+    @PutMapping("/refund/{paymentId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<PaymentResponseDto>>> refund(
+            @PathVariable Long paymentId, @RequestBody RefundRequestDto dto) {
+        return paymentService.refundPayment(paymentId, dto.getAmount())
+                .map(r -> ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
+                        .status("success").statusCode(200).message("Payment refunded").data(r).build()));
+    }
+
+    // Internal, order-service-only sync — no user JWT available for this call (see
+    // SecurityConfig, same pattern as order-service's own /payment-status endpoint). Fully
+    // refunds this order's payment; a no-op if there's nothing left to refund.
+    @PutMapping("/order/{orderId}/refund")
+    public Mono<ResponseEntity<ApiResponse<Void>>> refundByOrder(@PathVariable Long orderId) {
+        return paymentService.refundByOrder(orderId)
+                .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
+                        .status("success").statusCode(200).message("Order payment refunded").build()));
     }
 
     @GetMapping("/stats")

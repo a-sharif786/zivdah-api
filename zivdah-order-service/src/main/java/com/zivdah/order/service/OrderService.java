@@ -25,8 +25,10 @@ public interface OrderService {
     // CANCELLED (a "reject") apart from any other cancellation.
     Mono<OrderResponseDto> updateStatus(Long orderId, OrderStatus newStatus, Long currentUserId, String role);
 
-    // Narrow, payment-service-only transition (CREATED -> PAID / CANCELLED). Kept separate
-    // from updateStatus() since it's called internally, without an admin/vendor JWT.
+    // Narrow, payment-service-only transition (CREATED -> PAID / CANCELLED, or -> REFUNDED once
+    // a payment is fully refunded). Kept separate from updateStatus() since it's called
+    // internally, without an admin/vendor JWT; the REFUNDED case still validates against the
+    // allowed-transition map and publishes OrderStatusChangedEvent, unlike PAID/CANCELLED.
     Mono<Void> updatePaymentStatus(Long orderId, OrderStatus newStatus);
 
     // Narrow, delivery-service-only sync (their "ON_THE_WAY" -> our OUT_FOR_DELIVERY, their

@@ -17,6 +17,10 @@ public interface PaymentService {
     Flux<PaymentResponseDto> getPaymentsByOrder(Long orderId);
     Mono<PaymentResponseDto> markPaymentSuccess(Long paymentId);
     Mono<PaymentResponseDto> markPaymentFailed(Long paymentId);
+    Mono<PaymentResponseDto> refundPayment(Long paymentId, BigDecimal amount);
+    // Internal, order-service-only sync: fully refunds the order's payment. No-op if there is
+    // no refundable payment for this order (nothing found, or already fully refunded).
+    Mono<Void> refundByOrder(Long orderId);
     Mono<Boolean> processPayment(Long orderId, BigDecimal amount);
     Flux<PaymentResponseDto> getAllPayments(Pageable pageable, PaymentStatus status);
     Mono<PaymentStatsResponseDto> getStats(LocalDateTime from, LocalDateTime to);

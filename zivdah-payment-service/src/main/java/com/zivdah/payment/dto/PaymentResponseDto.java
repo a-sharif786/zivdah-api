@@ -38,4 +38,8 @@ public class PaymentResponseDto {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    private BigDecimal refundAmount;
+
+    private LocalDateTime refundedAt;
 }

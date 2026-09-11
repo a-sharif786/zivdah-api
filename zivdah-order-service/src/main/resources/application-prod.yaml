@@ -43,6 +43,13 @@ spring:
         spring.json.trusted.packages: com.zivdah.common.event
         spring.json.use.type.headers: true
 
+# Reached over the compose network by payment-service's Compose service name (see
+# docker-compose.yml's "payment-service:" key), NOT localhost — see
+# zivdah-delivery-service's application-prod.yaml for the full explanation (same class of bug,
+# same fix, applied there first after it silently broke delivery-row creation in production).
+payment-service:
+  url: ${PAYMENT_SERVICE_URL:http://payment-service:8006/restful/v1/api/payments}
+
 eureka:
   instance:
     prefer-ip-address: true

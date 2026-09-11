@@ -40,6 +40,10 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.GET, "/restful/v1/api/payments/all").authenticated()
                         .pathMatchers(HttpMethod.GET, "/restful/v1/api/payments/stats").authenticated()
                         .pathMatchers("/restful/v1/api/payments/*").permitAll()
+                        // internal, order-service-only sync — no user JWT available for this call
+                        // (see OrderServiceClient/PaymentServiceImpl#refundByOrder), mirrors how
+                        // order-service exposes its own /payment-status and /delivery-status endpoints
+                        .pathMatchers(HttpMethod.PUT, "/restful/v1/api/payments/order/*/refund").permitAll()
                         .anyExchange().authenticated()
                 )
                 .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)

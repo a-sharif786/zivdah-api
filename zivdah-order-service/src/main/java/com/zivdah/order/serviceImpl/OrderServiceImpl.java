@@ -2,6 +2,7 @@ package com.zivdah.order.serviceImpl;
 
 import com.zivdah.common.event.OrderCreatedEvent;
 import com.zivdah.common.event.OrderStatusChangedEvent;
+import com.zivdah.order.client.PaymentServiceClient;
 import com.zivdah.order.dto.OrderItemDto;
 import com.zivdah.order.dto.OrderRequestDto;
 import com.zivdah.order.dto.OrderResponseDto;
@@ -42,6 +43,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderKafkaProducer orderKafkaProducer;
+    private final PaymentServiceClient paymentServiceClient;
 
     // Allowed forward transitions for the admin/vendor-driven lifecycle. Anything not
     // listed here (e.g. skipping straight from CREATED to DELIVERED) is rejected.
@@ -342,15 +344,23 @@ public class OrderServiceImpl implements OrderService {
                                     order.setUpdatedAt(LocalDateTime.now());
 
                                     return orderRepository.save(order)
-                                            .doOnSuccess(saved -> orderKafkaProducer.publishOrderStatusChanged(
-                                                    OrderStatusChangedEvent.builder()
-                                                            .orderId(saved.getId())
-                                                            .userId(saved.getUserId())
-                                                            .oldStatus(oldStatus.name())
-                                                            .newStatus(newStatus.name())
-                                                            .changedByUserId(currentUserId)
-                                                            .changedByRole(role)
-                                                            .build()))
+                                            .doOnSuccess(saved -> {
+                                                orderKafkaProducer.publishOrderStatusChanged(
+                                                        OrderStatusChangedEvent.builder()
+                                                                .orderId(saved.getId())
+                                                                .userId(saved.getUserId())
+                                                                .oldStatus(oldStatus.name())
+                                                                .newStatus(newStatus.name())
+                                                                .changedByUserId(currentUserId)
+                                                                .changedByRole(role)
+                                                                .build());
+                                                // Best-effort: also refund the underlying payment so the
+                                                // dashboard's "Payment Received" figure reflects this refund
+                                                // immediately, not just the order's own status.
+                                                if (newStatus == OrderStatus.REFUNDED) {
+                                                    paymentServiceClient.refundOrderPayment(saved.getId()).subscribe();
+                                                }
+                                            })
                                             .map(saved -> mapToResponse(saved, items));
                                 })
                 );
@@ -361,10 +371,10 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public Mono<Void> updatePaymentStatus(Long orderId, OrderStatus newStatus) {
 
-        if (newStatus != OrderStatus.PAID && newStatus != OrderStatus.CANCELLED) {
+        if (newStatus != OrderStatus.PAID && newStatus != OrderStatus.CANCELLED && newStatus != OrderStatus.REFUNDED) {
             return Mono.error(new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "payment-status can only be set to PAID or CANCELLED"
+                    "payment-status can only be set to PAID, CANCELLED or REFUNDED"
             ));
         }
 
@@ -381,10 +391,40 @@ public class OrderServiceImpl implements OrderService {
 
                 .flatMap(order -> {
 
+                    // Idempotent: this sync call can race with (or follow) the admin-driven
+                    // updateStatus() path already having set the same status.
+                    if (order.getStatus() == newStatus) {
+                        return Mono.<Order>empty();
+                    }
+
+                    if (newStatus == OrderStatus.REFUNDED) {
+                        Set<OrderStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(order.getStatus(), EnumSet.noneOf(OrderStatus.class));
+                        if (!allowed.contains(OrderStatus.REFUNDED)) {
+                            return Mono.error(new ResponseStatusException(
+                                    HttpStatus.BAD_REQUEST, "Cannot refund an order in status " + order.getStatus()));
+                        }
+                    }
+
+                    OrderStatus oldStatus = order.getStatus();
                     order.setStatus(newStatus);
                     order.setUpdatedAt(LocalDateTime.now());
 
-                    return orderRepository.save(order);
+                    return orderRepository.save(order)
+                            .doOnSuccess(saved -> {
+                                // Only for REFUNDED — PAID/CANCELLED via this internal path stay silent,
+                                // as before. This is what makes notification-service's existing
+                                // "Refund Completed" handling fire for this sync path too.
+                                if (newStatus == OrderStatus.REFUNDED) {
+                                    orderKafkaProducer.publishOrderStatusChanged(
+                                            OrderStatusChangedEvent.builder()
+                                                    .orderId(saved.getId())
+                                                    .userId(saved.getUserId())
+                                                    .oldStatus(oldStatus.name())
+                                                    .newStatus(newStatus.name())
+                                                    .changedByRole("SYSTEM")
+                                                    .build());
+                                }
+                            });
                 })
 
                 .then();

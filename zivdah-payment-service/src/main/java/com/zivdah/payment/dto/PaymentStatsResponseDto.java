@@ -11,12 +11,21 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class PaymentStatsResponseDto {
-    // Sum of all SUCCESS payments' amounts, unaffected by the from/to range below.
+    // Net of any refund: sum of (amount - refundAmount) over SUCCESS/REFUNDED payments,
+    // unaffected by the from/to range below.
     private BigDecimal totalReceivedAllTime;
 
-    // Sum of SUCCESS payments' amounts within the requested [from, to] range (by paidAt).
+    // Net of any refund, scoped to payments whose paidAt falls within [from, to].
     private BigDecimal totalReceivedInRange;
 
-    // Daily buckets within the range, ascending by date, for a trend chart.
+    // Sum of refundAmount over all SUCCESS/REFUNDED payments, all-time.
+    private BigDecimal totalRefundedAllTime;
+
+    // Sum of refundAmount over payments whose paidAt falls within [from, to] — same time
+    // basis as totalReceivedInRange, so a payment refunded later still nets out of the range
+    // it was originally paid in.
+    private BigDecimal totalRefundedInRange;
+
+    // Daily buckets within the range (net of refunds), ascending by date, for a trend chart.
     private List<DailyAmountDto> series;
 }
