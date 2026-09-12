@@ -8,5 +8,7 @@ import reactor.core.publisher.Mono;
 
 public interface InventoryRepository extends ReactiveCrudRepository<Inventory, Long> {
     Mono<Inventory> findByProductId(Long productId);
-    Flux<Inventory> findAllBy(Pageable pageable);
+    // Inventory has no createdAt (lastUpdated changes on every stock mutation, not just row
+    // creation), so id DESC is the closest available proxy for "newest row first".
+    Flux<Inventory> findAllByOrderByIdDesc(Pageable pageable);
 }

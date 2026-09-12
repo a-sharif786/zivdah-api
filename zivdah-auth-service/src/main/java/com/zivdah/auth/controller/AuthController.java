@@ -118,6 +118,20 @@ public class AuthController {
                         .status("success").statusCode(200).message("Delivery boys fetched successfully").data(users).build()));
     }
 
+    // Internal, no auth — see SecurityConfig. Called by zivdah-order-service when generating
+    // an invoice (no user JWT available in that internal payment-status-sync context) to print
+    // the customer's name/email on the PDF. Returns a narrow DTO, not the full user record.
+    @GetMapping("/internal/users/{userId}")
+    public Mono<ResponseEntity<ApiResponse<InternalUserInfoDTO>>> getInternalUserInfo(@PathVariable Long userId) {
+        return authService.getUserById(userId)
+                .map(user -> InternalUserInfoDTO.builder()
+                        .id(user.getId()).name(user.getName())
+                        .email(user.getEmail()).mobile(user.getMobile())
+                        .build())
+                .map(dto -> ResponseEntity.ok(ApiResponse.<InternalUserInfoDTO>builder()
+                        .status("success").statusCode(200).message("User info fetched").data(dto).build()));
+    }
+
     // Internal, no auth — see SecurityConfig. Called by zivdah-notification-service to fan
     // out admin notifications; no user JWT available for that call. Returns only ids (not
     // the full user list /all-users exposes) to keep an unauthenticated endpoint's exposure

@@ -172,7 +172,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public Flux<NotificationResponseDto> getAllNotifications(Pageable pageable) {
-        return notificationRepository.findAllBy(pageable).map(this::mapToDto);
+        return notificationRepository.findAllByOrderByCreatedAtDesc(pageable).map(this::mapToDto);
     }
 
     @Override

@@ -48,6 +48,31 @@ spring:
 payment-service:
   url: http://localhost:8006/restful/v1/api/payments
 
+# auth-service runs on the same host in dev (port 8002) — see application-prod.yaml for why
+# this differs there. Used by InvoiceService/AuthServiceClient to print the customer's
+# name/email on a generated invoice.
+auth-service:
+  url: http://localhost:8002/restful/v1/api/auth
+
+# Invoice Management (see InvoiceService/InvoicePdfGenerator/InvoiceStorageService).
+# /var/www/zivdah-media/invoices/ (the prod path) doesn't exist on a dev machine, so this
+# points at a project-relative folder instead — see application-prod.yaml for the real path.
+invoice:
+  storage:
+    path: ./media/invoices
+  # No nginx in front locally, so this just needs to be *some* well-formed base URL — the
+  # frontend should call the authenticated /invoices/{id}/download endpoint regardless (see
+  # InvoiceResponseDto#downloadUrl), never this raw one, in every environment.
+  public-base-url: http://localhost:8001/media/invoices
+  company:
+    name: Zivdah Online Grocery
+    address-line1: "" # TODO: fill in the registered business address
+    address-line2: ""
+    email: support@zivdahonlinegrocery.com
+    phone: "" # TODO
+    website: https://zivdahonlinegrocery.com
+    tax-id: "" # TODO: GSTIN/VAT number
+
 eureka:
   instance:
     prefer-ip-address: true

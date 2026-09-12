@@ -457,6 +457,30 @@ services:
 
       JWT_SECRET: ${JWT_SECRET}
 
+      # NOT the same var as user-service's AUTH_SERVICE_URL (that one points at the public
+      # gateway domain) — see order-service's application-prod.yaml for why this one must stay
+      # internal-network-only. Spring's own ${...:default} fallback (see that file) covers it
+      # if this isn't set in .env — see .env.example.
+      AUTH_SERVICE_INTERNAL_URL: ${AUTH_SERVICE_INTERNAL_URL}
+
+      INVOICE_STORAGE_PATH: ${INVOICE_STORAGE_PATH}
+
+      INVOICE_PUBLIC_BASE_URL: ${INVOICE_PUBLIC_BASE_URL}
+
+      INVOICE_COMPANY_NAME: ${INVOICE_COMPANY_NAME}
+
+      INVOICE_COMPANY_ADDRESS1: ${INVOICE_COMPANY_ADDRESS1}
+
+      INVOICE_COMPANY_ADDRESS2: ${INVOICE_COMPANY_ADDRESS2}
+
+      INVOICE_COMPANY_EMAIL: ${INVOICE_COMPANY_EMAIL}
+
+      INVOICE_COMPANY_PHONE: ${INVOICE_COMPANY_PHONE}
+
+      INVOICE_COMPANY_WEBSITE: ${INVOICE_COMPANY_WEBSITE}
+
+      INVOICE_COMPANY_TAX_ID: ${INVOICE_COMPANY_TAX_ID}
+
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -469,6 +493,14 @@ services:
 
     networks:
       - zivdah-network
+
+    # Bind-mounted (not a named volume) at the SAME path on host and container so nginx,
+    # running directly on the host (see nginx/invoices-media.conf), can serve exactly the files
+    # this container writes under /media/invoices/ without any path translation. Create the host
+    # directory once, owned by whatever user this container runs as, before first deploy:
+    #   sudo mkdir -p /var/www/zivdah-media/invoices && sudo chown -R 1000:1000 /var/www/zivdah-media
+    volumes:
+      - /var/www/zivdah-media/invoices:/var/www/zivdah-media/invoices
 
 
   # ============================================================

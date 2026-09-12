@@ -7,8 +7,9 @@ import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Flux;
 
 public interface ProductRepository extends ReactiveCrudRepository<ProductEntity, Long> {
-    Flux<ProductEntity> findAllBy(Pageable pageable);
-    Flux<ProductEntity> findByCategory(ProductCategory category, Pageable pageable);
-    Flux<ProductEntity> findByNameContainingIgnoreCase(String keyword, Pageable pageable);
-    Flux<ProductEntity> findByVendorId(Long vendorId, Pageable pageable);
+    // OrderByCreatedAtDesc: admin/vendor/customer product lists should show new products on top.
+    Flux<ProductEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
+    Flux<ProductEntity> findByCategoryOrderByCreatedAtDesc(ProductCategory category, Pageable pageable);
+    Flux<ProductEntity> findByNameContainingIgnoreCaseOrderByCreatedAtDesc(String keyword, Pageable pageable);
+    Flux<ProductEntity> findByVendorIdOrderByCreatedAtDesc(Long vendorId, Pageable pageable);
 }

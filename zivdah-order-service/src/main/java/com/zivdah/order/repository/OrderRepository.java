@@ -10,7 +10,8 @@ import java.time.LocalDateTime;
 
 public interface OrderRepository extends ReactiveCrudRepository<Order, Long> {
     Flux<Order> findByUserId(Long userId);
-    Flux<Order> findAllBy(Pageable pageable);
-    Flux<Order> findByStatus(OrderStatus status, Pageable pageable);
+    // OrderByCreatedAtDesc: admin/vendor order lists should show new orders on top.
+    Flux<Order> findAllByOrderByCreatedAtDesc(Pageable pageable);
+    Flux<Order> findByStatusOrderByCreatedAtDesc(OrderStatus status, Pageable pageable);
     Flux<Order> findByCreatedAtBetween(LocalDateTime from, LocalDateTime to);
 }

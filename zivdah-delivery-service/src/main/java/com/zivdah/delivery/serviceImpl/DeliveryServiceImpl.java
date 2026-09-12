@@ -289,7 +289,7 @@ public class DeliveryServiceImpl implements DeliveryService {
         if ("VENDOR".equalsIgnoreCase(role) && !currentUserId.equals(vendorId)) {
             return Flux.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Vendors may only query their own deliveries"));
         }
-        return deliveryRepository.findByVendorId(vendorId, pageable).map(this::mapToDto);
+        return deliveryRepository.findByVendorIdOrderByCreatedAtDesc(vendorId, pageable).map(this::mapToDto);
     }
 
     // deliveryBoyId always comes from the caller's JWT identity (DeliveryController#currentUserId,
@@ -298,7 +298,7 @@ public class DeliveryServiceImpl implements DeliveryService {
     public Flux<DeliveryResponseDto> getMyDeliveries(Long deliveryBoyId, Pageable pageable) {
         log.debug("Retrieving deliveries for delivery boy {} (page {}, size {})",
                 deliveryBoyId, pageable.getPageNumber(), pageable.getPageSize());
-        return deliveryRepository.findByDeliveryBoyId(deliveryBoyId, pageable).map(this::mapToDto);
+        return deliveryRepository.findByDeliveryBoyIdOrderByCreatedAtDesc(deliveryBoyId, pageable).map(this::mapToDto);
     }
 
     private DeliveryResponseDto mapToDto(Delivery d) {

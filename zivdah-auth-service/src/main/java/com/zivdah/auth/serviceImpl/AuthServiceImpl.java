@@ -165,7 +165,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public Flux<AuthUserResponseDTO> getAllUsers() {
-        return userRepository.findAll().map(this::toAuthUserResponseDTO);
+        return userRepository.findAllByOrderByIdDesc().map(this::toAuthUserResponseDTO);
     }
 
     @Override

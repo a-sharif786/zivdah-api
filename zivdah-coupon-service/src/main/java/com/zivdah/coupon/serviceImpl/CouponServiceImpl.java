@@ -60,7 +60,7 @@ public class CouponServiceImpl implements CouponService {
 
     @Override
     public Flux<CouponResponseDto> getAllCoupons() {
-        return couponRepository.findAll().map(this::mapToDto);
+        return couponRepository.findAllByOrderByCreatedAtDesc().map(this::mapToDto);
     }
 
     @Override

@@ -115,7 +115,7 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     public Flux<InventoryResponseDto> getAllInventory(Pageable pageable) {
-        return inventoryRepository.findAllBy(pageable).map(this::mapToDto);
+        return inventoryRepository.findAllByOrderByIdDesc(pageable).map(this::mapToDto);
     }
 
     private InventoryResponseDto mapToDto(Inventory inv) {

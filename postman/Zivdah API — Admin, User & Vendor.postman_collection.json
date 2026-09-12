@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "38b6e912-acaa-438d-ac88-aab118f99c6b",
     "name": "Zivdah API — Admin, User & Vendor",
-    "description": "All zivdah-api microservice endpoints, routed through the API gateway\n(http://localhost:8001), covering the three roles enforced by the backend:\nADMIN, USER (customer) and VENDOR (merchant).\n\nStart with folder \"0. Bootstrap\" to register/login and populate\n{{adminToken}} / {{userToken}} / {{vendorToken}} automatically.\n\nRequests flagged with ⚠ in their description hit endpoints where the live\nbackend currently has weaker auth than you might expect (missing\n@PreAuthorize / ownership checks, or an unintentionally public route) —\nthey are included as-is to match the real API, not as a recommendation.",
+    "description": "All zivdah-api microservice endpoints, routed through the API gateway\n(http://localhost:8001), covering all four roles enforced by the backend:\nADMIN, USER (customer), VENDOR (merchant) and DELIVERY_BOY.\n\nStart with folder \"0. Bootstrap\" to register/login and populate\n{{adminToken}} / {{userToken}} / {{vendorToken}} / {{deliveryBoyToken}}\nautomatically. Folders 12 (Delivery Service) and 13 (Log Server) plus\nseveral internal/admin-only endpoints added across the other folders were\nnot part of the original export — see each folder's description for its\nbase path.\n\nRequests flagged with ⚠ in their description hit endpoints where the live\nbackend currently has weaker auth than you might expect (missing\n@PreAuthorize / ownership checks, or an unintentionally public route) —\nthey are included as-is to match the real API, not as a recommendation.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "54875269",
     "_collection_link": "https://go.postman.co/collection/54875269-38b6e912-acaa-438d-ac88-aab118f99c6b?source=collection_link"
@@ -78,6 +78,39 @@
           "response": []
         },
         {
+          "name": "Register - Delivery Boy (DELIVERY_BOY)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Deepak Kumar\",\n  \"email\": \"deepak.delivery@example.com\",\n  \"password\": \"Passw0rd!\",\n  \"mobile\": \"9800000003\",\n  \"role\": \"DELIVERY_BOY\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Creates a delivery-boy account. DELIVERY_BOY (unlike ADMIN) can self-register. Verify via \"Verify Registration OTP\" below (mobile 9800000003 / this email) to get {{deliveryBoyToken}}.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
           "name": "Verify Registration OTP",
           "event": [
             {
@@ -96,6 +129,9 @@
                   "        } else if (role === 'VENDOR') {",
                   "            pm.collectionVariables.set('vendorToken', data.token);",
                   "            pm.collectionVariables.set('vendorId', data.id);",
+                  "        } else if (role === 'DELIVERY_BOY') {",
+                  "            pm.collectionVariables.set('deliveryBoyToken', data.token);",
+                  "            pm.collectionVariables.set('deliveryBoyId', data.id);",
                   "        } else {",
                   "            pm.collectionVariables.set('userToken', data.token);",
                   "            pm.collectionVariables.set('userId', data.id);",
@@ -157,6 +193,9 @@
                   "        } else if (role === 'VENDOR') {",
                   "            pm.collectionVariables.set('vendorToken', data.token);",
                   "            pm.collectionVariables.set('vendorId', data.id);",
+                  "        } else if (role === 'DELIVERY_BOY') {",
+                  "            pm.collectionVariables.set('deliveryBoyToken', data.token);",
+                  "            pm.collectionVariables.set('deliveryBoyId', data.id);",
                   "        } else {",
                   "            pm.collectionVariables.set('userToken', data.token);",
                   "            pm.collectionVariables.set('userId', data.id);",
@@ -218,6 +257,9 @@
                   "        } else if (role === 'VENDOR') {",
                   "            pm.collectionVariables.set('vendorToken', data.token);",
                   "            pm.collectionVariables.set('vendorId', data.id);",
+                  "        } else if (role === 'DELIVERY_BOY') {",
+                  "            pm.collectionVariables.set('deliveryBoyToken', data.token);",
+                  "            pm.collectionVariables.set('deliveryBoyId', data.id);",
                   "        } else {",
                   "            pm.collectionVariables.set('userToken', data.token);",
                   "            pm.collectionVariables.set('userId', data.id);",
@@ -261,6 +303,70 @@
           "response": []
         },
         {
+          "name": "Login - Delivery Boy",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const data = json.data;",
+                  "    if (data && data.token) {",
+                  "        const role = (data.role || '').toString().toUpperCase();",
+                  "        if (role === 'ADMIN') {",
+                  "            pm.collectionVariables.set('adminToken', data.token);",
+                  "            pm.collectionVariables.set('adminUserId', data.id);",
+                  "        } else if (role === 'VENDOR') {",
+                  "            pm.collectionVariables.set('vendorToken', data.token);",
+                  "            pm.collectionVariables.set('vendorId', data.id);",
+                  "        } else if (role === 'DELIVERY_BOY') {",
+                  "            pm.collectionVariables.set('deliveryBoyToken', data.token);",
+                  "            pm.collectionVariables.set('deliveryBoyId', data.id);",
+                  "        } else {",
+                  "            pm.collectionVariables.set('userToken', data.token);",
+                  "            pm.collectionVariables.set('userId', data.id);",
+                  "        }",
+                  "        console.log('Captured token for role', role);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"deepak.delivery@example.com\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Auto-captures {{deliveryBoyToken}} and {{deliveryBoyId}}.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
           "name": "Login - Admin",
           "event": [
             {
@@ -279,6 +385,9 @@
                   "        } else if (role === 'VENDOR') {",
                   "            pm.collectionVariables.set('vendorToken', data.token);",
                   "            pm.collectionVariables.set('vendorId', data.id);",
+                  "        } else if (role === 'DELIVERY_BOY') {",
+                  "            pm.collectionVariables.set('deliveryBoyToken', data.token);",
+                  "            pm.collectionVariables.set('deliveryBoyId', data.id);",
                   "        } else {",
                   "            pm.collectionVariables.set('userToken', data.token);",
                   "            pm.collectionVariables.set('userId', data.id);",
@@ -369,7 +478,27 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code >= 200 && pm.response.code < 300) {\n    const json = pm.response.json();\n    const data = json.data;\n    if (data && data.token) {\n        const role = (data.role || '').toString().toUpperCase();\n        if (role === 'ADMIN') {\n            pm.collectionVariables.set('adminToken', data.token);\n            pm.collectionVariables.set('adminUserId', data.id);\n        } else if (role === 'VENDOR') {\n            pm.collectionVariables.set('vendorToken', data.token);\n            pm.collectionVariables.set('vendorId', data.id);\n        } else {\n            pm.collectionVariables.set('userToken', data.token);\n            pm.collectionVariables.set('userId', data.id);\n        }\n        console.log('Captured token for role', role);\n    }\n}"
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const data = json.data;",
+                  "    if (data && data.token) {",
+                  "        const role = (data.role || '').toString().toUpperCase();",
+                  "        if (role === 'ADMIN') {",
+                  "            pm.collectionVariables.set('adminToken', data.token);",
+                  "            pm.collectionVariables.set('adminUserId', data.id);",
+                  "        } else if (role === 'VENDOR') {",
+                  "            pm.collectionVariables.set('vendorToken', data.token);",
+                  "            pm.collectionVariables.set('vendorId', data.id);",
+                  "        } else if (role === 'DELIVERY_BOY') {",
+                  "            pm.collectionVariables.set('deliveryBoyToken', data.token);",
+                  "            pm.collectionVariables.set('deliveryBoyId', data.id);",
+                  "        } else {",
+                  "            pm.collectionVariables.set('userToken', data.token);",
+                  "            pm.collectionVariables.set('userId', data.id);",
+                  "        }",
+                  "        console.log('Captured token for role', role);",
+                  "    }",
+                  "}"
                 ]
               }
             }
@@ -561,6 +690,167 @@
               ]
             },
             "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin/Vendor: List Delivery Boys",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/delivery-boys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "delivery-boys"
+              ]
+            },
+            "description": "Narrower than \"List All Users\" — lets a vendor resolve the delivery-boy pool for assigning deliveries without exposing every other user's details. Using {{vendorToken}} by default — swap to {{adminToken}} to test as admin.\n\nRequires role: ADMIN or VENDOR."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Get User Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "stats"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Register Device Token (FCM)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fcmToken\": \"sample-fcm-token-abc123\",\n  \"deviceType\": \"ANDROID\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/device-tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "device-tokens"
+              ]
+            },
+            "description": "userId/role are taken from the caller's JWT, not the body. deviceType is optional (defaults to WEB) — one of ANDROID | IOS | WEB.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}}/{{deliveryBoyToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Internal: Get Admin User Ids",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/internal/admin-ids",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "internal",
+                "admin-ids"
+              ]
+            },
+            "description": "⚠ Internal, no authentication — permitted unauthenticated in SecurityConfig for service-to-service calls (zivdah-notification-service uses this to fan out admin notifications). Included as-is to match the live backend.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Internal: Get Active Device Tokens",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/internal/device-tokens/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "internal",
+                "device-tokens",
+                "{{userId}}"
+              ]
+            },
+            "description": "⚠ Internal, no authentication — called by zivdah-notification-service to resolve every active FCM token for a user before sending a push. Empty list, not an error, when there are none.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Internal: Deactivate Device Token",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fcmToken\": \"sample-fcm-token-abc123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/internal/device-tokens/deactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "internal",
+                "device-tokens",
+                "deactivate"
+              ]
+            },
+            "description": "⚠ Internal, no authentication — called by zivdah-notification-service when Firebase reports a token as unregistered/invalid.\n\nNo authentication required."
           },
           "response": []
         },
@@ -1355,6 +1645,64 @@
           "response": []
         },
         {
+          "name": "Admin: Get Product Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/products/count",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "count"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Internal: Sync Stock",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stockQuantity\": 95\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}/sync-stock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "{{productId}}",
+                "sync-stock"
+              ]
+            },
+            "description": "⚠ Internal, no authentication — called by zivdah-inventory-service after ITS availableQuantity changes, to push the new value here. Must never be called the other way around (product-service -> inventory-service), or the two services would loop forever.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
           "name": "List Product Categories",
           "request": {
             "method": "GET",
@@ -2079,6 +2427,40 @@
           "response": []
         },
         {
+          "name": "Internal: Sync Quantity",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"availableQuantity\": 95\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/inventory/{{productId}}/sync-quantity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventory",
+                "{{productId}}",
+                "sync-quantity"
+              ]
+            },
+            "description": "⚠ Internal, no authentication — called by zivdah-product-service after ITS stockQuantity changes, to push the new value here as a \"set\" (not an \"add\"). Must never be called the other way around, or the two services would loop forever.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
           "name": "Add Stock",
           "request": {
             "method": "POST",
@@ -2386,6 +2768,146 @@
           "response": []
         },
         {
+          "name": "Admin/Vendor: Update Order Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CONFIRMED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}",
+                "status"
+              ]
+            },
+            "description": "Lifecycle transition (CONFIRMED, PACKING, DELIVERED, REFUNDED, ...), validated against the allowed-transition map in OrderServiceImpl. Using {{vendorToken}} by default — swap to {{adminToken}} to test as admin.\n\nRequires role: ADMIN or VENDOR."
+          },
+          "response": []
+        },
+        {
+          "name": "Internal: Update Payment Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PAID\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/payment-status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}",
+                "payment-status"
+              ]
+            },
+            "description": "⚠ Internal, payment-service-only transition (CREATED -> PAID / CANCELLED) — no user JWT available for this call; SecurityConfig permits only this exact path without authentication.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Internal: Sync Delivery Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deliveryStatus\": \"DELIVERED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/delivery-status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}",
+                "delivery-status"
+              ]
+            },
+            "description": "⚠ Internal, delivery-service-only sync — no user JWT available for this call. Best-effort: an unrecognized deliveryStatus is silently ignored server-side, never a 4xx.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Get Order Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/stats?from=2026-01-01T00:00:00&to=2026-12-31T23:59:59",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-01-01T00:00:00"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31T23:59:59"
+                }
+              ]
+            },
+            "description": "from/to are ISO-8601 LocalDateTime (no timezone offset).\n\nRequires role: ADMIN."
+          },
+          "response": []
+        },
+        {
           "name": "Admin: List All Orders",
           "request": {
             "method": "GET",
@@ -2611,6 +3133,99 @@
           "response": []
         },
         {
+          "name": "Admin: Refund Payment",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 128.95\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payments/refund/{{paymentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "refund",
+                "{{paymentId}}"
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Internal: Refund By Order",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/order/{{orderId}}/refund",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "order",
+                "{{orderId}}",
+                "refund"
+              ]
+            },
+            "description": "⚠ Internal, order-service-only sync — no user JWT available for this call (same permitAll pattern as order-service's own /payment-status). Fully refunds this order's payment; a no-op if there's nothing left to refund.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: Get Payment Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments/stats?from=2026-01-01T00:00:00&to=2026-12-31T23:59:59",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-01-01T00:00:00"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31T23:59:59"
+                }
+              ]
+            },
+            "description": "from/to are ISO-8601 LocalDateTime (no timezone offset). Backed by SQL aggregate queries (not an in-memory scan) as of the 2026-09-12 fix.\n\nRequires role: ADMIN."
+          },
+          "response": []
+        },
+        {
           "name": "Admin: List All Payments",
           "request": {
             "method": "GET",
@@ -2732,6 +3347,31 @@
               ]
             },
             "description": "⚠ Requires a valid JWT but no ownership check — any authenticated user can read any other user's notifications.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Notification As Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/{{notificationId}}/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "{{notificationId}}",
+                "read"
+              ]
+            },
+            "description": "Requires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
           },
           "response": []
         },
@@ -2984,6 +3624,288 @@
         }
       ],
       "description": "Base path: /restful/v1/api/reviews"
+    },
+    {
+      "name": "12. Delivery Service",
+      "item": [
+        {
+          "name": "Get Deliveries By Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const list = json?.data;",
+                  "    if (Array.isArray(list) && list.length > 0 && list[0].id) {",
+                  "        pm.collectionVariables.set('deliveryId', list[0].id);",
+                  "        console.log('Captured deliveryId =', list[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/delivery/order/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "order",
+                "{{orderId}}"
+              ]
+            },
+            "description": "Visibility-filtered server-side — the customer who placed the order, the vendor(s) on it, and any admin can all call this same endpoint and each only see what's theirs. Auto-captures {{deliveryId}} from the first result. Run this after creating an order (deliveries are created automatically via Kafka when the order is placed — there is no manual \"create delivery\" endpoint).\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}}/{{deliveryBoyToken}} works."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin/Vendor: Assign Delivery Boy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deliveryBoyId\": \"{{deliveryBoyId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/{{deliveryId}}/assign",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "{{deliveryId}}",
+                "assign"
+              ]
+            },
+            "description": "Using {{vendorToken}} by default — swap to {{adminToken}} to test as admin.\n\nRequires role: ADMIN or VENDOR."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Delivery Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{deliveryBoyToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PICKED_UP\",\n  \"failureReason\": null,\n  \"failureNote\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/{{deliveryId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "{{deliveryId}}",
+                "status"
+              ]
+            },
+            "description": "status enum: PENDING | PACKED | READY_FOR_PICKUP | PICKED_UP | ON_THE_WAY | DELIVERED | FAILED | CANCELLED. failureReason (enum: CUSTOMER_NOT_AVAILABLE | WRONG_ADDRESS | CUSTOMER_REFUSED | PAYMENT_ISSUE | DAMAGED_ORDER | OTHER) and failureNote are required only when status=FAILED. Each role may only set certain target statuses — see DeliveryServiceImpl#updateStatus. Using {{deliveryBoyToken}} by default — swap to {{vendorToken}}/{{adminToken}} to test other roles.\n\nRequires role: ADMIN, VENDOR or DELIVERY_BOY."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin/Vendor: Get Vendor's Deliveries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/delivery/vendor/{{vendorId}}?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "vendor",
+                "{{vendorId}}"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Using {{vendorToken}} by default — swap to {{adminToken}} to test as admin.\n\nRequires role: ADMIN or VENDOR."
+          },
+          "response": []
+        },
+        {
+          "name": "Delivery Boy: Get My Deliveries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{deliveryBoyToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/delivery/my?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "my"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "A delivery boy's own assigned deliveries — scoped to the caller, no path id needed.\n\nRequires role: DELIVERY_BOY."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/delivery. Deliveries are created automatically (via Kafka, when an order is placed) — run \"Get Deliveries By Order\" first to capture {{deliveryId}}."
+    },
+    {
+      "name": "13. Log Server",
+      "item": [
+        {
+          "name": "Search Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/logs?page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "logs"
+              ],
+              "query": [
+                {
+                  "key": "service",
+                  "value": "zivdah-order-service",
+                  "disabled": true
+                },
+                {
+                  "key": "level",
+                  "value": "ERROR",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "2026-09-01T00:00:00Z",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "2026-09-30T23:59:59Z",
+                  "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "exception",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "All filters (service/level/from/to/q) are optional and disabled by default here — enable the ones you need. from/to are ISO-8601 OffsetDateTime (with timezone/Z). Centralizes logs shipped from every service via the shared Logback/Kafka appender.\n\nNo @PreAuthorize in the current backend — any authenticated user can search all services' logs; using {{adminToken}} here as the intended caller."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Log By Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/logs/{{logId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "logs",
+                "{{logId}}"
+              ]
+            },
+            "description": "⚠ No @PreAuthorize in the current backend — any authenticated user can fetch any log entry by id; using {{adminToken}} here as the intended caller."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/logs. zivdah-log-server — centralized log search across all services (see project memory on the Kafka log-shipping setup)."
     }
   ],
   "variable": [
@@ -3061,6 +3983,22 @@
     },
     {
       "key": "reviewId",
+      "value": ""
+    },
+    {
+      "key": "deliveryBoyToken",
+      "value": ""
+    },
+    {
+      "key": "deliveryBoyId",
+      "value": ""
+    },
+    {
+      "key": "deliveryId",
+      "value": ""
+    },
+    {
+      "key": "logId",
       "value": ""
     }
   ]

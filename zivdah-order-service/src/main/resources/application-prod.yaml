@@ -50,6 +50,34 @@ spring:
 payment-service:
   url: ${PAYMENT_SERVICE_URL:http://payment-service:8006/restful/v1/api/payments}
 
+# Reached over the compose network by auth-service's Compose service name — same reasoning as
+# payment-service above. Used by InvoiceService/AuthServiceClient to print the customer's
+# name/email on a generated invoice.
+#
+# Deliberately a DIFFERENT env var from AUTH_SERVICE_URL (which zivdah-user-service already
+# uses, pointed at the public gateway domain — see its own application-prod.yaml): this call is
+# to an unauthenticated /internal/** endpoint (see auth-service's SecurityConfig), so it must
+# stay on the internal Docker network and never round-trip through the public gateway, where
+# that same unauthenticated path would otherwise be reachable by anyone on the internet.
+auth-service:
+  url: ${AUTH_SERVICE_INTERNAL_URL:http://auth-service:8002/restful/v1/api/auth}
+
+# Invoice Management (see InvoiceService/InvoicePdfGenerator/InvoiceStorageService). The
+# storage path must be a volume shared with (or served directly by) nginx — see
+# nginx/invoices-media.conf, which serves this same directory at /media/invoices/.
+invoice:
+  storage:
+    path: ${INVOICE_STORAGE_PATH:/var/www/zivdah-media/invoices/}
+  public-base-url: ${INVOICE_PUBLIC_BASE_URL:https://zivdahonlinegrocery.com/media/invoices}
+  company:
+    name: ${INVOICE_COMPANY_NAME:Zivdah Online Grocery}
+    address-line1: ${INVOICE_COMPANY_ADDRESS1:}
+    address-line2: ${INVOICE_COMPANY_ADDRESS2:}
+    email: ${INVOICE_COMPANY_EMAIL:support@zivdahonlinegrocery.com}
+    phone: ${INVOICE_COMPANY_PHONE:}
+    website: ${INVOICE_COMPANY_WEBSITE:https://zivdahonlinegrocery.com}
+    tax-id: ${INVOICE_COMPANY_TAX_ID:}
+
 eureka:
   instance:
     prefer-ip-address: true

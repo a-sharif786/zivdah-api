@@ -29,7 +29,9 @@ public interface OrderService {
     // a payment is fully refunded). Kept separate from updateStatus() since it's called
     // internally, without an admin/vendor JWT; the REFUNDED case still validates against the
     // allowed-transition map and publishes OrderStatusChangedEvent, unlike PAID/CANCELLED.
-    Mono<Void> updatePaymentStatus(Long orderId, OrderStatus newStatus);
+    // paymentMethod/transactionId/paidAt are only ever non-null on the PAID transition — this is
+    // also where invoice generation is triggered (best-effort, see InvoiceService).
+    Mono<Void> updatePaymentStatus(Long orderId, OrderStatus newStatus, String paymentMethod, String transactionId, java.time.LocalDateTime paidAt);
 
     // Narrow, delivery-service-only sync (their "ON_THE_WAY" -> our OUT_FOR_DELIVERY, their
     // "DELIVERED" -> our DELIVERED) so this Order's status stays consistent with the more

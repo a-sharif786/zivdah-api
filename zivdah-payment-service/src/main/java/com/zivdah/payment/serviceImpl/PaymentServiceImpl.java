@@ -9,7 +9,10 @@ import com.zivdah.payment.dto.PaymentStatsResponseDto;
 import com.zivdah.payment.entity.Payment;
 import com.zivdah.payment.enums.PaymentStatus;
 import com.zivdah.payment.kafka.PaymentKafkaProducer;
+import com.zivdah.payment.repository.DailyNetProjection;
 import com.zivdah.payment.repository.PaymentRepository;
+import com.zivdah.payment.repository.PaymentStatsRepository;
+import com.zivdah.payment.repository.PaymentTotalsProjection;
 import com.zivdah.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,12 +24,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -36,6 +35,7 @@ import java.util.stream.Collectors;
 public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentRepository paymentRepository;
+    private final PaymentStatsRepository paymentStatsRepository;
     private final PaymentKafkaProducer paymentKafkaProducer;
     private final OrderServiceClient orderServiceClient;
 
@@ -79,8 +79,14 @@ public class PaymentServiceImpl implements PaymentService {
                             PaymentCompletedEvent.builder()
                                     .orderId(p.getOrderId()).userId(p.getUserId()).status("PAID").build());
                     // Synchronous, in-request update so the order's status is correct immediately —
-                    // does not depend on the Kafka event above ever being consumed.
-                    return orderServiceClient.updatePaymentStatus(p.getOrderId(), "PAID").thenReturn(p);
+                    // does not depend on the Kafka event above ever being consumed. Carries payment
+                    // method/transaction/paidAt along so order-service can generate an invoice
+                    // without calling back into payment-service for them (see OrderServiceClient).
+                    return orderServiceClient.updatePaymentStatus(
+                            p.getOrderId(), "PAID",
+                            p.getMethod() != null ? p.getMethod().name() : null,
+                            p.getTransactionId(), p.getPaidAt()
+                    ).thenReturn(p);
                 })
                 .map(this::mapToResponse);
     }
@@ -182,62 +188,41 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public Flux<PaymentResponseDto> getAllPayments(Pageable pageable, PaymentStatus status) {
         Flux<Payment> payments = status != null
-                ? paymentRepository.findByStatus(status, pageable)
-                : paymentRepository.findAllBy(pageable);
+                ? paymentRepository.findByStatusOrderByCreatedAtDesc(status, pageable)
+                : paymentRepository.findAllByOrderByCreatedAtDesc(pageable);
         return payments.map(this::mapToResponse);
     }
 
-    // "Ever successfully paid" — a refunded payment stays in this set (only its net amount
-    // drops), so refunds are netted out below rather than the payment simply vanishing from
-    // the sum.
-    private static final List<PaymentStatus> RECEIVED_STATUSES = List.of(PaymentStatus.SUCCESS, PaymentStatus.REFUNDED);
-
-    private static BigDecimal refundOf(Payment p) {
-        return p.getRefundAmount() != null ? p.getRefundAmount() : BigDecimal.ZERO;
-    }
-
-    private static BigDecimal netOf(Payment p) {
-        return p.getAmount().subtract(refundOf(p));
+    private static BigDecimal orZero(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 
     @Override
     public Mono<PaymentStatsResponseDto> getStats(LocalDateTime from, LocalDateTime to) {
 
-        Mono<List<Payment>> allTime = paymentRepository.findByStatusIn(RECEIVED_STATUSES).collectList();
+        Mono<PaymentTotalsProjection> allTime = paymentStatsRepository.sumTotalsAllTime();
+        Mono<PaymentTotalsProjection> inRange = paymentStatsRepository.sumTotalsInRange(from, to);
+        Mono<List<DailyNetProjection>> dailySeries = paymentStatsRepository.dailyNetSeries(from, to).collectList();
 
-        Mono<List<Payment>> inRange = paymentRepository
-                .findByStatusInAndPaidAtBetween(RECEIVED_STATUSES, from, to)
-                .collectList();
-
-        return Mono.zip(allTime, inRange)
+        return Mono.zip(allTime, inRange, dailySeries)
                 .map(t -> {
-                    List<Payment> allTimePayments = t.getT1();
-                    List<Payment> rangePayments = t.getT2();
+                    PaymentTotalsProjection allTimeTotals = t.getT1();
+                    PaymentTotalsProjection rangeTotals = t.getT2();
 
-                    BigDecimal totalReceivedAllTime = allTimePayments.stream()
-                            .map(PaymentServiceImpl::netOf)
-                            .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    BigDecimal totalRefundedAllTime = allTimePayments.stream()
-                            .map(PaymentServiceImpl::refundOf)
-                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    // SQL side already does COALESCE(SUM(...), 0) (see PaymentStatsRepository) —
+                    // orZero is just a last line of defense, not load-bearing.
+                    BigDecimal allTimeGross = orZero(allTimeTotals.getGross());
+                    BigDecimal allTimeRefunded = orZero(allTimeTotals.getRefunded());
+                    BigDecimal rangeGross = orZero(rangeTotals.getGross());
+                    BigDecimal rangeRefunded = orZero(rangeTotals.getRefunded());
 
-                    BigDecimal totalReceivedInRange = rangePayments.stream()
-                            .map(PaymentServiceImpl::netOf)
-                            .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    BigDecimal totalRefundedInRange = rangePayments.stream()
-                            .map(PaymentServiceImpl::refundOf)
-                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal totalReceivedAllTime = allTimeGross.subtract(allTimeRefunded);
+                    BigDecimal totalRefundedAllTime = allTimeRefunded;
+                    BigDecimal totalReceivedInRange = rangeGross.subtract(rangeRefunded);
+                    BigDecimal totalRefundedInRange = rangeRefunded;
 
-                    // Bucket by calendar day (paidAt), summing net (amount - refundAmount), sorted ascending.
-                    Map<LocalDate, BigDecimal> byDay = new TreeMap<>();
-                    for (Payment p : rangePayments) {
-                        LocalDate day = p.getPaidAt().toLocalDate();
-                        byDay.merge(day, netOf(p), BigDecimal::add);
-                    }
-
-                    List<DailyAmountDto> series = byDay.entrySet().stream()
-                            .map(e -> DailyAmountDto.builder().date(e.getKey()).amount(e.getValue()).build())
-                            .sorted(Comparator.comparing(DailyAmountDto::getDate))
+                    List<DailyAmountDto> series = t.getT3().stream()
+                            .map(d -> DailyAmountDto.builder().date(d.getDay()).amount(orZero(d.getAmount())).build())
                             .collect(Collectors.toList());
 
                     return PaymentStatsResponseDto.builder()

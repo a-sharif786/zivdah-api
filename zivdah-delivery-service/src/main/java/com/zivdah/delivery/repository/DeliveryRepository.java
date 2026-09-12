@@ -9,6 +9,7 @@ import reactor.core.publisher.Mono;
 public interface DeliveryRepository extends ReactiveCrudRepository<Delivery, Long> {
     Mono<Delivery> findByOrderIdAndVendorId(Long orderId, Long vendorId);
     Flux<Delivery> findByOrderId(Long orderId);
-    Flux<Delivery> findByVendorId(Long vendorId, Pageable pageable);
-    Flux<Delivery> findByDeliveryBoyId(Long deliveryBoyId, Pageable pageable);
+    // OrderByCreatedAtDesc: vendor/delivery-boy delivery lists should show new deliveries on top.
+    Flux<Delivery> findByVendorIdOrderByCreatedAtDesc(Long vendorId, Pageable pageable);
+    Flux<Delivery> findByDeliveryBoyIdOrderByCreatedAtDesc(Long deliveryBoyId, Pageable pageable);
 }

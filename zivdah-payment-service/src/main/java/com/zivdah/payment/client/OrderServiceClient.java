@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
 
 // Synchronous, service-to-service call into order-service so a payment result updates the
@@ -31,9 +33,25 @@ public class OrderServiceClient {
     private final WebClient webClient;
 
     public Mono<Void> updatePaymentStatus(Long orderId, String status) {
+        return updatePaymentStatus(orderId, status, null, null, null);
+    }
+
+    // paymentMethod/transactionId/paidAt are carried along on the PAID transition so
+    // order-service can generate an invoice without a second round-trip back into
+    // payment-service just to read them (see InvoiceService#generateInvoice there — it has no
+    // user JWT to call payment-service's own authenticated endpoints from that internal context).
+    // All three are optional; order-service falls back to "unknown"/generation-time values
+    // when they're absent (e.g. the CANCELLED/REFUNDED calls above, which don't set them).
+    public Mono<Void> updatePaymentStatus(
+            Long orderId, String status, String paymentMethod, String transactionId, LocalDateTime paidAt) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", status);
+        body.put("paymentMethod", paymentMethod);
+        body.put("transactionId", transactionId);
+        body.put("paidAt", paidAt);
         return webClient.put()
                 .uri(orderServiceUrl + "/{orderId}/payment-status", orderId)
-                .bodyValue(Map.of("status", status))
+                .bodyValue(body)
                 .retrieve()
                 .toBodilessEntity()
                 .doOnSuccess(r -> log.info("Order {} payment-status updated to {}", orderId, status))

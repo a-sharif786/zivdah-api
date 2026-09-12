@@ -14,6 +14,7 @@ import com.zivdah.order.kafka.OrderKafkaProducer;
 import com.zivdah.order.repository.OrderItemRepository;
 import com.zivdah.order.repository.OrderRepository;
 import com.zivdah.order.service.OrderService;
+import com.zivdah.order.service.InvoiceService;
 import com.zivdah.order.enums.OrderStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -44,6 +46,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderItemRepository orderItemRepository;
     private final OrderKafkaProducer orderKafkaProducer;
     private final PaymentServiceClient paymentServiceClient;
+    private final InvoiceService invoiceService;
 
     // Allowed forward transitions for the admin/vendor-driven lifecycle. Anything not
     // listed here (e.g. skipping straight from CREATED to DELIVERED) is rejected.
@@ -369,7 +372,8 @@ public class OrderServiceImpl implements OrderService {
 
 
     @Override
-    public Mono<Void> updatePaymentStatus(Long orderId, OrderStatus newStatus) {
+    public Mono<Void> updatePaymentStatus(
+            Long orderId, OrderStatus newStatus, String paymentMethod, String transactionId, LocalDateTime paidAt) {
 
         if (newStatus != OrderStatus.PAID && newStatus != OrderStatus.CANCELLED && newStatus != OrderStatus.REFUNDED) {
             return Mono.error(new ResponseStatusException(
@@ -424,6 +428,19 @@ public class OrderServiceImpl implements OrderService {
                                                     .changedByRole("SYSTEM")
                                                     .build());
                                 }
+                                // Invoice Management flow: ORDER_CREATED -> PAYMENT_SUCCESS ->
+                                // GENERATE_INVOICE -> INVOICE_GENERATED. Best-effort and
+                                // fire-and-forget, same reasoning as refundOrderPayment() above —
+                                // a PDF-generation/storage hiccup must not fail the payment-status
+                                // sync itself (the payment already succeeded); it can be retried via
+                                // POST /invoices/generate/{orderId} later.
+                                if (newStatus == OrderStatus.PAID) {
+                                    invoiceService.generateInvoice(saved.getId(), paymentMethod, transactionId, paidAt)
+                                            .doOnError(ex -> log.error(
+                                                    "Invoice generation failed for order {}: {}", saved.getId(), ex.getMessage()))
+                                            .onErrorResume(ex -> Mono.empty())
+                                            .subscribe();
+                                }
                             });
                 })
 
@@ -454,8 +471,8 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public Flux<OrderResponseDto> getAllOrders(Pageable pageable, OrderStatus status) {
         Flux<Order> orders = status != null
-                ? orderRepository.findByStatus(status, pageable)
-                : orderRepository.findAllBy(pageable);
+                ? orderRepository.findByStatusOrderByCreatedAtDesc(status, pageable)
+                : orderRepository.findAllByOrderByCreatedAtDesc(pageable);
 
         return orders.flatMap(order ->
                 orderItemRepository.findByOrderId(order.getId())
@@ -510,8 +527,15 @@ public class OrderServiceImpl implements OrderService {
                     Map<Long, List<OrderItem>> itemsByOrder = vendorItems.stream()
                             .collect(Collectors.groupingBy(OrderItem::getOrderId));
 
+                    // findAllById(...) does not preserve the input order or guarantee any
+                    // particular one, so sort the merged result explicitly — newest order first.
                     return orderRepository.findAllById(orderIds)
-                            .map(order -> mapToResponse(order, itemsByOrder.get(order.getId())));
+                            .map(order -> mapToResponse(order, itemsByOrder.get(order.getId())))
+                            .collectList()
+                            .flatMapMany(list -> {
+                                list.sort(Comparator.comparing(OrderResponseDto::getCreatedAt).reversed());
+                                return Flux.fromIterable(list);
+                            });
                 });
     }
 

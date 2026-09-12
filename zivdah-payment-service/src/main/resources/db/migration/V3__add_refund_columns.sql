@@ -1,2 +1,2 @@
-ALTER TABLE payments ADD COLUMN refund_amount DECIMAL(10,2);
-ALTER TABLE payments ADD COLUMN refunded_at TIMESTAMP;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_amount DECIMAL(10,2);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMP;

@@ -105,17 +105,17 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Flux<ProductResponseDto> getAllProducts(Pageable pageable) {
-        return productRepository.findAllBy(pageable).map(this::mapToResponse).flatMap(this::enrich);
+        return productRepository.findAllByOrderByCreatedAtDesc(pageable).map(this::mapToResponse).flatMap(this::enrich);
     }
 
     @Override
     public Flux<ProductResponseDto> getProductsByCategory(ProductCategory category, Pageable pageable) {
-        return productRepository.findByCategory(category, pageable).map(this::mapToResponse).flatMap(this::enrich);
+        return productRepository.findByCategoryOrderByCreatedAtDesc(category, pageable).map(this::mapToResponse).flatMap(this::enrich);
     }
 
     @Override
     public Flux<ProductResponseDto> searchProducts(String keyword, Pageable pageable) {
-        return productRepository.findByNameContainingIgnoreCase(keyword, pageable).map(this::mapToResponse).flatMap(this::enrich);
+        return productRepository.findByNameContainingIgnoreCaseOrderByCreatedAtDesc(keyword, pageable).map(this::mapToResponse).flatMap(this::enrich);
     }
 
     @Override
@@ -211,7 +211,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Flux<ProductResponseDto> getProductsByVendor(Long vendorId, Pageable pageable) {
-        return productRepository.findByVendorId(vendorId, pageable).map(this::mapToResponse).flatMap(this::enrich);
+        return productRepository.findByVendorIdOrderByCreatedAtDesc(vendorId, pageable).map(this::mapToResponse).flatMap(this::enrich);
     }
 
     @Override

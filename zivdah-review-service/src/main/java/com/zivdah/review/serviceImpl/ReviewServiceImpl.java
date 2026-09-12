@@ -42,7 +42,7 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     public Flux<ReviewResponseDto> getAllReviews(int page, int size) {
-        return reviewRepository.findAllBy(PageRequest.of(page, size)).map(this::mapToDto);
+        return reviewRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size)).map(this::mapToDto);
     }
 
     @Override
@@ -70,7 +70,7 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     public Flux<ReviewResponseDto> getReviewsByProduct(Long productId, int page, int size) {
-        return reviewRepository.findByProductId(productId, PageRequest.of(page, size)).map(this::mapToDto);
+        return reviewRepository.findByProductIdOrderByCreatedAtDesc(productId, PageRequest.of(page, size)).map(this::mapToDto);
     }
 
     private ReviewResponseDto mapToDto(Review review) {

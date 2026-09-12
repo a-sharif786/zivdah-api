@@ -48,6 +48,11 @@ public class SecurityConfig {
                         // (see OrderController#syncDeliveryStatus)
                         .pathMatchers(HttpMethod.PUT, "/restful/v1/api/orders/*/delivery-status").permitAll()
 
+                        // Invoice endpoints are all ownership/role-checked in InvoiceController
+                        // itself (owner/ADMIN/vendor-with-item) — just require *some* authenticated
+                        // caller here, same as the orders endpoints above.
+                        .pathMatchers("/restful/v1/api/invoices/**").authenticated()
+
                         .anyExchange().authenticated()
                 )
                 .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)

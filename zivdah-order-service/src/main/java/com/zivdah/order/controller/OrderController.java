@@ -97,7 +97,8 @@ public class OrderController {
     @PutMapping("/{orderId}/payment-status")
     public Mono<ResponseEntity<ApiResponse<Void>>> updatePaymentStatus(
             @PathVariable Long orderId, @RequestBody OrderStatusUpdateRequestDto dto) {
-        return orderService.updatePaymentStatus(orderId, dto.getStatus())
+        return orderService.updatePaymentStatus(
+                        orderId, dto.getStatus(), dto.getPaymentMethod(), dto.getTransactionId(), dto.getPaidAt())
                 .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
                         .status("success").statusCode(200).message("Order payment status updated").build()));
     }

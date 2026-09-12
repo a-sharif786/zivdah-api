@@ -13,4 +13,7 @@ public interface UserRepository extends ReactiveCrudRepository<UserEntity, Long>
     Mono<UserEntity> findByMobile(String mobile);
     Mono<Long> countByRole(Role role);
     Flux<UserEntity> findByRole(Role role);
+    // UserEntity has no createdAt, so id DESC is the closest available proxy for "newest first"
+    // in the admin Users list.
+    Flux<UserEntity> findAllByOrderByIdDesc();
 }

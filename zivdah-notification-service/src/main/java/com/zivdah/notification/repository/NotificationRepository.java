@@ -11,7 +11,9 @@ import java.time.LocalDateTime;
 public interface NotificationRepository extends ReactiveCrudRepository<Notification, Long> {
     Flux<Notification> findByUserId(Long userId);
     Flux<Notification> findByUserIdAndIsReadFalse(Long userId);
-    Flux<Notification> findAllBy(Pageable pageable);
+    // OrderByCreatedAtDesc: admin notification list should show new notifications on top
+    // (matches the sort NotificationsPage's vendor/customer siblings already apply client-side).
+    Flux<Notification> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     // Idempotency check — see NotificationServiceImpl#sendNotification.
     Mono<Notification> findByDedupKey(String dedupKey);
