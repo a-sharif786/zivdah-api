@@ -15,5 +15,12 @@ public class KafkaTopics {
     // config can't reference this Java constant directly).
     public static final String APP_LOGS = "app-logs";
 
+    // zivdah-chat-service events, published by ChatKafkaProducer; consumed by
+    // zivdah-notification-service's NotificationEventConsumer (Phase 5).
+    public static final String CHAT_HUMAN_REQUESTED = "chat-human-requested";
+    public static final String CHAT_MESSAGE_SENT = "chat-message-sent";
+    public static final String CHAT_CONVERSATION_ACCEPTED = "chat-conversation-accepted";
+    public static final String CHAT_CONVERSATION_CLOSED = "chat-conversation-closed";
+
     private KafkaTopics() {}
 }

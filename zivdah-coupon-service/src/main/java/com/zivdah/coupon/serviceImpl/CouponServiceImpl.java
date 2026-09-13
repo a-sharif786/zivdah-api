@@ -64,6 +64,12 @@ public class CouponServiceImpl implements CouponService {
     }
 
     @Override
+    public Flux<CouponResponseDto> getActiveCoupons() {
+        LocalDateTime now = LocalDateTime.now();
+        return couponRepository.findByActiveTrueAndValidFromBeforeAndValidUntilAfter(now, now).map(this::mapToDto);
+    }
+
+    @Override
     public Mono<CouponResponseDto> toggleActive(Long couponId) {
         return couponRepository.findById(couponId)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Coupon not found: " + couponId)))

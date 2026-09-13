@@ -34,6 +34,7 @@
         <module>zivdah-review-service</module>
         <module>zivdah-coupon-service</module>
         <module>zivdah-log-server</module>
+        <module>zivdah-chat-service</module>
     </modules>
 
     <properties>

@@ -41,6 +41,19 @@ public class CouponController {
                         .status("success").statusCode(200).data(r).build()));
     }
 
+    // Public counterpart to /all (ADMIN-only) — currently-active offers only. Backs the
+    // "what offers are available?" chatbot intent (zivdah-chat-service) since no other public
+    // listing endpoint exists. Matches the existing "/{code}" pattern's permitAll rule in
+    // SecurityConfig (a path-variable segment matches any literal value, "active" included), so
+    // no SecurityConfig change is needed.
+    @GetMapping("/active")
+    public Mono<ResponseEntity<ApiResponse<List<CouponResponseDto>>>> getActiveCoupons() {
+        return couponService.getActiveCoupons()
+                .collectList()
+                .map(list -> ResponseEntity.ok(ApiResponse.<List<CouponResponseDto>>builder()
+                        .status("success").statusCode(200).data(list).build()));
+    }
+
     @GetMapping("/all")
     @PreAuthorize("hasRole('ADMIN')")
     public Mono<ResponseEntity<ApiResponse<List<CouponResponseDto>>>> getAllCoupons() {

@@ -11,6 +11,9 @@ public interface CouponService {
     Mono<CouponResponseDto> createCoupon(CouponRequestDto dto);
     Mono<CouponResponseDto> getCouponByCode(String code);
     Flux<CouponResponseDto> getAllCoupons();
+    // Public counterpart to getAllCoupons() (ADMIN-only) — currently-active, currently-in-window
+    // offers only, for the storefront/chatbot's "what offers are available?" question.
+    Flux<CouponResponseDto> getActiveCoupons();
     Mono<CouponResponseDto> toggleActive(Long couponId);
     Mono<Void> deleteCoupon(Long couponId);
     Mono<ApplyCouponResponseDto> applyCoupon(ApplyCouponRequestDto dto);

@@ -1,0 +1,89 @@
+server:
+  port: 8014
+
+spring:
+  application:
+    name: zivdah-chat-service
+
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:root}
+    pool:
+      initial-size: 5
+      max-size: 20
+      max-idle-time: 30m
+
+  flyway:
+    url: jdbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
+    user: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:root}
+    locations: classpath:db/migration
+    table: flyway_schema_history_chat   # dedicated history table: zivdah_db is shared across services,
+                                          # so each service needs its own version numbering (see order-service's
+                                          # V2 checksum collision with product-service, and delivery-service's
+                                          # baselined-away V1)
+    baseline-on-migrate: true            # public schema already has other services' tables; baseline this new
+                                          # history table at V1 (already-run init) instead of erroring on non-empty schema
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
+
+    # Not used yet in Phase 1 (no producer/consumer wired) — present now so later phases
+    # (human-handoff events in Phase 3, notification listeners in Phase 5) need no yaml change.
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: true
+
+    consumer:
+      group-id: chat-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: com.zivdah.common.event
+        spring.json.use.type.headers: true
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://eureka-server:8761/eureka}
+
+logging:
+  level:
+    root: WARN
+
+jwt:
+  secret: ${JWT_SECRET}
+
+# Inter-service WebClient targets — externalized with the docker-compose service name as
+# fallback, matching every other service's own convention (see order-service/delivery-service's
+# application-prod.yaml; recall the prior prod-only bug from hardcoded localhost URLs here).
+order-service:
+  url: ${ORDER_SERVICE_URL:http://order-service:8005/restful/v1/api/orders}
+
+payment-service:
+  url: ${PAYMENT_SERVICE_URL:http://payment-service:8006/restful/v1/api/payments}
+
+delivery-service:
+  url: ${DELIVERY_SERVICE_URL:http://delivery-service:8013/restful/v1/api/delivery}
+
+product-service:
+  url: ${PRODUCT_SERVICE_URL:http://product-service:8003/restful/v1/api/products}
+
+coupon-service:
+  url: ${COUPON_SERVICE_URL:http://coupon-service:8011/restful/v1/api/coupons}
+
+# Reuses order-service's own AUTH_SERVICE_INTERNAL_URL env var (same internal, unauthenticated
+# lookup endpoint) rather than inventing a new one.
+auth-service:
+  url: ${AUTH_SERVICE_INTERNAL_URL:http://auth-service:8002/restful/v1/api/auth}
+
+# WaitingConversationEscalationScheduler's direct-REST call into notification-service.
+notification-service:
+  url: ${NOTIFICATION_SERVICE_URL:http://notification-service:8007/restful/v1/api/notifications}

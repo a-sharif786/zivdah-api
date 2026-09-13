@@ -858,6 +858,63 @@ services:
       - zivdah-network
 
 
+  # ============================================================
+  # CHAT SERVICE
+  # ============================================================
+
+  chat-service:
+    build:
+      context: ./zivdah-chat-service
+      dockerfile: Dockerfile
+
+    container_name: zivdah-chat-service
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+
+      SPRING_PROFILES_ACTIVE: prod
+
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+
+      SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_R2DBC_USERNAME: ${DB_USERNAME}
+
+      SPRING_R2DBC_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_FLYWAY_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+      SPRING_FLYWAY_USER: ${DB_USERNAME}
+
+      SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+
+      JWT_SECRET: ${JWT_SECRET}
+
+      # order-service.url/payment-service.url/delivery-service.url/product-service.url/
+      # coupon-service.url/auth-service.url/notification-service.url all default correctly to
+      # http://<compose-service-name>:<port>/... in application-prod.yaml already — no override
+      # needed here unless a deployment needs to point somewhere non-standard (same convention
+      # every other inter-service caller in this compose file already follows).
+
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+      kafka:
+        condition: service_started
+
+      eureka-server:
+        condition: service_started
+
+    networks:
+      - zivdah-network
+
+
 # ==============================================================
 # VOLUMES
 # ==============================================================

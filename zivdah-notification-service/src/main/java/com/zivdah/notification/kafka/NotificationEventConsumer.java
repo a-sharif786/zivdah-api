@@ -1,5 +1,9 @@
 package com.zivdah.notification.kafka;
 
+import com.zivdah.common.event.ChatConversationAcceptedEvent;
+import com.zivdah.common.event.ChatConversationClosedEvent;
+import com.zivdah.common.event.ChatHumanRequestedEvent;
+import com.zivdah.common.event.ChatMessageSentEvent;
 import com.zivdah.common.event.DeliveryAssignedEvent;
 import com.zivdah.common.event.DeliveryCompletedEvent;
 import com.zivdah.common.event.DeliveryFailedEvent;
@@ -164,6 +168,74 @@ public class NotificationEventConsumer {
                 "Order #" + orderId + " has been delivered successfully.", "DELIVERY_COMPLETED", null);
         notifyAdmins(orderId, "Order Delivered",
                 "Order #" + orderId + " has been delivered successfully.", "DELIVERY_COMPLETED", null);
+    }
+
+    // --- zivdah-chat-service events (Phase 5) ---
+    // Chat-service has no visibility into which specific ADMIN accounts are enabled as support
+    // agents (that roster is chat-service-only) — so, like order-created's own notifyAdmins(),
+    // this fans out to every ADMIN account rather than a narrower "on-duty agents" set.
+    @KafkaListener(topics = "chat-human-requested", groupId = "notification-group")
+    public void onChatHumanRequested(ChatHumanRequestedEvent event) {
+        Long conversationId = event.getConversationId();
+        log.info("Chat conversation {} requested human support (topic={})", conversationId, event.getTopic());
+        List<Long> adminIds = authServiceClient.getAdminUserIds().block();
+        if (adminIds == null || adminIds.isEmpty()) return;
+        String message = "A customer needs help"
+                + (event.getTopic() != null ? " with " + event.getTopic().toLowerCase() : "") + ".";
+        notificationService.sendToMany(adminIds, "New support request", message, "ADMIN",
+                        "CHAT_HUMAN_REQUESTED", "CHAT_CONVERSATION", conversationId,
+                        "CHAT_HUMAN_REQUESTED:" + conversationId)
+                .blockLast();
+    }
+
+    @KafkaListener(topics = "chat-conversation-accepted", groupId = "notification-group")
+    public void onChatConversationAccepted(ChatConversationAcceptedEvent event) {
+        Long conversationId = event.getConversationId();
+        log.info("Chat conversation {} accepted by agent {}", conversationId, event.getAgentId());
+        String agentName = event.getAgentDisplayName() != null ? event.getAgentDisplayName() : "A support agent";
+        notifyOneForChat(event.getCustomerId(), "USER", conversationId, "An agent has joined your chat",
+                agentName + " is now helping you.", "CHAT_CONVERSATION_ACCEPTED", null);
+    }
+
+    @KafkaListener(topics = "chat-message-sent", groupId = "notification-group")
+    public void onChatMessageSent(ChatMessageSentEvent event) {
+        // Best-effort push fallback for when the recipient's socket isn't open — the WebSocket
+        // already delivers it live if connected. Skip entirely if there's no one to notify yet
+        // (e.g. a customer message on a conversation nobody has accepted).
+        if (event.getRecipientUserId() == null) return;
+        String recipientRole = "AGENT".equals(event.getSenderType()) ? "USER" : "ADMIN";
+        // messageId as the dedup discriminator: unlike the one-time accept/close/handoff events,
+        // many messages legitimately share the same conversationId+recipient, so the plain key
+        // would silently drop every message after the first (see the class-level dedupKey note).
+        notifyOneForChat(event.getRecipientUserId(), recipientRole, event.getConversationId(), "New message",
+                event.getMessagePreview(), "CHAT_MESSAGE_SENT", String.valueOf(event.getMessageId()));
+    }
+
+    @KafkaListener(topics = "chat-conversation-closed", groupId = "notification-group")
+    public void onChatConversationClosed(ChatConversationClosedEvent event) {
+        Long conversationId = event.getConversationId();
+        log.info("Chat conversation {} closed (resolved={})", conversationId, event.isResolved());
+        notifyOneForChat(event.getCustomerId(), "USER", conversationId, "Chat closed",
+                event.isResolved()
+                        ? "Your support chat has been resolved. Please rate your experience."
+                        : "Your support chat has ended.",
+                "CHAT_CONVERSATION_CLOSED", null);
+    }
+
+    private void notifyOneForChat(Long recipientUserId, String recipientRole, Long conversationId, String title,
+                                   String message, String notificationType, String dedupDiscriminator) {
+        if (recipientUserId == null) return;
+        NotificationRequestDto dto = new NotificationRequestDto();
+        dto.setUserId(recipientUserId);
+        dto.setTitle(title);
+        dto.setMessage(message);
+        dto.setRecipientRole(recipientRole);
+        dto.setNotificationType(notificationType);
+        dto.setEntityType("CHAT_CONVERSATION");
+        dto.setEntityId(conversationId);
+        dto.setDedupKey(notificationType + ":" + conversationId
+                + (dedupDiscriminator != null ? ":" + dedupDiscriminator : "") + ":" + recipientUserId);
+        notificationService.sendNotification(dto).block();
     }
 
     // Customer + admin + the owning vendor — deliberately never the delivery boy who
