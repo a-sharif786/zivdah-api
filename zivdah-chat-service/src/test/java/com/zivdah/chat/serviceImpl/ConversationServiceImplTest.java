@@ -29,6 +29,7 @@ import reactor.test.StepVerifier;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 // Covers the two pieces of Phase 2 logic that are pure enough to unit test without a real DB:
@@ -73,6 +74,15 @@ class ConversationServiceImplTest {
                 .type(ConversationType.HUMAN)
                 .status(status)
                 .assignedAgentId(assignedAgentId)
+                .build();
+    }
+
+    private ChatConversation botConversation(Long customerId, ConversationStatus status) {
+        return ChatConversation.builder()
+                .id(42L)
+                .customerId(customerId)
+                .type(ConversationType.BOT)
+                .status(status)
                 .build();
     }
 
@@ -152,5 +162,61 @@ class ConversationServiceImplTest {
                 .expectNextMatches(c -> c.getStatus() == ConversationStatus.ACTIVE
                         && c.getAssignedAgentId().equals(7L))
                 .verifyComplete();
+    }
+
+    // Section: customer self-service end of an Assistant (BOT) conversation — the new endpoint
+    // this feature adds. closeConversation() above stays agent-only and untouched; these cover
+    // the BOT-only / ownership rules endOwnBotConversation layers on top of loadOwnedConversation.
+
+    @Test
+    void endOwnBotConversation_closesOpenBotConversationAndPersistsSystemMessage() {
+        when(conversationRepository.findById(42L))
+                .thenReturn(Mono.just(botConversation(100L, ConversationStatus.OPEN)));
+        when(conversationRepository.save(any(ChatConversation.class)))
+                .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        when(messageService.persistSystemMessage(eq(42L), any()))
+                .thenReturn(Mono.just(ChatMessage.builder()
+                        .id(2L).conversationId(42L).senderType(SenderType.SYSTEM)
+                        .messageType(MessageType.SYSTEM).message("Chat ended by you.")
+                        .status(MessageStatus.SENT).build()));
+
+        StepVerifier.create(service.endOwnBotConversation(42L, 100L))
+                .expectNextMatches(c -> c.getStatus() == ConversationStatus.CLOSED && c.getClosedAt() != null)
+                .verifyComplete();
+    }
+
+    @Test
+    void endOwnBotConversation_rejectsNonOwningCustomer() {
+        when(conversationRepository.findById(42L))
+                .thenReturn(Mono.just(botConversation(100L, ConversationStatus.OPEN)));
+
+        StepVerifier.create(service.endOwnBotConversation(42L, 999L))
+                .expectError(ForbiddenOperationException.class)
+                .verify();
+    }
+
+    // Only the assigned agent may end a HUMAN conversation (via closeConversation) — a customer
+    // can't route around that through this endpoint just because they own the conversation.
+    @Test
+    void endOwnBotConversation_rejectsHumanTypeConversation() {
+        when(conversationRepository.findById(42L))
+                .thenReturn(Mono.just(conversation(100L, 7L, ConversationStatus.ACTIVE)));
+
+        StepVerifier.create(service.endOwnBotConversation(42L, 100L))
+                .expectError(ForbiddenOperationException.class)
+                .verify();
+    }
+
+    @Test
+    void endOwnBotConversation_idempotentWhenAlreadyClosed() {
+        when(conversationRepository.findById(42L))
+                .thenReturn(Mono.just(botConversation(100L, ConversationStatus.CLOSED)));
+
+        StepVerifier.create(service.endOwnBotConversation(42L, 100L))
+                .expectNextMatches(c -> c.getStatus() == ConversationStatus.CLOSED)
+                .verifyComplete();
+
+        // No re-save / duplicate "chat ended" system message on a conversation that's already closed.
+        verifyNoInteractions(messageService);
     }
 }

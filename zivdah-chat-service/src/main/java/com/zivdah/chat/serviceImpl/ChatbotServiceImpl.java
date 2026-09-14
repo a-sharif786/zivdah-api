@@ -10,9 +10,11 @@ import com.zivdah.chat.dto.BotMessageRequestDto;
 import com.zivdah.chat.dto.BotMessageResponseDto;
 import com.zivdah.chat.entity.ChatConversation;
 import com.zivdah.chat.entity.ChatMessage;
+import com.zivdah.chat.enums.ConversationStatus;
 import com.zivdah.chat.enums.ConversationType;
 import com.zivdah.chat.enums.MessageType;
 import com.zivdah.chat.enums.SenderType;
+import com.zivdah.chat.exception.ConversationConflictException;
 import com.zivdah.chat.repository.MessageRepository;
 import com.zivdah.chat.service.ChatbotService;
 import com.zivdah.chat.service.ConversationService;
@@ -52,6 +54,14 @@ public class ChatbotServiceImpl implements ChatbotService {
                 : conversationService.loadOwnedConversation(request.getConversationId(), customerId);
 
         return conversationMono
+                // Belt-and-suspenders alongside the frontend disabling its composer once a chat is
+                // ended (user-initiated via endOwnBotConversation, or in principle any other future
+                // path to CLOSED) — a client-supplied conversationId is never trusted to still be
+                // open just because the frontend thinks it's showing an active thread.
+                .flatMap(conversation -> conversation.getStatus() == ConversationStatus.CLOSED
+                        ? Mono.<ChatConversation>error(new ConversationConflictException(
+                                "This chat has ended — start a new chat to keep talking to the assistant."))
+                        : Mono.just(conversation))
                 .flatMap(conversation -> persistInboundMessage(conversation, customerId, request.getMessage())
                         .thenReturn(conversation))
                 .flatMap(conversation -> {

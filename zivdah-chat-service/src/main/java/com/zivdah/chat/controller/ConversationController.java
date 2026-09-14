@@ -133,6 +133,20 @@ public class ConversationController {
                         .data(toDto(conversation)).build()));
     }
 
+    // Customer self-service counterpart to close() above — Assistant (BOT-type) conversations
+    // only. The existing close() endpoint stays admin/agent-only and is untouched; a HUMAN
+    // conversation can still only be ended by its assigned agent. See
+    // ConversationService#endOwnBotConversation for the BOT-only / ownership enforcement.
+    @PutMapping("/{id}/end")
+    @PreAuthorize("hasRole('USER')")
+    public Mono<ResponseEntity<ApiResponse<ConversationResponseDto>>> end(@PathVariable Long id) {
+        return currentUserId()
+                .flatMap(customerId -> conversationService.endOwnBotConversation(id, customerId))
+                .map(conversation -> ResponseEntity.ok(ApiResponse.<ConversationResponseDto>builder()
+                        .status("success").statusCode(200).message("Chat ended")
+                        .data(toDto(conversation)).build()));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public Mono<ResponseEntity<ApiResponse<ConversationResponseDto>>> getConversation(@PathVariable Long id) {

@@ -51,6 +51,16 @@ public interface ConversationService {
     // starts a fresh BOT-type conversation.
     Mono<ChatConversation> closeConversation(Long conversationId, Long agentId);
 
+    // PUT /conversations/{id}/end — the customer-side counterpart to closeConversation above, for
+    // Assistant (BOT-type) conversations only: a customer may end their own Assistant chat
+    // whenever they like, without any agent involvement. Verifies ownership (via
+    // loadOwnedConversation — 404/403 same as elsewhere) and that the conversation hasn't been
+    // handed off to HUMAN (ForbiddenOperationException/403 otherwise — only the assigned agent may
+    // end a HUMAN conversation, via closeConversation). Idempotent if already CLOSED. No WS/PRESENCE
+    // broadcast: BOT-mode conversations have no live socket session (zivdah-web only opens one in
+    // HUMAN mode), so there's no one to notify but the caller, who already knows.
+    Mono<ChatConversation> endOwnBotConversation(Long conversationId, Long customerId);
+
     // Phase 6 additions — list/queue/search views, each row enriched with a last-message preview
     // and (once rated) the customer's rating. -------------------------------------------------
 

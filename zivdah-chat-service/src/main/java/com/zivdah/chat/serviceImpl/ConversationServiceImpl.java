@@ -46,6 +46,7 @@ public class ConversationServiceImpl implements ConversationService {
     private static final String HUMAN_REQUESTED_SYSTEM_MESSAGE = "Customer requested a human agent.";
     private static final String AGENT_JOINED_MESSAGE = "Agent has joined the chat.";
     private static final String CONVERSATION_CLOSED_MESSAGE = "Conversation closed.";
+    private static final String CHAT_ENDED_BY_CUSTOMER_MESSAGE = "Chat ended by you.";
 
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
@@ -184,6 +185,35 @@ public class ConversationServiceImpl implements ConversationService {
                         })
                         .thenReturn(conversation))
                 .doOnSuccess(conversation -> log.info("Conversation {} closed by agent {}", conversationId, agentId));
+    }
+
+    // Customer self-service close, BOT-type only — see the interface javadoc. Deliberately its
+    // own method rather than a branch inside closeConversation() above: that one is agent-scoped
+    // (requireActiveAgent + assignedAgentId check, PRESENCE broadcast, Kafka
+    // ChatConversationClosedEvent for the notification pipeline) and none of that applies to a
+    // customer ending their own bot chat — keeping them separate means this change can't alter
+    // the existing HUMAN close path at all.
+    @Override
+    public Mono<ChatConversation> endOwnBotConversation(Long conversationId, Long customerId) {
+        return loadOwnedConversation(conversationId, customerId)
+                .flatMap(conversation -> {
+                    if (conversation.getType() != ConversationType.BOT) {
+                        return Mono.error(new ForbiddenOperationException(
+                                "This chat has been handed off to a human agent — only they can end it."));
+                    }
+                    if (conversation.getStatus() == ConversationStatus.CLOSED) {
+                        return Mono.just(conversation);
+                    }
+                    LocalDateTime now = LocalDateTime.now();
+                    conversation.setStatus(ConversationStatus.CLOSED);
+                    conversation.setClosedAt(now);
+                    conversation.setUpdatedAt(now);
+                    return conversationRepository.save(conversation)
+                            .flatMap(saved -> messageService
+                                    .persistSystemMessage(conversationId, CHAT_ENDED_BY_CUSTOMER_MESSAGE)
+                                    .thenReturn(saved));
+                })
+                .doOnSuccess(conversation -> log.info("Conversation {} ended by customer {}", conversationId, customerId));
     }
 
     private Mono<Void> publishHumanRequested(ChatConversation conversation) {
