@@ -41,7 +41,7 @@ logging:
 
 resend:
   api-key: ${RESEND_API_KEY}
-  from-email: ${RESEND_FROM_EMAIL:zivdahonlinegrocery@gmail.com}
+  from-email: ${MAIL_FROM_ADDRESS:no-reply@zivdahonlinegrocery.com}
 
 jwt:
   secret: my_super_secret_key_that_is_at_least_32_characters_long_123456

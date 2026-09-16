@@ -66,6 +66,9 @@ public class AuthServiceImpl implements AuthService {
                 .then(Mono.fromCallable(() -> passwordEncoder.encode(request.getPassword()))
                         .subscribeOn(Schedulers.boundedElastic()))
                 .flatMap(encodedPassword -> {
+                    // Mobile OTP stays the static demo value until a real SMS provider is wired
+                    // up; email OTP is real now, sent the same way forget-password sends its.
+                    String emailOtp = generateOtp();
                     UserEntity user = UserEntity.builder()
                             .name(request.getName())
                             .email(request.getEmail())
@@ -74,10 +77,12 @@ public class AuthServiceImpl implements AuthService {
                             .password(encodedPassword)
                             .active(false)
                             .mobileOtp(STATIC_OTP)
-                            .emailOtp(STATIC_OTP)
+                            .emailOtp(emailOtp)
                             .otpGeneratedAt(LocalDateTime.now())
                             .build();
-                    return userRepository.save(user);
+                    return userRepository.save(user)
+                            .flatMap(saved -> sendOtpEmail(saved.getEmail(), emailOtp,
+                                    "Verify your Zivdah account").thenReturn(saved));
                 })
                 .doOnSuccess(user -> log.info("User registered: {}", user.getMobile()))
                 .then();
@@ -249,19 +254,23 @@ public class AuthServiceImpl implements AuthService {
                     if (!Boolean.TRUE.equals(exists)) return Mono.just(false);
                     String otp = generateOtp();
                     otpStorage.put(email, otp);
-                    return Mono.fromCallable(() -> {
-                                CreateEmailOptions params = CreateEmailOptions.builder()
-                                        .from(fromEmail)
-                                        .to(email)
-                                        .subject("Password Reset OTP")
-                                        .text("Your OTP: " + otp + " (valid for 10 minutes)")
-                                        .build();
-                                return resend.emails().send(params);
-                            })
-                            .subscribeOn(Schedulers.boundedElastic())
-                            .doOnError(e -> log.error("Failed to send password reset OTP to {}", email, e))
-                            .thenReturn(true);
+                    return sendOtpEmail(email, otp, "Password Reset OTP").thenReturn(true);
                 });
+    }
+
+    private Mono<Void> sendOtpEmail(String toEmail, String otp, String subject) {
+        return Mono.fromCallable(() -> {
+                    CreateEmailOptions params = CreateEmailOptions.builder()
+                            .from(fromEmail)
+                            .to(toEmail)
+                            .subject(subject)
+                            .text("Your OTP: " + otp + " (valid for 10 minutes)")
+                            .build();
+                    return resend.emails().send(params);
+                })
+                .subscribeOn(Schedulers.boundedElastic())
+                .doOnError(e -> log.error("Failed to send OTP email to {}", toEmail, e))
+                .then();
     }
 
     @Override
