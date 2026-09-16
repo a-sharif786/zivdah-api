@@ -6,6 +6,7 @@ import com.zivdah.payment.dto.PaymentResponseDto;
 import com.zivdah.payment.dto.PaymentStatsResponseDto;
 import com.zivdah.payment.dto.RefundRequestDto;
 import com.zivdah.payment.enums.PaymentStatus;
+import com.zivdah.payment.gateway.ecomworldpay.dto.EcomWorldPayTransactionDto;
 import com.zivdah.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -102,5 +103,25 @@ public class PaymentController {
                 .collectList()
                 .map(list -> ResponseEntity.ok(ApiResponse.<List<PaymentResponseDto>>builder()
                         .status("success").statusCode(200).message("Payments retrieved").data(list).build()));
+    }
+
+    // Pushed by EcomWorldPay itself (see PAYIN doc, API Name: TRANSACTION CALLBACK) — no user JWT
+    // available, must stay permitAll (see SecurityConfig). Always acks 200 even for an unmatched
+    // invoiceNumber, so the gateway doesn't treat a stale/duplicate callback as a delivery failure
+    // and keep retrying it (see PaymentServiceImpl#handleGatewayCallback).
+    @PostMapping("/callback/ecomworldpay")
+    public Mono<ResponseEntity<ApiResponse<Void>>> ecomWorldPayCallback(@RequestBody EcomWorldPayTransactionDto callback) {
+        return paymentService.handleGatewayCallback(callback)
+                .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
+                        .status("success").statusCode(200).message("Callback processed").build()));
+    }
+
+    // Active poll against EcomWorldPay's Transaction Status API, for when the async callback
+    // above is missed or delayed.
+    @GetMapping("/{paymentId}/gateway-status")
+    public Mono<ResponseEntity<ApiResponse<PaymentResponseDto>>> refreshGatewayStatus(@PathVariable Long paymentId) {
+        return paymentService.refreshGatewayStatus(paymentId)
+                .map(r -> ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
+                        .status("success").statusCode(200).message("Gateway status refreshed").data(r).build()));
     }
 }

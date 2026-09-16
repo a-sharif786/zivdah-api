@@ -4,6 +4,7 @@ import com.zivdah.payment.dto.PaymentRequestDto;
 import com.zivdah.payment.dto.PaymentResponseDto;
 import com.zivdah.payment.dto.PaymentStatsResponseDto;
 import com.zivdah.payment.enums.PaymentStatus;
+import com.zivdah.payment.gateway.ecomworldpay.dto.EcomWorldPayTransactionDto;
 import org.springframework.data.domain.Pageable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -24,4 +25,11 @@ public interface PaymentService {
     Mono<Boolean> processPayment(Long orderId, BigDecimal amount);
     Flux<PaymentResponseDto> getAllPayments(Pageable pageable, PaymentStatus status);
     Mono<PaymentStatsResponseDto> getStats(LocalDateTime from, LocalDateTime to);
+
+    // EcomWorldPay UPI QR (PayIn) — see gateway.ecomworldpay package.
+    // Async push from the gateway (no user JWT — see SecurityConfig); matched to a payment via
+    // callback.getInvoiceNumber() == Payment.transactionId.
+    Mono<Void> handleGatewayCallback(EcomWorldPayTransactionDto callback);
+    // Active poll against the gateway's status-check API, for when a callback is missed/delayed.
+    Mono<PaymentResponseDto> refreshGatewayStatus(Long paymentId);
 }

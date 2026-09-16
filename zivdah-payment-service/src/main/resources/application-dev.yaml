@@ -48,6 +48,15 @@ spring:
 order-service:
   url: http://localhost:8005/restful/v1/api/orders
 
+ecomworldpay:
+  base-url: ${ECOMWORLDPAY_BASE_URL:https://api.ecomworldpay.net}
+  qr-intent-path: /api/registerupiintent
+  status-check-path: /api/merchant/transactions/status
+  tenant-id: ${ECOMWORLDPAY_TENANT_ID:TRN053}
+  merchant-id: ${ECOMWORLDPAY_MERCHANT_ID:KY9ZUK2TWFM=NTI=}
+  api-key: ${ECOMWORLDPAY_API_KEY:sundarsharma2018@gmail.com}
+  secret-key: ${ECOMWORLDPAY_SECRET_KEY:Sunder@2025}
+
 eureka:
   instance:
     prefer-ip-address: true

@@ -44,6 +44,8 @@ public class SecurityConfig {
                         // (see OrderServiceClient/PaymentServiceImpl#refundByOrder), mirrors how
                         // order-service exposes its own /payment-status and /delivery-status endpoints
                         .pathMatchers(HttpMethod.PUT, "/restful/v1/api/payments/order/*/refund").permitAll()
+                        // pushed by EcomWorldPay itself — no user JWT available (see PaymentController)
+                        .pathMatchers(HttpMethod.POST, "/restful/v1/api/payments/callback/**").permitAll()
                         .anyExchange().authenticated()
                 )
                 .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)

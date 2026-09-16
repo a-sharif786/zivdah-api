@@ -50,6 +50,16 @@ spring:
 order-service:
   url: ${ORDER_SERVICE_URL:http://order-service:8005/restful/v1/api/orders}
 
+# EcomWorldPay UPI QR (PayIn) — see application-dev.yaml and .env.example for the same block.
+ecomworldpay:
+  base-url: ${ECOMWORLDPAY_BASE_URL:https://api.ecomworldpay.net}
+  qr-intent-path: /api/registerupiintent
+  status-check-path: /api/merchant/transactions/status
+  tenant-id: ${ECOMWORLDPAY_TENANT_ID}
+  merchant-id: ${ECOMWORLDPAY_MERCHANT_ID}
+  api-key: ${ECOMWORLDPAY_API_KEY}
+  secret-key: ${ECOMWORLDPAY_SECRET_KEY}
+
 eureka:
   instance:
     prefer-ip-address: true

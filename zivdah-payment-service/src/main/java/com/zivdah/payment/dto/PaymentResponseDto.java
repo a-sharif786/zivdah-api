@@ -42,4 +42,13 @@ public class PaymentResponseDto {
     private BigDecimal refundAmount;
 
     private LocalDateTime refundedAt;
+
+    // EcomWorldPay UPI QR (PayIn) fields — see gateway.ecomworldpay package.
+    // Present once a UPI intent has been registered — the client renders this as a QR code /
+    // "pay via UPI app" link.
+    private String upiIntent;
+    private String gatewayTxnId;
+    private String payerVpa;
+    private String rrn;
+    private String npciTxnId;
 }

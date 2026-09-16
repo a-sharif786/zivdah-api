@@ -45,4 +45,14 @@ public class Payment {
     private BigDecimal refundAmount;
     private LocalDateTime refundedAt;
 
+    // EcomWorldPay UPI QR (PayIn) fields — see gateway.ecomworldpay package.
+    // Gateway's own transaction id (QR-response "transactionId" == callback/status "pgTxnId"),
+    // used as the correlation key for the status-check API. NOT the same as transactionId above,
+    // which is our own id and doubles as the invno/invoiceNumber sent to the gateway.
+    private String gatewayTxnId;
+    private String upiIntent;      // QR string URL returned by the QR API, for the client to render
+    private String payerVpa;
+    private String rrn;            // Bank reference number / UTR
+    private String npciTxnId;
+
 }
