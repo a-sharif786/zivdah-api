@@ -127,6 +127,9 @@ public class AuthController {
                 .map(user -> InternalUserInfoDTO.builder()
                         .id(user.getId()).name(user.getName())
                         .email(user.getEmail()).mobile(user.getMobile())
+                        .bankAccountNumber(user.getBankAccountNumber())
+                        .bankIfscCode(user.getBankIfscCode())
+                        .upiVpa(user.getUpiVpa())
                         .build())
                 .map(dto -> ResponseEntity.ok(ApiResponse.<InternalUserInfoDTO>builder()
                         .status("success").statusCode(200).message("User info fetched").data(dto).build()));
@@ -189,6 +192,16 @@ public class AuthController {
                 .then(authService.updateProfile(userId, dto))
                 .map(r -> ResponseEntity.ok(ApiResponse.<UserResponseDTO>builder()
                         .status("success").statusCode(200).message("Profile updated successfully").data(r).build()));
+    }
+
+    // Lets the vendor payout UI prefill its bank-details form before any edit, without
+    // pulling back the wider UserResponseDTO/LoginResponseDTO shape.
+    @GetMapping("/bank-details/{userId}")
+    public Mono<ResponseEntity<ApiResponse<BankDetailsResponseDTO>>> getBankDetails(@PathVariable Long userId) {
+        return requireOwnerOrAdmin(userId)
+                .then(authService.getBankDetails(userId))
+                .map(r -> ResponseEntity.ok(ApiResponse.<BankDetailsResponseDTO>builder()
+                        .status("success").statusCode(200).message("Bank details fetched").data(r).build()));
     }
 
     @PostMapping("/forget-password")

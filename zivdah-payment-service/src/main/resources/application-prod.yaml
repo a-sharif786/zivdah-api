@@ -50,11 +50,23 @@ spring:
 order-service:
   url: ${ORDER_SERVICE_URL:http://order-service:8005/restful/v1/api/orders}
 
-# EcomWorldPay UPI QR (PayIn) — see application-dev.yaml and .env.example for the same block.
+# Reached over the compose network by auth-service's Compose service name — same reasoning as
+# order-service above. Used by VendorPayoutServiceImpl/AuthServiceClient to fetch a vendor's
+# bank/UPI details before submitting a payout.
+# NOTE: this hits an unauthenticated /internal/** endpoint (see auth-service's SecurityConfig),
+# so it must stay on the internal Docker network and never round-trip through the public
+# gateway, where that same unauthenticated path would otherwise be reachable by anyone — same
+# reasoning as zivdah-order-service's own AUTH_SERVICE_INTERNAL_URL.
+auth-service:
+  url: ${AUTH_SERVICE_INTERNAL_URL:http://auth-service:8002/restful/v1/api/auth}
+
+# EcomWorldPay UPI QR (PayIn) + Payout — see application-dev.yaml and .env.example for the same block.
 ecomworldpay:
   base-url: ${ECOMWORLDPAY_BASE_URL:https://api.ecomworldpay.net}
   qr-intent-path: /api/registerupiintent
   status-check-path: /api/merchant/transactions/status
+  payout-path: /api/payout/payments
+  payout-status-path: /api/payout/transStatus
   tenant-id: ${ECOMWORLDPAY_TENANT_ID}
   merchant-id: ${ECOMWORLDPAY_MERCHANT_ID}
   api-key: ${ECOMWORLDPAY_API_KEY}

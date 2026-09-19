@@ -39,6 +39,11 @@ public class SecurityConfig {
                         // "all" would otherwise also match "/payments/*" the same way "/payments/{paymentId}" does
                         .pathMatchers(HttpMethod.GET, "/restful/v1/api/payments/all").authenticated()
                         .pathMatchers(HttpMethod.GET, "/restful/v1/api/payments/stats").authenticated()
+                        // same reasoning: "/payments/payouts" and "/payments/payouts/mine" would otherwise
+                        // also fall into the single-segment "/payments/*" wildcard's permitAll below —
+                        // pushed by EcomWorldPay itself, no user JWT available (see VendorPayoutController)
+                        .pathMatchers(HttpMethod.POST, "/restful/v1/api/payments/payouts/callback").permitAll()
+                        .pathMatchers("/restful/v1/api/payments/payouts/**").authenticated()
                         .pathMatchers("/restful/v1/api/payments/*").permitAll()
                         // internal, order-service-only sync — no user JWT available for this call
                         // (see OrderServiceClient/PaymentServiceImpl#refundByOrder), mirrors how

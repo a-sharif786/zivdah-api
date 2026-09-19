@@ -43,6 +43,7 @@ public interface AuthService {
     Mono<Void> deactivateDeviceToken(String fcmToken);
 
     Mono<UserResponseDTO> updateProfile(Long userId, UpdateUserProfileDTO dto);
+    Mono<BankDetailsResponseDTO> getBankDetails(Long userId);
     Mono<Boolean> sendPasswordResetOtp(String email);
     Mono<ResetPasswordResponseDTO> resetPassword(ResetPasswordDTO request);
     Mono<String> verifyRegistrationOtp(VerifyOtpDTO request);

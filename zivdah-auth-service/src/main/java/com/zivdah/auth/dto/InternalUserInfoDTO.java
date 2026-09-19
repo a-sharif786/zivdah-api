@@ -2,11 +2,12 @@ package com.zivdah.auth.dto;
 
 import lombok.*;
 
-// Minimal customer snapshot for other services' internal (no user JWT) reads — currently
-// zivdah-order-service's AuthServiceClient, which needs a customer's name/email/mobile to
-// print on a generated invoice. Deliberately narrower than AuthUserResponseDTO (no role/active/id
-// beyond what's needed) to keep an unauthenticated endpoint's exposure minimal, same reasoning
-// as getAdminUserIds()/getActiveDeviceTokens().
+// Minimal customer snapshot for other services' internal (no user JWT) reads —
+// zivdah-order-service's AuthServiceClient (customer's name/email/mobile for a generated
+// invoice) and zivdah-payment-service's AuthServiceClient (a vendor's bank/UPI details on
+// file, to build an EcomWorldPay payout request). Deliberately narrower than
+// AuthUserResponseDTO (no role/active beyond what's needed) to keep an unauthenticated
+// endpoint's exposure minimal, same reasoning as getAdminUserIds()/getActiveDeviceTokens().
 @Getter
 @Setter
 @NoArgsConstructor
@@ -17,4 +18,7 @@ public class InternalUserInfoDTO {
     private String name;
     private String email;
     private String mobile;
+    private String bankAccountNumber;
+    private String bankIfscCode;
+    private String upiVpa;
 }

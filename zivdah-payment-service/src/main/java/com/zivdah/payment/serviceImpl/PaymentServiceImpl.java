@@ -1,5 +1,7 @@
 package com.zivdah.payment.serviceImpl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zivdah.common.event.PaymentCompletedEvent;
 import com.zivdah.payment.client.OrderServiceClient;
 import com.zivdah.payment.dto.DailyAmountDto;
@@ -10,6 +12,8 @@ import com.zivdah.payment.entity.Payment;
 import com.zivdah.payment.enums.PaymentMethod;
 import com.zivdah.payment.enums.PaymentStatus;
 import com.zivdah.payment.gateway.ecomworldpay.EcomWorldPayClient;
+import com.zivdah.payment.gateway.ecomworldpay.EcomWorldPayException;
+import com.zivdah.payment.gateway.ecomworldpay.TransactionNotYetAvailableException;
 import com.zivdah.payment.gateway.ecomworldpay.dto.EcomWorldPayTransactionDto;
 import com.zivdah.payment.gateway.ecomworldpay.dto.QrIntentRequest;
 import com.zivdah.payment.kafka.PaymentKafkaProducer;
@@ -37,7 +41,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
-
+    private final ObjectMapper objectMapper;
     private final PaymentRepository paymentRepository;
     private final PaymentStatsRepository paymentStatsRepository;
     private final PaymentKafkaProducer paymentKafkaProducer;
@@ -60,6 +64,21 @@ public class PaymentServiceImpl implements PaymentService {
         // Only UPI goes through EcomWorldPay's QR intent flow (this integration's whole scope) —
         // every other method keeps the pre-existing behaviour of a bare PENDING record that the
         // caller (COD) or a future gateway integration (CARD/NET_BANKING/...) settles separately.
+
+
+
+
+
+
+        try {
+            log.warn(
+                    "EcomWorldPay payment not found: {}",
+                    objectMapper.writeValueAsString(dto)
+            );
+        } catch (JsonProcessingException e) {
+            log.warn("EcomWorldPay payment not found: {}", payment, e);
+        }
+
         if (dto.getMethod() != PaymentMethod.UPI) {
             return paymentRepository.save(payment).map(this::mapToResponse);
         }
@@ -69,7 +88,14 @@ public class PaymentServiceImpl implements PaymentService {
             return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "firstName, lastName, mobile and email are required for UPI payments"));
         }
-
+        try {
+            log.warn(
+                    "EcomWorldPay payment not found: {}",
+                    objectMapper.writeValueAsString(payment)
+            );
+        } catch (JsonProcessingException e) {
+            log.warn("EcomWorldPay payment not found: {}", payment, e);
+        }
         return paymentRepository.save(payment)
                 .flatMap(saved -> registerUpiIntent(saved, dto))
                 .map(this::mapToResponse);
@@ -95,6 +121,16 @@ public class PaymentServiceImpl implements PaymentService {
                 .email(dto.getEmail())
                 .build();
 
+
+        try {
+            log.warn(
+                    "EcomWorldPay payment not found: {}",
+                    objectMapper.writeValueAsString(request)
+            );
+        } catch (JsonProcessingException e) {
+            log.warn("EcomWorldPay payment not found: {}", request, e);
+        }
+
         return ecomWorldPayClient.createUpiIntent(request)
                 .flatMap(response -> {
                     boolean created = response.getStatus() != null && response.getStatus().equalsIgnoreCase("SUCCESS");
@@ -103,24 +139,48 @@ public class PaymentServiceImpl implements PaymentService {
                     saved.setGatewayName("ECOMWORLDPAY");
                     saved.setStatus(created ? PaymentStatus.PROCESSING : PaymentStatus.FAILED);
                     if (!created) {
-                        saved.setFailureReason("EcomWorldPay declined UPI intent creation");
+                        saved.setFailureReason(response.getMessage() != null
+                                ? response.getMessage() : "EcomWorldPay declined UPI intent creation");
                     }
                     saved.setUpdatedAt(LocalDateTime.now());
+
                     return paymentRepository.save(saved);
                 })
                 .onErrorResume(ex -> {
                     saved.setStatus(PaymentStatus.FAILED);
-                    saved.setFailureReason("UPI intent creation error: " + ex.getMessage());
+                    // EcomWorldPayException's message is the gateway's own error text (see
+                    // EcomWorldPayClient) — shown to the customer as-is. Any other exception here
+                    // is a genuine connectivity/unexpected failure, not something the gateway told
+                    // us, so it keeps a prefix for context.
+                    saved.setFailureReason(ex instanceof EcomWorldPayException
+                            ? ex.getMessage() : "UPI intent creation error: " + ex.getMessage());
                     saved.setUpdatedAt(LocalDateTime.now());
                     return paymentRepository.save(saved);
                 });
     }
 
+
     @Override
     public Mono<PaymentResponseDto> getPayment(Long paymentId) {
         return paymentRepository.findById(paymentId)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId)))
+                .flatMap(this::refreshIfAwaitingGateway)
                 .map(this::mapToResponse);
+    }
+
+    private Mono<Payment> refreshIfAwaitingGateway(Payment p) {
+        if (p.getMethod() != PaymentMethod.UPI || p.getStatus() != PaymentStatus.PROCESSING || isBlank(p.getGatewayTxnId())) {
+            return Mono.just(p);
+        }
+        return ecomWorldPayClient.checkTransactionStatus(p.getGatewayTxnId())
+                .flatMap(result -> applyGatewayResult(p, result))
+                .onErrorResume(TransactionNotYetAvailableException.class, ex -> Mono.just(p))
+                .onErrorResume(ex -> {
+                    // A plain payment lookup must not fail just because the gateway call hiccuped —
+                    // the caller gets the last-known (still PROCESSING) state and tries again later.
+                    log.warn("Background gateway status refresh failed for payment {}: {}", p.getId(), ex.getMessage());
+                    return Mono.just(p);
+                });
     }
 
     @Override
@@ -199,12 +259,16 @@ public class PaymentServiceImpl implements PaymentService {
         return paymentRepository.findById(paymentId)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId)))
                 .flatMap(p -> {
-                    if (p.getGatewayTxnId() == null) {
+                    if (isBlank(p.getGatewayTxnId())) {
                         return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                 "Payment " + paymentId + " has no associated gateway transaction to check"));
                     }
                     return ecomWorldPayClient.checkTransactionStatus(p.getGatewayTxnId())
-                            .flatMap(result -> applyGatewayResult(p, result));
+                            .flatMap(result -> applyGatewayResult(p, result))
+                            // The customer's UPI payment is still in flight at EcomWorldPay/NPCI — not a
+                            // decline, just "ask again later". Leave the payment PROCESSING as-is so the
+                            // next poll/click can still resolve it, instead of surfacing this as an error.
+                            .onErrorResume(TransactionNotYetAvailableException.class, ex -> Mono.just(p));
                 })
                 .map(this::mapToResponse);
     }
@@ -213,20 +277,40 @@ public class PaymentServiceImpl implements PaymentService {
     // action (PENDING/PROCESSING). Idempotent: a payment already in a terminal state is returned
     // as-is — EcomWorldPay's callback can be retried, and the status-check API can be polled
     // repeatedly, so this must not double-publish the Kafka event or re-sync order-service.
+    //
+    // result's fields are only trusted (and only overwrite the payment's own) when non-blank — an
+    // inconclusive gateway answer must never blank out a gatewayTxnId/response that a prior, good
+    // answer already recorded. Similarly, a null/unrecognized status is left PROCESSING rather than
+    // treated as a decline: EcomWorldPay's flat DTO shape is only sent for a truly resolved outcome
+    // (see EcomWorldPayClient#checkTransactionStatus for the "not resolved yet" case), so reaching
+    // here with neither SUCCESS nor a real status is unexpected and safest treated as "try again".
     private Mono<Payment> applyGatewayResult(Payment p, EcomWorldPayTransactionDto result) {
         if (p.getStatus() == PaymentStatus.SUCCESS || p.getStatus() == PaymentStatus.FAILED
                 || p.getStatus() == PaymentStatus.REFUNDED || p.getStatus() == PaymentStatus.CANCELLED) {
             return Mono.just(p);
         }
 
-        p.setGatewayTxnId(result.getPgTxnId());
-        p.setPayerVpa(result.getPayerVPA());
-        p.setRrn(result.getRrn());
-        p.setNpciTxnId(result.getNpciTxnId());
+        if (!isBlank(result.getPgTxnId())) {
+            p.setGatewayTxnId(result.getPgTxnId());
+        }
+        if (!isBlank(result.getPayerVPA())) {
+            p.setPayerVpa(result.getPayerVPA());
+        }
+        if (!isBlank(result.getRrn())) {
+            p.setRrn(result.getRrn());
+        }
+        if (!isBlank(result.getNpciTxnId())) {
+            p.setNpciTxnId(result.getNpciTxnId());
+        }
         p.setGatewayName("ECOMWORLDPAY");
-        p.setGatewayResponse(result.getResponseMessage());
+        if (!isBlank(result.getResponseMessage())) {
+            p.setGatewayResponse(result.getResponseMessage());
+        }
 
-        boolean success = result.getStatus() != null && result.getStatus().equalsIgnoreCase("SUCCESS");
+        if (result.getStatus() == null) {
+            return Mono.just(p); // unresolved/unrecognized — stay PROCESSING, don't guess
+        }
+        boolean success = result.getStatus().equalsIgnoreCase("SUCCESS");
         return success ? transitionToSuccess(p) : transitionToFailed(p, result.getResponseMessage());
     }
 
@@ -363,6 +447,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .amount(p.getAmount()).method(p.getMethod()).status(p.getStatus())
                 .transactionId(p.getTransactionId()).createdAt(p.getCreatedAt())
                 .refundAmount(p.getRefundAmount()).refundedAt(p.getRefundedAt())
+                .failureReason(p.getFailureReason())
                 .upiIntent(p.getUpiIntent()).gatewayTxnId(p.getGatewayTxnId())
                 .payerVpa(p.getPayerVpa()).rrn(p.getRrn()).npciTxnId(p.getNpciTxnId())
                 .build();

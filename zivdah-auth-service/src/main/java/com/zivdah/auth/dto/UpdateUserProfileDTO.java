@@ -17,4 +17,11 @@ public class UpdateUserProfileDTO {
 //    @Email(message = "Invalid email format")
 //    @NotBlank(message = "Email is required")
 //    private String email;
+
+    // Vendor payout destination fields — optional and independent of `name`. Left out of a
+    // request (null), the existing stored value is kept as-is rather than wiped; see
+    // AuthServiceImpl#updateProfile.
+    private String bankAccountNumber;
+    private String bankIfscCode;
+    private String upiVpa;
 }

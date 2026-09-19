@@ -21,4 +21,5 @@ public class QrIntentResponse {
     private String intent;
     private String transactionId;
     private String status;
+    private String message; // present (only) on a FAIL response, e.g. "Payin service is de-activated. No bank found."
 }

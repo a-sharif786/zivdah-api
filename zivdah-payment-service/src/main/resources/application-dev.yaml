@@ -48,14 +48,22 @@ spring:
 order-service:
   url: http://localhost:8005/restful/v1/api/orders
 
+# auth-service runs on the same host in dev (port 8002) — see application-prod.yaml for why
+# this differs there. Used by VendorPayoutServiceImpl/AuthServiceClient to fetch a vendor's
+# bank/UPI details on file before submitting a payout.
+auth-service:
+  url: http://localhost:8002/restful/v1/api/auth
+
 ecomworldpay:
   base-url: ${ECOMWORLDPAY_BASE_URL:https://api.ecomworldpay.net}
   qr-intent-path: /api/registerupiintent
   status-check-path: /api/merchant/transactions/status
+  payout-path: /api/payout/payments
+  payout-status-path: /api/payout/transStatus
   tenant-id: ${ECOMWORLDPAY_TENANT_ID:TRN053}
-  merchant-id: ${ECOMWORLDPAY_MERCHANT_ID:KY9ZUK2TWFM=NTI=}
-  api-key: ${ECOMWORLDPAY_API_KEY:sundarsharma2018@gmail.com}
-  secret-key: ${ECOMWORLDPAY_SECRET_KEY:Sunder@2025}
+  merchant-id: ${ECOMWORLDPAY_MERCHANT_ID:lCqSVz12j6M=NTI=}
+  api-key: ${ECOMWORLDPAY_API_KEY:d6618af0-4b61-4313-baa3-08fd1e3a03a3}
+  secret-key: ${ECOMWORLDPAY_SECRET_KEY:f4026293-9059-43da-917e-c010746154c4}
 
 eureka:
   instance:

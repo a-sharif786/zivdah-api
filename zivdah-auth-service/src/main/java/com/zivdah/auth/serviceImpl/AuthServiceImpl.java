@@ -236,6 +236,11 @@ public class AuthServiceImpl implements AuthService {
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found")))
                 .flatMap(user -> {
                     user.setName(dto.getName());
+                    // Optional and independent of name — a field left out of the request (null)
+                    // keeps whatever is already on file rather than being wiped.
+                    if (dto.getBankAccountNumber() != null) user.setBankAccountNumber(dto.getBankAccountNumber());
+                    if (dto.getBankIfscCode() != null) user.setBankIfscCode(dto.getBankIfscCode());
+                    if (dto.getUpiVpa() != null) user.setUpiVpa(dto.getUpiVpa());
                     return userRepository.save(user);
                 })
                 .map(user -> UserResponseDTO.builder()
@@ -244,6 +249,17 @@ public class AuthServiceImpl implements AuthService {
                         .email(user.getEmail())
                         .mobile(user.getMobile())
                         .role(user.getRole().name())
+                        .build());
+    }
+
+    @Override
+    public Mono<BankDetailsResponseDTO> getBankDetails(Long userId) {
+        return userRepository.findById(userId)
+                .switchIfEmpty(Mono.error(new RuntimeException("User not found")))
+                .map(user -> BankDetailsResponseDTO.builder()
+                        .bankAccountNumber(user.getBankAccountNumber())
+                        .bankIfscCode(user.getBankIfscCode())
+                        .upiVpa(user.getUpiVpa())
                         .build());
     }
 

@@ -536,6 +536,10 @@ services:
 
       JWT_SECRET: ${JWT_SECRET}
 
+      # See order-service's own use of this var / application-prod.yaml for why it must stay
+      # internal-network-only rather than pointing at the public gateway domain.
+      AUTH_SERVICE_INTERNAL_URL: ${AUTH_SERVICE_INTERNAL_URL}
+
       ECOMWORLDPAY_BASE_URL: ${ECOMWORLDPAY_BASE_URL}
 
       ECOMWORLDPAY_TENANT_ID: ${ECOMWORLDPAY_TENANT_ID}

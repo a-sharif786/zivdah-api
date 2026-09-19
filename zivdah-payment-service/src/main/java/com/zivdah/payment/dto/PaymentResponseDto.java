@@ -43,6 +43,10 @@ public class PaymentResponseDto {
 
     private LocalDateTime refundedAt;
 
+    // Set only when status is FAILED — the payment gateway's own error text (see
+    // EcomWorldPayClient/PaymentServiceImpl#registerUpiIntent), shown to the customer verbatim.
+    private String failureReason;
+
     // EcomWorldPay UPI QR (PayIn) fields — see gateway.ecomworldpay package.
     // Present once a UPI intent has been registered — the client renders this as a QR code /
     // "pay via UPI app" link.
