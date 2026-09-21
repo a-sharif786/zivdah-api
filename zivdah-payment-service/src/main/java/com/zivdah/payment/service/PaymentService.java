@@ -14,6 +14,10 @@ import java.time.LocalDateTime;
 
 public interface PaymentService {
     Mono<PaymentResponseDto> initiatePayment(PaymentRequestDto dto);
+    // Attaches a real orderId to a payment intent that was created before the order existed (see
+    // initiatePayment). Idempotent no-op if already linked to this same orderId; 409 if already
+    // linked to a different one.
+    Mono<PaymentResponseDto> linkOrder(Long paymentId, Long orderId);
     Mono<PaymentResponseDto> getPayment(Long paymentId);
     Flux<PaymentResponseDto> getPaymentsByOrder(Long orderId);
     Mono<PaymentResponseDto> markPaymentSuccess(Long paymentId);

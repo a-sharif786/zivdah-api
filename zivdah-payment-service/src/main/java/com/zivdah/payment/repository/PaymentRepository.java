@@ -22,6 +22,10 @@ public interface PaymentRepository extends ReactiveCrudRepository<Payment, Long>
     // see EcomWorldPayClient / PaymentServiceImpl#handleGatewayCallback.
     Mono<Payment> findByTransactionId(String transactionId);
 
+    // Client-generated key for one checkout attempt — see PaymentServiceImpl#initiatePayment's
+    // idempotency lookup, backed by a partial unique index (V6 migration).
+    Mono<Payment> findByCheckoutRef(String checkoutRef);
+
     // Aggregate stats queries (totals + daily series) live in PaymentStatsRepository, hand-written
     // against DatabaseClient — see that class for why they aren't plain @Query interface
     // projections here.

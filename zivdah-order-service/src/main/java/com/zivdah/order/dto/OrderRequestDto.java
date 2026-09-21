@@ -11,6 +11,11 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class OrderRequestDto {
+    // Client-generated, required. Identifies one checkout attempt end-to-end so retrying
+    // "Place Order" (same cart) never creates a second order — see
+    // OrderServiceImpl#createOrder's idempotency lookup.
+    private String idempotencyKey;
+
     private Long userId;
 
     // Pricing

@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "38b6e912-acaa-438d-ac88-aab118f99c6b",
     "name": "Zivdah API — Admin, User & Vendor",
-    "description": "All zivdah-api microservice endpoints, routed through the API gateway\n(http://localhost:8001), covering all four roles enforced by the backend:\nADMIN, USER (customer), VENDOR (merchant) and DELIVERY_BOY.\n\nStart with folder \"0. Bootstrap\" to register/login and populate\n{{adminToken}} / {{userToken}} / {{vendorToken}} / {{deliveryBoyToken}}\nautomatically. Folders 12 (Delivery Service) and 13 (Log Server) plus\nseveral internal/admin-only endpoints added across the other folders were\nnot part of the original export — see each folder's description for its\nbase path.\n\nRequests flagged with ⚠ in their description hit endpoints where the live\nbackend currently has weaker auth than you might expect (missing\n@PreAuthorize / ownership checks, or an unintentionally public route) —\nthey are included as-is to match the real API, not as a recommendation.",
+    "description": "All zivdah-api microservice endpoints, routed through the API gateway\n(http://localhost:8001), covering all four roles enforced by the backend:\nADMIN, USER (customer), VENDOR (merchant) and DELIVERY_BOY.\n\nStart with folder \"0. Bootstrap\" to register/login and populate\n{{adminToken}} / {{userToken}} / {{vendorToken}} / {{deliveryBoyToken}}\nautomatically — every other request already references those variables.\n\nRefreshed 2026-09-20 against the live controllers to add folder \"9. Invoices\"\n(order-service's separate InvoiceController), a \"Vendor Payouts\" subfolder plus\ngateway-status/webhook endpoints under \"10. Payment Service\", and the brand-new\n\"15. Chat Service\" (bot + human support chat, incl. its WebSocket endpoint — see\nthat folder's description). Inventory Service's add/reserve/release/confirm\nendpoints were also found to now require a role — previously open to any\nauthenticated user, tightened since this collection was last exported.\n\nRequests flagged with ⚠ in their description hit endpoints where the live\nbackend currently has weaker auth than you might expect (missing\n@PreAuthorize / ownership checks, or an unintentionally public route) —\nthey are included as-is to match the real API, not as a recommendation.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "54875269",
     "_collection_link": "https://go.postman.co/collection/54875269-38b6e912-acaa-438d-ac88-aab118f99c6b?source=collection_link"
@@ -963,6 +963,52 @@
               ]
             },
             "description": "Requires role: ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Internal: Get User By Id (for Order Service)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/internal/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "internal",
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "description": "⚠ Internal, no authentication — called by zivdah-order-service to resolve customer details when building an order/invoice.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Bank Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/bank-details/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "bank-details",
+                "{{userId}}"
+              ]
+            },
+            "description": "Returns the bank/UPI payout details saved via \"Update Own Profile\" (bankAccountNumber, bankIfscCode, upiVpa) — the same fields the vendor payout flow reads from.\n\nRequires the caller to be the resource owner OR role ADMIN (manual check, not @PreAuthorize). Using {{userToken}} by default — swap to {{adminToken}} to test as admin."
           },
           "response": []
         }
@@ -2291,6 +2337,25 @@
           "response": []
         },
         {
+          "name": "Get Active Coupons",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/coupons/active",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coupons",
+                "active"
+              ]
+            },
+            "description": "Lists currently-active, currently-valid (validFrom <= now <= validUntil) coupons — backs the support chatbot's \"what offers are available\" intent. Rides the same single-segment permitAll pattern as \"Get Coupon By Code\"; no dedicated auth rule.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
           "name": "Admin: List All Coupons",
           "request": {
             "method": "GET",
@@ -2471,7 +2536,7 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{userToken}}"
+                "value": "Bearer {{vendorToken}}"
               }
             ],
             "body": {
@@ -2493,7 +2558,7 @@
                 "add"
               ]
             },
-            "description": "⚠ No @PreAuthorize on this endpoint in the current backend — any authenticated user (plain USER role) can add stock, not just ADMIN/VENDOR.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+            "description": "Tightened since the last collection export — this now requires role: ADMIN or VENDOR (previously open to any authenticated user). Vendor calls are checked against product ownership (403 if the product isn't theirs).\n\nRequires role: ADMIN or VENDOR. Using {{vendorToken}} by default — swap to {{adminToken}} to test as admin."
           },
           "response": []
         },
@@ -2508,7 +2573,7 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{userToken}}"
+                "value": "Bearer {{adminToken}}"
               }
             ],
             "body": {
@@ -2530,7 +2595,7 @@
                 "reserve"
               ]
             },
-            "description": "⚠ No @PreAuthorize on this endpoint in the current backend.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+            "description": "Tightened since the last collection export — this now requires role: ADMIN (previously open to any authenticated user). Not driven by any UI — the real reserve flow goes through the Kafka consumer directly when an order is placed.\n\nRequires role: ADMIN."
           },
           "response": []
         },
@@ -2545,7 +2610,7 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{userToken}}"
+                "value": "Bearer {{adminToken}}"
               }
             ],
             "body": {
@@ -2567,7 +2632,7 @@
                 "release"
               ]
             },
-            "description": "⚠ No @PreAuthorize on this endpoint in the current backend.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+            "description": "Tightened since the last collection export — this now requires role: ADMIN (previously open to any authenticated user). Not driven by any UI — the real release flow goes through the Kafka consumer directly when an order is cancelled.\n\nRequires role: ADMIN."
           },
           "response": []
         },
@@ -2582,7 +2647,7 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{userToken}}"
+                "value": "Bearer {{adminToken}}"
               }
             ],
             "body": {
@@ -2604,7 +2669,7 @@
                 "confirm"
               ]
             },
-            "description": "⚠ No @PreAuthorize on this endpoint in the current backend.\n\nRequires any authenticated user (no specific role enforced). Any of {{userToken}}/{{vendorToken}}/{{adminToken}} works."
+            "description": "Tightened since the last collection export — this now requires role: ADMIN (previously open to any authenticated user). Not driven by any UI — the real confirm flow goes through the Kafka consumer directly when an order is paid.\n\nRequires role: ADMIN."
           },
           "response": []
         },
@@ -2985,7 +3050,218 @@
       "description": "Base path: /restful/v1/api/orders"
     },
     {
-      "name": "9. Payment Service",
+      "name": "9. Invoices",
+      "item": [
+        {
+          "name": "Generate Invoice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const json = pm.response.json();",
+                  "    const val = json?.data?.id;",
+                  "    if (val !== undefined && val !== null) {",
+                  "        pm.collectionVariables.set('invoiceId', val);",
+                  "        console.log('Captured invoiceId =', val);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/invoices/generate/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "invoices",
+                "generate",
+                "{{orderId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentMethod\": \"UPI\",\n  \"transactionId\": \"txn_demo_123\",\n  \"paidAt\": \"2026-09-19T10:00:00\",\n  \"force\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Body is optional — omit entirely (or send {}) to generate from the order's already-recorded payment info. Set force=true to regenerate an existing invoice.\n\nRequires the caller to be the order's owner, an ADMIN, or a vendor with an item on the order."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Invoice By Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/invoices/{{invoiceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "invoices",
+                "{{invoiceId}}"
+              ]
+            },
+            "description": "Requires the caller to be the order's owner, an ADMIN, or a vendor with an item on the order."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Invoice By Order",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/invoices/order/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "invoices",
+                "order",
+                "{{orderId}}"
+              ]
+            },
+            "description": "Requires the caller to be the order's owner, an ADMIN, or a vendor with an item on the order."
+          },
+          "response": []
+        },
+        {
+          "name": "Download Invoice PDF",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/invoices/{{invoiceId}}/download?mode=inline",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "invoices",
+                "{{invoiceId}}",
+                "download"
+              ],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "inline"
+                }
+              ]
+            },
+            "description": "Returns raw application/pdf bytes, not the usual ApiResponse JSON envelope — in Postman use \"Send and Download\" (or the Body > Preview tab) to view/save the PDF instead of the default Pretty/JSON view. mode=attachment sends a Content-Disposition: attachment header instead of inline.\n\nRequires the caller to be the order's owner, an ADMIN, or a vendor with an item on the order."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Customer's Invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/invoices/customer/{{userId}}?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "invoices",
+                "customer",
+                "{{userId}}"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Requires role: ADMIN, or the customer themselves."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin: List All Invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/invoices/all?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "invoices",
+                "all"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Requires role: ADMIN."
+          },
+          "response": []
+        }
+      ],
+      "description": "Base path: /restful/v1/api/invoices — zivdah-order-service's InvoiceController (a separate controller from the Order Service folder above, but same service/gateway route prefix, added 2026-09-12). Unlike most of Order Service, SecurityConfig requires authenticated() for all of /invoices/** (no permitAll carve-outs) — ownership is then checked in-controller (owner / ADMIN / vendor-with-item-on-order). Run \"Generate Invoice\" after an order exists to populate {{invoiceId}}."
+    },
+    {
+      "name": "10. Payment Service",
       "item": [
         {
           "name": "Initiate Payment",
@@ -3263,12 +3539,308 @@
             "description": "Requires role: ADMIN."
           },
           "response": []
+        },
+        {
+          "name": "Payment Gateway Callback (EcomWorldPay)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments/callback/ecomworldpay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "callback",
+                "ecomworldpay"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pgTxnId\": \"PGTXN123456\",\n  \"status\": \"SUCCESS\",\n  \"responseCode\": \"00\",\n  \"responseMessage\": \"Approved\",\n  \"txnDate\": \"2026-09-19T10:05:00\",\n  \"sellerIdentifier\": \"ZIVDAH001\",\n  \"npciTxnId\": \"NPCI123456\",\n  \"rrn\": \"RRN123456\",\n  \"invoiceNumber\": \"{{orderId}}\",\n  \"gatewayResponseStatus\": \"SUCCESS\",\n  \"amount\": 128.95,\n  \"payerName\": \"Asha Kumar\",\n  \"payerVPA\": \"asha@upi\",\n  \"gatewayResponseMessage\": \"Transaction successful\",\n  \"paymentType\": \"UPI\",\n  \"payerMobile\": \"9800000001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "⚠ Internal/webhook, no authentication — the payment gateway (EcomWorldPay) calls this directly after processing a transaction; there's no user JWT in that context. Included as-is to match the live backend; this body simulates the gateway's callback shape for testing.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payment Gateway Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/{{paymentId}}/gateway-status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "{{paymentId}}",
+                "gateway-status"
+              ]
+            },
+            "description": "⚠ No authentication required in the current backend, same as most other single/two-segment payment reads. Proxies the live status from the gateway side rather than just returning the locally stored status.\n\nNo authentication required."
+          },
+          "response": []
+        },
+        {
+          "name": "Vendor Payouts",
+          "item": [
+            {
+              "name": "Vendor: Request Payout",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "    const json = pm.response.json();",
+                      "    const val = json?.data?.id;",
+                      "    if (val !== undefined && val !== null) {",
+                      "        pm.collectionVariables.set('payoutId', val);",
+                      "        console.log('Captured payoutId =', val);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{vendorToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/payments/payouts",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "payouts"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 500\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Requires role: VENDOR."
+              },
+              "response": []
+            },
+            {
+              "name": "Vendor: List My Payouts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{vendorToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/payments/payouts/mine",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "payouts",
+                    "mine"
+                  ]
+                },
+                "description": "Requires role: VENDOR."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: List All Payouts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/payments/payouts",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "payouts"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "PENDING",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "status filter is optional (VendorPayoutStatus).\n\nRequires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: Approve Payout",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/payments/payouts/{{payoutId}}/approve",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "payouts",
+                    "{{payoutId}}",
+                    "approve"
+                  ]
+                },
+                "description": "Requires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: Reject Payout",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/payments/payouts/{{payoutId}}/reject",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "payouts",
+                    "{{payoutId}}",
+                    "reject"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Bank details could not be verified\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Requires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: Refresh Payout Status",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/payments/payouts/{{payoutId}}/refresh-status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "payouts",
+                    "{{payoutId}}",
+                    "refresh-status"
+                  ]
+                },
+                "description": "Re-polls the gateway for this payout's current status rather than returning the last locally-stored value.\n\nRequires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Payout Gateway Callback (EcomWorldPay)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/payments/payouts/callback",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "payouts",
+                    "callback"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"data\": {\n    \"status\": \"SUCCESS\",\n    \"referenceId\": \"{{payoutId}}\",\n    \"description\": \"Payout processed\",\n    \"transactionId\": \"PGPAYOUT123456\",\n    \"utrNumber\": \"UTR123456\",\n    \"remark\": \"NEFT credit\",\n    \"transactionDateTime\": \"2026-09-19T10:10:00\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "⚠ Internal/webhook, no authentication — the payment gateway calls this directly after processing a payout.\n\nNo authentication required."
+              },
+              "response": []
+            }
+          ],
+          "description": "Base path: /restful/v1/api/payments/payouts (VendorPayoutController). status enum: PENDING | APPROVED | REJECTED | PROCESSING | PAID | FAILED (VendorPayoutStatus) — treat this list as illustrative, not authoritative, if the enum has since changed. Vendors request payouts against their available (not-yet-paid-out) revenue balance; run \"Vendor: Request Payout\" first to populate {{payoutId}}."
         }
       ],
       "description": "Base path: /restful/v1/api/payments. method enum: CARD | UPI | NET_BANKING | WALLET | APPLE_PAY | GOOGLE_PAY | BANK_TRANSFER | COD."
     },
     {
-      "name": "10. Notification Service",
+      "name": "11. Notification Service",
       "item": [
         {
           "name": "Send Notification",
@@ -3412,7 +3984,7 @@
       "description": "Base path: /restful/v1/api/notifications"
     },
     {
-      "name": "11. Review Service",
+      "name": "12. Review Service",
       "item": [
         {
           "name": "Create Review",
@@ -3626,7 +4198,7 @@
       "description": "Base path: /restful/v1/api/reviews"
     },
     {
-      "name": "12. Delivery Service",
+      "name": "13. Delivery Service",
       "item": [
         {
           "name": "Get Deliveries By Order",
@@ -3820,7 +4392,7 @@
       "description": "Base path: /restful/v1/api/delivery. Deliveries are created automatically (via Kafka, when an order is placed) — run \"Get Deliveries By Order\" first to capture {{deliveryId}}."
     },
     {
-      "name": "13. Log Server",
+      "name": "14. Log Server",
       "item": [
         {
           "name": "Search Logs",
@@ -3906,6 +4478,825 @@
         }
       ],
       "description": "Base path: /restful/v1/api/logs. zivdah-log-server — centralized log search across all services (see project memory on the Kafka log-shipping setup)."
+    },
+    {
+      "name": "15. Chat Service",
+      "item": [
+        {
+          "name": "Bot",
+          "item": [
+            {
+              "name": "Bot: Send Message",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "    const json = pm.response.json();",
+                      "    const val = json?.data?.conversationId ?? json?.data?.id;",
+                      "    if (val !== undefined && val !== null) {",
+                      "        pm.collectionVariables.set('conversationId', val);",
+                      "        console.log('Captured conversationId =', val);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/bot/message",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "bot",
+                    "message"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"conversationId\": null,\n  \"message\": \"Where is my order?\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "conversationId is nullable — omit/null it to start a new bot conversation, or pass an existing one to continue it.\n\nRequires role: ADMIN or USER."
+              },
+              "response": []
+            },
+            {
+              "name": "Bot: Confirm Action",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/bot/confirm",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "bot",
+                    "confirm"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"conversationId\": \"{{conversationId}}\",\n  \"actionType\": \"CANCEL_ORDER\",\n  \"payload\": {\n    \"orderId\": \"{{orderId}}\"\n  },\n  \"confirmed\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Confirms (or declines, with confirmed:false) an action the bot proposed — e.g. cancelling an order it identified from the conversation. actionType/payload shape depends on what the bot proposed.\n\nRequires role: USER."
+              },
+              "response": []
+            }
+          ],
+          "description": "ChatBotController — base /restful/v1/api/chat/bot."
+        },
+        {
+          "name": "Conversations",
+          "item": [
+            {
+              "name": "Request Human Agent",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}/request-human",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversationId}}",
+                    "request-human"
+                  ]
+                },
+                "description": "Escalates a bot conversation into the human-agent queue (\"waiting\").\n\nRequires role: USER."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: Accept Conversation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}/accept",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversationId}}",
+                    "accept"
+                  ]
+                },
+                "description": "Claims a waiting conversation for the calling agent.\n\nRequires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: Close Conversation",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}/close",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversationId}}",
+                    "close"
+                  ]
+                },
+                "description": "Agent-side close.\n\nRequires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Customer: End Conversation",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}/end",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversationId}}",
+                    "end"
+                  ]
+                },
+                "description": "Customer-side end.\n\nRequires role: USER."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Conversation By Id",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversationId}}"
+                  ]
+                },
+                "description": "Requires role: ADMIN or USER."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Conversation Messages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}/messages?afterId=0&page=0&size=50",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversationId}}",
+                    "messages"
+                  ],
+                  "query": [
+                    {
+                      "key": "afterId",
+                      "value": "0"
+                    },
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "50"
+                    }
+                  ]
+                },
+                "description": "afterId supports incremental polling — pass the last messageId you've seen to fetch only newer ones (use 0/page 0 for the first page).\n\nRequires role: ADMIN or USER."
+              },
+              "response": []
+            },
+            {
+              "name": "Send Message",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}/messages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversationId}}",
+                    "messages"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message\": \"Any update on this?\",\n  \"messageType\": \"TEXT\",\n  \"attachmentUrl\": null\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "REST fallback for sending a message outside the WebSocket (e.g. for agents/integrations not holding a live socket) — see the folder description for the WS endpoint.\n\nRequires role: ADMIN or USER."
+              },
+              "response": []
+            },
+            {
+              "name": "Upload Attachment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}/attachments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversationId}}",
+                    "attachments"
+                  ]
+                },
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "value": null
+                    }
+                  ]
+                },
+                "description": "multipart/form-data, field name `file`.\n\nRequires role: ADMIN or USER."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: Get Order Context",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}/order-context",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversationId}}",
+                    "order-context"
+                  ]
+                },
+                "description": "Surfaces the order this conversation is about (if any) so the agent doesn't have to ask.\n\nRequires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: Waiting Queue",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/waiting?page=0&size=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "waiting"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Conversations escalated to a human but not yet claimed.\n\nRequires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: My Conversations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/mine?page=0&size=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "mine"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "The calling agent's own claimed conversations.\n\nRequires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: All Conversations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/all?page=0&size=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "all"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "OPEN",
+                      "disabled": true
+                    },
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "status filter is optional (ConversationStatus).\n\nRequires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Customer: My Conversations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/customer/me?page=0&size=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "customer",
+                    "me"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Requires role: USER."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: Search Conversations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/search?page=0&size=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "customerId",
+                      "value": "{{userId}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "orderId",
+                      "value": "{{orderId}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "status",
+                      "value": "CLOSED",
+                      "disabled": true
+                    },
+                    {
+                      "key": "agentId",
+                      "value": "{{adminUserId}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "from",
+                      "value": "2026-01-01T00:00:00",
+                      "disabled": true
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-12-31T23:59:59",
+                      "disabled": true
+                    },
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "All filters are optional and disabled by default here — enable the ones you need.\n\nRequires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Customer: Rate Conversation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}/rating",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversationId}}",
+                    "rating"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rating\": 5,\n  \"feedback\": \"Quick and helpful!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "rating is 1-5; feedback is optional (max 1000 chars).\n\nRequires role: USER."
+              },
+              "response": []
+            }
+          ],
+          "description": "ConversationController — base /restful/v1/api/chat/conversations."
+        },
+        {
+          "name": "Support Agents",
+          "item": [
+            {
+              "name": "Admin: List Support Agents",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/agents",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "agents"
+                  ]
+                },
+                "description": "Requires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: Register Support Agent",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "    const json = pm.response.json();",
+                      "    const val = json?.data?.userId ?? json?.data?.id;",
+                      "    if (val !== undefined && val !== null) {",
+                      "        pm.collectionVariables.set('agentUserId', val);",
+                      "        console.log('Captured agentUserId =', val);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/agents",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "agents"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userId\": \"{{adminUserId}}\",\n  \"displayName\": \"Priya (Support)\",\n  \"maxConcurrentChats\": 5\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "userId must be an existing ADMIN user's id — this registers them as a support rep, it doesn't create a new account. maxConcurrentChats is optional.\n\nRequires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: Toggle Agent Active",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/agents/{{agentUserId}}/toggle",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "agents",
+                    "{{agentUserId}}",
+                    "toggle"
+                  ]
+                },
+                "description": "Requires role: ADMIN."
+              },
+              "response": []
+            }
+          ],
+          "description": "SupportAgentController — base /restful/v1/api/chat/agents. Class-level @PreAuthorize(hasRole('ADMIN'))."
+        },
+        {
+          "name": "Analytics",
+          "item": [
+            {
+              "name": "Admin: Analytics Summary",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/analytics/summary?from=2026-01-01T00:00:00&to=2026-12-31T23:59:59",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "analytics",
+                    "summary"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-01-01T00:00:00"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-12-31T23:59:59"
+                    }
+                  ]
+                },
+                "description": "from/to are required ISO-8601 LocalDateTime.\n\nRequires role: ADMIN."
+              },
+              "response": []
+            },
+            {
+              "name": "Admin: Analytics By Agent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/analytics/agents?from=2026-01-01T00:00:00&to=2026-12-31T23:59:59",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "analytics",
+                    "agents"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-01-01T00:00:00"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-12-31T23:59:59"
+                    }
+                  ]
+                },
+                "description": "from/to are required ISO-8601 LocalDateTime.\n\nRequires role: ADMIN."
+              },
+              "response": []
+            }
+          ],
+          "description": "AnalyticsController — base /restful/v1/api/chat/analytics. Class-level @PreAuthorize(hasRole('ADMIN'))."
+        }
+      ],
+      "description": "Base path: /restful/v1/api/chat — zivdah-chat-service (added 2026-09-13), the 16th microservice: bot + human customer support chat. 4 REST controllers grouped into subfolders below.\n\nThis service also exposes a real-time WebSocket endpoint that a plain HTTP request can't drive — connect a WS client (Postman's own WebSocket request type, or wscat/websocat) to:\n  ws://localhost:8001/restful/v1/api/chat/ws/chat/{{conversationId}}?token={{userToken}}\n(swap ws-> wss and the host for prod). Auth is the JWT as a `token` query param, not an Authorization header — the handshake can't carry custom headers. Send JSON frames shaped {\"type\":\"MESSAGE\"|\"TYPING\"|\"READ_RECEIPT\",\"payload\":{...}} — e.g. {\"type\":\"MESSAGE\",\"payload\":{\"message\":\"hi\",\"messageType\":\"TEXT\",\"clientMessageId\":\"c1\"}}. Server-only frame types (PRESENCE/SYSTEM/ERROR) are rejected if a client sends them.\n\nFragile route-order gotcha (broke once, 2026-09-13): the gateway's WS route must stay declared before the general /chat/** route in application-{dev,prod}.yaml, or the general route silently wins and the handshake breaks."
     }
   ],
   "variable": [
@@ -3999,6 +5390,22 @@
     },
     {
       "key": "logId",
+      "value": ""
+    },
+    {
+      "key": "invoiceId",
+      "value": ""
+    },
+    {
+      "key": "conversationId",
+      "value": ""
+    },
+    {
+      "key": "agentUserId",
+      "value": ""
+    },
+    {
+      "key": "payoutId",
       "value": ""
     }
   ]

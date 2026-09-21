@@ -74,11 +74,76 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public Mono<OrderResponseDto> createOrder(OrderRequestDto dto) {
+        if (isBlank(dto.getIdempotencyKey())) {
+            return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "idempotencyKey is required"));
+        }
+
+        // idempotencyKey identifies one checkout attempt end-to-end — looking it up first makes
+        // retrying "Place Order" for the same cart idempotent: an existing order is returned
+        // as-is (no re-insert, no re-publish of the order-created Kafka event, which is what
+        // would otherwise double-decrement inventory stock and double-notify everyone). See
+        // PaymentServiceImpl#initiatePayment for the matching payment-side check.
+        return orderRepository.findByIdempotencyKey(dto.getIdempotencyKey())
+                .flatMap(existing -> orderItemRepository.findByOrderId(existing.getId())
+                        .collectList()
+                        .map(items -> mapToResponse(existing, items)))
+                .switchIfEmpty(Mono.defer(() -> insertNewOrder(dto)));
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+
+    // Light sanity validation before the real insert — items/address must be present and the
+    // client-computed total must roughly match its components. Deliberately NOT checking
+    // inventory/stock availability here: that's only ever done asynchronously today via the
+    // order-created Kafka consumer, with no rollback path if insufficient — a separate,
+    // pre-existing architectural gap, not something to half-fix as part of this change.
+    private ResponseStatusException validateNewOrder(OrderRequestDto dto) {
+        if (dto.getItems() == null || dto.getItems().isEmpty()) {
+            return new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order must contain at least one item");
+        }
+        for (OrderItemDto item : dto.getItems()) {
+            if (item.getQuantity() == null || item.getQuantity() <= 0) {
+                return new ResponseStatusException(HttpStatus.BAD_REQUEST, "Each item quantity must be positive");
+            }
+            if (item.getPrice() == null || item.getPrice().compareTo(BigDecimal.ZERO) < 0) {
+                return new ResponseStatusException(HttpStatus.BAD_REQUEST, "Each item price must be non-negative");
+            }
+        }
+        if (isBlank(dto.getDeliveryAddressLine1()) || isBlank(dto.getDeliveryCity())
+                || isBlank(dto.getDeliveryState()) || isBlank(dto.getDeliveryPinCode())) {
+            return new ResponseStatusException(HttpStatus.BAD_REQUEST, "Delivery address is incomplete");
+        }
+        BigDecimal expectedTotal = nz(dto.getSubTotal())
+                .add(nz(dto.getTotalTaxAmount()))
+                .add(nz(dto.getDeliveryCharge()))
+                .add(nz(dto.getPackagingCharge()))
+                .add(nz(dto.getHandlingCharge()))
+                .subtract(nz(dto.getDiscountAmount()));
+        if (dto.getTotalAmount() == null
+                || dto.getTotalAmount().subtract(expectedTotal).abs().compareTo(new BigDecimal("0.01")) > 0) {
+            return new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "totalAmount does not match subTotal + tax + charges - discount");
+        }
+        return null;
+    }
+
+    private static BigDecimal nz(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
+    }
+
+    private Mono<OrderResponseDto> insertNewOrder(OrderRequestDto dto) {
+        ResponseStatusException validationError = validateNewOrder(dto);
+        if (validationError != null) {
+            return Mono.error(validationError);
+        }
 
         log.info("Creating order for user {} with {} item(s)", dto.getUserId(),
                 dto.getItems() == null ? 0 : dto.getItems().size());
 
         Order order = Order.builder()
+                .idempotencyKey(dto.getIdempotencyKey())
                 .userId(dto.getUserId())
 
                 .orderNumber(generateOrderNumber())   // <-- Add this

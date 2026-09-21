@@ -61,6 +61,10 @@ public class Order {
     // Order metadata
     private String orderNumber;
 
+    // Client-generated key for one checkout attempt (see OrderServiceImpl#createOrder) —
+    // unique when present, DB-enforced via a partial unique index (V4 migration).
+    private String idempotencyKey;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

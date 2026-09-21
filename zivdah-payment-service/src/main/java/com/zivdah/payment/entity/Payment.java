@@ -55,4 +55,8 @@ public class Payment {
     private String rrn;            // Bank reference number / UTR
     private String npciTxnId;
 
+    // Client-generated key for one checkout attempt (see PaymentServiceImpl#initiatePayment) —
+    // unique when present, DB-enforced via a partial unique index (V6 migration).
+    private String checkoutRef;
+
 }

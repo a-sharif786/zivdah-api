@@ -50,6 +50,25 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public Mono<PaymentResponseDto> initiatePayment(PaymentRequestDto dto) {
+        if (isBlank(dto.getCheckoutRef())) {
+            return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "checkoutRef is required"));
+        }
+
+        // checkoutRef identifies one checkout attempt end-to-end — looking it up first makes
+        // retrying "Place Order" for the same cart idempotent: a FAILED row gets retried in
+        // place (new gateway attempt, same row), anything else already in flight or settled
+        // (PENDING/PROCESSING/SUCCESS) is returned as-is, and only a genuinely new attempt
+        // inserts a new row. See OrderServiceImpl#createOrder for the matching order-side check.
+        return paymentRepository.findByCheckoutRef(dto.getCheckoutRef())
+                .flatMap(existing -> existing.getStatus() == PaymentStatus.FAILED
+                        ? retryUpiIntent(existing, dto)
+                        : Mono.just(existing))
+                .switchIfEmpty(Mono.defer(() -> createNewPayment(dto)))
+                .map(this::mapToResponse);
+    }
+
+    // A fresh checkout attempt — no existing row for this checkoutRef yet.
+    private Mono<Payment> createNewPayment(PaymentRequestDto dto) {
         Payment payment = Payment.builder()
                 .orderId(dto.getOrderId())
                 .userId(dto.getUserId())
@@ -58,6 +77,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .method(dto.getMethod())
                 .status(PaymentStatus.PENDING)
                 .transactionId(UUID.randomUUID().toString())
+                .checkoutRef(dto.getCheckoutRef())
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -80,7 +100,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         if (dto.getMethod() != PaymentMethod.UPI) {
-            return paymentRepository.save(payment).map(this::mapToResponse);
+            return paymentRepository.save(payment);
         }
 
         if (isBlank(dto.getFirstName()) || isBlank(dto.getLastName())
@@ -97,7 +117,36 @@ public class PaymentServiceImpl implements PaymentService {
             log.warn("EcomWorldPay payment not found: {}", payment, e);
         }
         return paymentRepository.save(payment)
-                .flatMap(saved -> registerUpiIntent(saved, dto))
+                .flatMap(saved -> registerUpiIntent(saved, dto));
+    }
+
+    // checkoutRef matched a row that previously FAILED — retry the gateway call in place rather
+    // than inserting a second row. amount/currency may be stale if the cart changed without the
+    // checkout attempt resetting (e.g. a coupon applied between attempts); refresh them from the
+    // incoming request first, since registerUpiIntent builds the gateway request from the stored
+    // row, not the DTO.
+    private Mono<Payment> retryUpiIntent(Payment existing, PaymentRequestDto dto) {
+        existing.setAmount(dto.getAmount());
+        existing.setCurrency(dto.getCurrency());
+        return registerUpiIntent(existing, dto);
+    }
+
+    @Override
+    public Mono<PaymentResponseDto> linkOrder(Long paymentId, Long orderId) {
+        return paymentRepository.findById(paymentId)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId)))
+                .flatMap(p -> {
+                    if (p.getOrderId() != null && !p.getOrderId().equals(orderId)) {
+                        return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT,
+                                "Payment " + paymentId + " is already linked to a different order"));
+                    }
+                    if (orderId.equals(p.getOrderId())) {
+                        return Mono.just(p); // already linked — idempotent no-op
+                    }
+                    p.setOrderId(orderId);
+                    p.setUpdatedAt(LocalDateTime.now());
+                    return paymentRepository.save(p);
+                })
                 .map(this::mapToResponse);
     }
 

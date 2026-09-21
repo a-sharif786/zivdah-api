@@ -1,6 +1,7 @@
 package com.zivdah.payment.controller;
 
 import com.zivdah.payment.dto.ApiResponse;
+import com.zivdah.payment.dto.LinkOrderRequestDto;
 import com.zivdah.payment.dto.PaymentRequestDto;
 import com.zivdah.payment.dto.PaymentResponseDto;
 import com.zivdah.payment.dto.PaymentStatsResponseDto;
@@ -33,6 +34,17 @@ public class PaymentController {
         return paymentService.initiatePayment(dto)
                 .map(r -> ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
                         .status("success").statusCode(200).message("Payment initiated").data(r).build()));
+    }
+
+    // Attaches the real orderId to a payment intent that was validated/created before the order
+    // existed (see PaymentServiceImpl#initiatePayment) — called by the frontend right after
+    // orderApi.create() succeeds. Idempotent no-op if already linked to this same orderId.
+    @PutMapping("/{paymentId}/link-order")
+    public Mono<ResponseEntity<ApiResponse<PaymentResponseDto>>> linkOrder(
+            @PathVariable Long paymentId, @RequestBody LinkOrderRequestDto dto) {
+        return paymentService.linkOrder(paymentId, dto.getOrderId())
+                .map(r -> ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
+                        .status("success").statusCode(200).message("Order linked to payment").data(r).build()));
     }
 
     @GetMapping("/{paymentId}")
