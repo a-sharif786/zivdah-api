@@ -1,5 +1,6 @@
 package com.zivdah.payment.entity;
 
+import com.zivdah.payment.enums.PayoutInitiator;
 import com.zivdah.payment.enums.VendorPayoutStatus;
 import lombok.*;
 import org.springframework.data.annotation.Id;
@@ -33,6 +34,12 @@ public class VendorPayout {
     private String payeeVpa;
 
     private VendorPayoutStatus status;
+
+    // Who created this request — the vendor withdrawing their own earnings, or an admin
+    // initiating a payout on a vendor's behalf. initiatedByUserId is the vendor's own id for
+    // a VENDOR-initiated request, or the admin's id for an ADMIN-initiated one.
+    private PayoutInitiator initiatedByRole;
+    private Long initiatedByUserId;
 
     // Our own idempotency key sent to EcomWorldPay as "invoiceNumber" — generated at request
     // time so it's stable even if approval is retried.

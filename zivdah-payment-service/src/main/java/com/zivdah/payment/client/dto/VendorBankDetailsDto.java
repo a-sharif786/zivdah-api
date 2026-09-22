@@ -18,11 +18,22 @@ public class VendorBankDetailsDto {
     private String bankAccountNumber;
     private String bankIfscCode;
     private String upiVpa;
+    private String role;
+
+    public boolean hasUpiVpa() {
+        return upiVpa != null && !upiVpa.isBlank();
+    }
+
+    public boolean hasBankAccount() {
+        return bankAccountNumber != null && !bankAccountNumber.isBlank()
+                && bankIfscCode != null && !bankIfscCode.isBlank();
+    }
 
     public boolean hasPayoutDestination() {
-        boolean hasVpa = upiVpa != null && !upiVpa.isBlank();
-        boolean hasBankAccount = bankAccountNumber != null && !bankAccountNumber.isBlank()
-                && bankIfscCode != null && !bankIfscCode.isBlank();
-        return hasVpa || hasBankAccount;
+        return hasUpiVpa() || hasBankAccount();
+    }
+
+    public boolean isVendor() {
+        return "VENDOR".equalsIgnoreCase(role);
     }
 }

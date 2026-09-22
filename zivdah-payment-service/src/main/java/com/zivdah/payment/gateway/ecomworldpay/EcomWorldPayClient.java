@@ -18,6 +18,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
+
 // EcomWorldPay UPI QR (PayIn) gateway client — QR intent creation + transaction status check.
 // Credentials are externalized (see application-dev.yaml / application-prod.yaml, .env.example)
 // same as OrderServiceClient's order-service.url, since these differ between environments and
@@ -29,6 +31,12 @@ public class EcomWorldPayClient {
 
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
+
+    // No response timeout exists anywhere on the shared WebClient today; scoped per-call here
+    // (rather than in WebClientConfig) so it only affects the Payout Payment/Status APIs, not
+    // AuthServiceClient's internal calls or the unrelated createUpiIntent/checkTransactionStatus
+    // QR-payment methods.
+    private static final Duration PAYOUT_GATEWAY_TIMEOUT = Duration.ofSeconds(20);
 
     @Value("${ecomworldpay.base-url}")
     private String baseUrl;
@@ -171,7 +179,8 @@ public class EcomWorldPayClient {
                                 .header("X-TenantID", tenantId)
                                 .bodyValue(request)
                                 .retrieve()
-                                .bodyToMono(String.class),
+                                .bodyToMono(String.class)
+                                .timeout(PAYOUT_GATEWAY_TIMEOUT),
                         EcomWorldPayPayoutResponse.class, "payout request")
                 .doOnError(ex -> log.error("EcomWorldPay payout request failed for invoice {}: {}",
                         request.getInvoiceNumber(), describeError(ex)));
@@ -187,7 +196,8 @@ public class EcomWorldPayClient {
                                 .header("X-TenantID", tenantId)
                                 .bodyValue(request)
                                 .retrieve()
-                                .bodyToMono(String.class),
+                                .bodyToMono(String.class)
+                                .timeout(PAYOUT_GATEWAY_TIMEOUT),
                         EcomWorldPayPayoutResponse.class, "payout status check")
                 .doOnError(ex -> log.error("EcomWorldPay payout status check failed for gateway ref {}: {}",
                         gatewayReferenceId, describeError(ex)));

@@ -130,6 +130,7 @@ public class AuthController {
                         .bankAccountNumber(user.getBankAccountNumber())
                         .bankIfscCode(user.getBankIfscCode())
                         .upiVpa(user.getUpiVpa())
+                        .role(user.getRole() != null ? user.getRole().name() : null)
                         .build())
                 .map(dto -> ResponseEntity.ok(ApiResponse.<InternalUserInfoDTO>builder()
                         .status("success").statusCode(200).message("User info fetched").data(dto).build()));

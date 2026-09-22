@@ -1,5 +1,6 @@
 package com.zivdah.payment.controller;
 
+import com.zivdah.payment.dto.AdminPayoutRequestDto;
 import com.zivdah.payment.dto.ApiResponse;
 import com.zivdah.payment.dto.PayoutRequestDto;
 import com.zivdah.payment.dto.RejectPayoutDto;
@@ -45,6 +46,22 @@ public class VendorPayoutController {
                 .flatMap(vendorId -> payoutService.requestPayout(vendorId, dto.getAmount()))
                 .map(r -> ResponseEntity.ok(ApiResponse.<VendorPayoutResponseDto>builder()
                         .status("success").statusCode(200).message("Payout requested").data(r).build()));
+    }
+
+    // Admin-initiated payout for a chosen vendor, using that vendor's saved bank/UPI details —
+    // lands as REQUESTED same as requestPayout above; still has to go through the existing
+    // /{payoutId}/approve to actually reach the gateway. No SecurityConfig change needed:
+    // .pathMatchers("/restful/v1/api/payments/payouts/**").authenticated() already covers this
+    // path, @PreAuthorize alone gates it to ADMIN, same as every other admin endpoint here.
+    @PostMapping("/admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<ResponseEntity<ApiResponse<VendorPayoutResponseDto>>> requestPayoutAsAdmin(
+            @Valid @RequestBody AdminPayoutRequestDto dto) {
+        return currentUserId()
+                .flatMap(adminId -> payoutService.initiateAdminPayout(
+                        adminId, dto.getVendorId(), dto.getAmount(), dto.getPayoutMode()))
+                .map(r -> ResponseEntity.ok(ApiResponse.<VendorPayoutResponseDto>builder()
+                        .status("success").statusCode(200).message("Payout requested by admin").data(r).build()));
     }
 
     @GetMapping("/mine")

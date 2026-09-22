@@ -1,5 +1,6 @@
 package com.zivdah.payment.dto;
 
+import com.zivdah.payment.enums.PayoutInitiator;
 import com.zivdah.payment.enums.VendorPayoutStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,4 +30,7 @@ public class VendorPayoutResponseDto {
     private LocalDateTime requestedAt;
     private LocalDateTime processedAt;
     private LocalDateTime settledAt;
+    // Who requested this payout — the vendor themselves, or an admin on their behalf.
+    private PayoutInitiator initiatedByRole;
+    private Long initiatedByUserId;
 }
