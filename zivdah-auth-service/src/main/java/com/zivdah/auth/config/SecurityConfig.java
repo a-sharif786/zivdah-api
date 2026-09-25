@@ -39,6 +39,12 @@ public class SecurityConfig {
                                 "/restful/v1/api/auth/login",
                                 "/restful/v1/api/auth/send-otp",
                                 "/restful/v1/api/auth/verify-otp",
+                                // called precisely when the access token has expired —
+                                // authenticated by the refresh token in the body instead
+                                "/restful/v1/api/auth/refresh-token",
+                                // authenticated in the controller: JWT if still valid, else
+                                // the refresh token in the body (see AuthController#logout)
+                                "/restful/v1/api/auth/logout",
                                 "/restful/v1/api/auth/forget-password",
                                 "/restful/v1/api/auth/verify-registration-otp",
                                 "/restful/v1/api/auth/reset-password",

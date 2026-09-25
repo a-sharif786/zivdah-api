@@ -12,7 +12,11 @@ public interface AuthService {
     Mono<UserEntity> getUserByMobile(String mobile);
     Mono<UserEntity> getUserById(Long userId);
     Mono<Void> sendOtp(String mobile);
-    Mono<String> verifyOtp(VerifyLoginOtpDTO request);
+    Mono<LoginResponseDTO> verifyOtp(VerifyLoginOtpDTO request);
+
+    // Exchanges a valid refresh token for a new access + refresh token pair (the presented
+    // refresh token is revoked — see RefreshTokenService for rotation/reuse detection).
+    Mono<LoginResponseDTO> refreshToken(RefreshTokenRequestDTO request);
     Flux<AuthUserResponseDTO> getAllUsers();
 
     // Narrower than getAllUsers (ADMIN-only) — lets a VENDOR resolve the delivery-boy
@@ -46,11 +50,13 @@ public interface AuthService {
     Mono<BankDetailsResponseDTO> getBankDetails(Long userId);
     Mono<Boolean> sendPasswordResetOtp(String email);
     Mono<ResetPasswordResponseDTO> resetPassword(ResetPasswordDTO request);
-    Mono<String> verifyRegistrationOtp(VerifyOtpDTO request);
+    Mono<LoginResponseDTO> verifyRegistrationOtp(VerifyOtpDTO request);
 
     // fcmToken is optional — when present, only that device's token is deactivated instead
     // of leaving every device's push registration untouched (see LogoutRequestDTO).
-    Mono<Void> logout(Long userId, String fcmToken);
+    // refreshToken is optional too — present revokes just that one, absent revokes all of
+    // the user's refresh tokens.
+    Mono<Void> logout(Long userId, String fcmToken, String refreshToken);
     Mono<UserResponseDTO> updateRole(Long userId, Role role);
     Mono<Void> deactivateAccount(Long userId);
     Mono<Void> activateAccount(Long userId);

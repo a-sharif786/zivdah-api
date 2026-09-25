@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
@@ -76,15 +77,21 @@ public class AuthController {
     @PostMapping("/verify-otp")
     public Mono<ResponseEntity<ApiResponse<Object>>> verifyOtp(@Valid @RequestBody VerifyLoginOtpDTO request) {
         return authService.verifyOtp(request)
-                .flatMap(token -> authService.getUserByMobile(request.getMobile())
-                        .map(user -> {
-                            LoginResponseDTO loginResp = new LoginResponseDTO(
-                                    user.getId(), user.getMobile(), user.getName(),
-                                    user.getEmail(), user.getRole(), token);
-                            return ResponseEntity.ok(ApiResponse.<Object>builder()
-                                    .status("success").message("Login successful")
-                                    .statusCode(200).data(loginResp).build());
-                        }));
+                .map(loginResp -> ResponseEntity.ok(ApiResponse.<Object>builder()
+                        .status("success").message("Login successful")
+                        .statusCode(200).data(loginResp).build()));
+    }
+
+    // Unauthenticated (see SecurityConfig) — the access token is normally expired by the
+    // time this is called. Rotates the refresh token: the one sent is revoked and a new
+    // one is returned alongside a new access token, in the same shape as /login.
+    @PostMapping("/refresh-token")
+    public Mono<ResponseEntity<ApiResponse<LoginResponseDTO>>> refreshToken(
+            @Valid @RequestBody RefreshTokenRequestDTO request) {
+        return authService.refreshToken(request)
+                .map(loginResp -> ResponseEntity.ok(ApiResponse.<LoginResponseDTO>builder()
+                        .status("success").message("Token refreshed")
+                        .statusCode(200).data(loginResp).build()));
     }
 
     @GetMapping("/byUserId/{userId}")
@@ -232,24 +239,30 @@ public class AuthController {
     public Mono<ResponseEntity<ApiResponse<LoginResponseDTO>>> verifyRegistrationOtp(
             @Valid @RequestBody VerifyOtpDTO request) {
         return authService.verifyRegistrationOtp(request)
-                .flatMap(token -> authService.getUserByMobile(request.getMobile())
-                        .map(user -> {
-                            LoginResponseDTO loginResp = new LoginResponseDTO(
-                                    user.getId(), user.getMobile(), user.getName(),
-                                    user.getEmail(), user.getRole(), token);
-                            return ResponseEntity.ok(ApiResponse.<LoginResponseDTO>builder()
-                                    .status("success").message("User verified and logged in")
-                                    .statusCode(200).data(loginResp).build());
-                        }));
+                .map(loginResp -> ResponseEntity.ok(ApiResponse.<LoginResponseDTO>builder()
+                        .status("success").message("User verified and logged in")
+                        .statusCode(200).data(loginResp).build()));
     }
 
-    // fcmToken is optional (see LogoutRequestDTO) — when the caller omits it, every device
-    // stays registered for push; this endpoint just clears the JWT session bookkeeping.
+    // fcmToken and refreshToken are both optional (see LogoutRequestDTO) — when the caller
+    // omits fcmToken every device stays registered for push; omitting refreshToken revokes
+    // all of the user's refresh tokens rather than just this device's. Unauthenticated
+    // calls are allowed (see SecurityConfig) so a client whose access token has already
+    // expired can still revoke its refresh token; they need that token to do anything.
     @PostMapping("/logout")
     public Mono<ResponseEntity<ApiResponse<Object>>> logout(@RequestBody(required = false) LogoutRequestDTO request) {
         String fcmToken = request != null ? request.getFcmToken() : null;
+        String refreshToken = request != null ? request.getRefreshToken() : null;
         return currentAuth()
-                .flatMap(auth -> authService.logout(Long.valueOf(auth.getName()), fcmToken))
+                .filter(auth -> auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken))
+                .map(auth -> Long.valueOf(auth.getName()))
+                .flatMap(userId -> authService.logout(userId, fcmToken, refreshToken).thenReturn(true))
+                .switchIfEmpty(Mono.defer(() -> {
+                    if (refreshToken == null || refreshToken.isBlank()) {
+                        return Mono.error(new AccessDeniedException("Not authenticated"));
+                    }
+                    return authService.logout(null, fcmToken, refreshToken).thenReturn(true);
+                }))
                 .thenReturn(ResponseEntity.ok(ApiResponse.<Object>builder()
                         .status("success").message("Logged out successfully").statusCode(200).data(null).build()));
     }

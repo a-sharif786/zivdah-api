@@ -6,7 +6,11 @@ import lombok.Data;
 // one device's token is deactivated — logging out of one browser/device shouldn't sign a
 // user's other devices out of push. Omit it (or leave the body empty) to keep the old
 // behavior of just clearing the JWT session.
+//
+// refreshToken likewise scopes the logout to this device: only that refresh token is
+// revoked. Without it, every refresh token the user holds is revoked (sign out everywhere).
 @Data
 public class LogoutRequestDTO {
     private String fcmToken;
+    private String refreshToken;
 }

@@ -51,6 +51,21 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
+    // Invalid/expired/reused refresh token — 401 so clients know to force a re-login
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ApiResponse<Object>> handleInvalidRefreshToken(InvalidRefreshTokenException ex) {
+        log.warn("Refresh failed: {}", ex.getMessage());
+
+        ApiResponse<Object> response = ApiResponse.builder()
+                .status("error")
+                .message(ex.getMessage())
+                .statusCode(HttpStatus.UNAUTHORIZED.value())
+                .data(null)
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+    }
+
     // Handle runtime exceptions (custom or general)
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<Object>> handleRuntimeException(RuntimeException ex) {

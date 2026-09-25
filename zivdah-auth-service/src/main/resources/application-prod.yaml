@@ -46,3 +46,6 @@ resend:
 
 jwt:
   secret: ${JWT_SECRET}
+  # access token is short-lived; clients renew it via POST /auth/refresh-token
+  access-token-expiration: ${JWT_ACCESS_TTL:15m}
+  refresh-token-expiration: ${JWT_REFRESH_TTL:7d}

@@ -11,6 +11,7 @@ import com.zivdah.auth.repository.DeviceTokenRepository;
 import com.zivdah.auth.repository.UserRepository;
 import com.zivdah.auth.repository.UserSessionRepository;
 import com.zivdah.auth.security.JwtTokenProvider;
+import com.zivdah.auth.security.RefreshTokenService;
 import com.zivdah.auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class AuthServiceImpl implements AuthService {
     private final DeviceTokenRepository deviceTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenService refreshTokenService;
     private final Resend resend;
 
     @Value("${resend.from-email}")
@@ -111,10 +113,38 @@ public class AuthServiceImpl implements AuthService {
                     if (!user.isActive()) {
                         return Mono.error(new RuntimeException("Account is deactivated"));
                     }
-                    String token = jwtTokenProvider.generateToken(user.getId(), user.getMobile(), user.getRole().name());
-                    return Mono.just(new LoginResponseDTO(user.getId(), user.getMobile(), user.getName(),
-                            user.getEmail(), user.getRole(), token));
+                    return buildLoginResponse(user, null);
                 });
+    }
+
+    @Override
+    public Mono<LoginResponseDTO> refreshToken(RefreshTokenRequestDTO request) {
+        return refreshTokenService.rotate(request.getRefreshToken())
+                .map(rotation -> toLoginResponse(rotation.user(), rotation.refreshToken()));
+    }
+
+    // Shared by every flow that signs a user in: a fresh access token plus a new refresh token
+    // (familyId null = new rotation chain for this login).
+    private Mono<LoginResponseDTO> buildLoginResponse(UserEntity user, String familyId) {
+        return refreshTokenService.issue(user.getId(), familyId)
+                .map(refreshToken -> toLoginResponse(user, refreshToken));
+    }
+
+    private LoginResponseDTO toLoginResponse(UserEntity user, String refreshToken) {
+        String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getMobile(), user.getRole().name());
+        return LoginResponseDTO.builder()
+                .id(user.getId())
+                .mobile(user.getMobile())
+                .name(user.getName())
+                .email(user.getEmail())
+                .role(user.getRole())
+                .token(accessToken)
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .tokenType("Bearer")
+                .expiresIn(jwtTokenProvider.getAccessTokenExpirySeconds())
+                .refreshExpiresIn(refreshTokenService.getRefreshTokenExpirySeconds())
+                .build();
     }
 
     @Override
@@ -143,7 +173,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public Mono<String> verifyOtp(VerifyLoginOtpDTO request) {
+    public Mono<LoginResponseDTO> verifyOtp(VerifyLoginOtpDTO request) {
         return userRepository.findByMobile(request.getMobile())
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found")))
                 .flatMap(user -> {
@@ -153,19 +183,23 @@ public class AuthServiceImpl implements AuthService {
                     if (!user.isActive()) {
                         return Mono.error(new RuntimeException("Account is deactivated"));
                     }
-                    String token = jwtTokenProvider.generateToken(user.getId(), user.getMobile(), user.getRole().name());
-                    Mono<UserSession> sessionMono = userSessionRepository.findByUserId(user.getId())
-                            .defaultIfEmpty(UserSession.builder().userId(user.getId()).build())
-                            .flatMap(session -> {
-                                session.setToken(token);
-                                session.setDeviceToken(request.getDeviceToken());
-                                session.setCreatedAt(LocalDateTime.now());
-                                return userSessionRepository.save(session);
-                            });
-                    Mono<Void> deviceTokenMono = registerDeviceToken(
-                            user.getId(), user.getRole().name(), "WEB", request.getDeviceToken());
-                    return sessionMono.then(deviceTokenMono).thenReturn(token);
+                    return buildLoginResponse(user, null)
+                            .flatMap(resp -> saveSession(user, resp.getAccessToken(), request.getDeviceToken())
+                                    .thenReturn(resp));
                 });
+    }
+
+    // user_sessions bookkeeping + device-token registration done by both OTP login flows.
+    private Mono<Void> saveSession(UserEntity user, String accessToken, String deviceToken) {
+        Mono<UserSession> sessionMono = userSessionRepository.findByUserId(user.getId())
+                .defaultIfEmpty(UserSession.builder().userId(user.getId()).build())
+                .flatMap(session -> {
+                    session.setToken(accessToken);
+                    session.setDeviceToken(deviceToken);
+                    session.setCreatedAt(LocalDateTime.now());
+                    return userSessionRepository.save(session);
+                });
+        return sessionMono.then(registerDeviceToken(user.getId(), user.getRole().name(), "WEB", deviceToken));
     }
 
     @Override
@@ -305,6 +339,8 @@ public class AuthServiceImpl implements AuthService {
                                 user.setPassword(encoded);
                                 return userRepository.save(user);
                             })
+                            // New password = sign out every device holding a refresh token.
+                            .flatMap(saved -> refreshTokenService.revokeAll(saved.getId()).thenReturn(saved))
                             .doOnSuccess(u -> otpStorage.remove(request.getEmail()))
                             .thenReturn(ResetPasswordResponseDTO.builder()
                                     .status("success").message("Password reset successfully").build());
@@ -312,7 +348,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public Mono<String> verifyRegistrationOtp(VerifyOtpDTO request) {
+    public Mono<LoginResponseDTO> verifyRegistrationOtp(VerifyOtpDTO request) {
         return userRepository.findByMobile(request.getMobile())
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found")))
                 .flatMap(user -> {
@@ -326,29 +362,26 @@ public class AuthServiceImpl implements AuthService {
                     user.setActive(true);
                     user.setMobileOtp(null);
                     user.setEmailOtp(null);
-                    String token = jwtTokenProvider.generateToken(user.getId(), user.getMobile(), user.getRole().name());
 
                     return userRepository.save(user)
-                            .flatMap(saved -> {
-                                Mono<UserSession> sessionMono = userSessionRepository.findByUserId(saved.getId())
-                                        .defaultIfEmpty(UserSession.builder().userId(saved.getId()).build())
-                                        .flatMap(session -> {
-                                            session.setToken(token);
-                                            session.setDeviceToken(request.getDeviceToken());
-                                            session.setCreatedAt(LocalDateTime.now());
-                                            return userSessionRepository.save(session);
-                                        });
-                                Mono<Void> deviceTokenMono = registerDeviceToken(
-                                        saved.getId(), saved.getRole().name(), "WEB", request.getDeviceToken());
-                                return sessionMono.then(deviceTokenMono);
-                            })
-                            .thenReturn(token);
+                            .flatMap(saved -> buildLoginResponse(saved, null)
+                                    .flatMap(resp -> saveSession(saved, resp.getAccessToken(), request.getDeviceToken())
+                                            .thenReturn(resp)));
                 });
     }
 
     @Override
-    public Mono<Void> logout(Long userId, String fcmToken) {
-        Mono<Void> clearSession = userSessionRepository.deleteByUserId(userId);
+    public Mono<Void> logout(Long userId, String fcmToken, String refreshToken) {
+        if (userId == null) {
+            // Access token already expired: possession of the refresh token is enough to
+            // revoke it (and this device's push token), but not to touch the user's session.
+            Mono<Void> revoke = refreshTokenService.revoke(refreshToken);
+            return (fcmToken == null || fcmToken.isBlank()) ? revoke : revoke.then(deactivateDeviceToken(fcmToken));
+        }
+        Mono<Void> revokeRefresh = (refreshToken == null || refreshToken.isBlank())
+                ? refreshTokenService.revokeAll(userId)
+                : refreshTokenService.revoke(refreshToken);
+        Mono<Void> clearSession = revokeRefresh.then(userSessionRepository.deleteByUserId(userId));
         if (fcmToken == null || fcmToken.isBlank()) {
             return clearSession;
         }
@@ -380,6 +413,7 @@ public class AuthServiceImpl implements AuthService {
                     user.setActive(false);
                     return userRepository.save(user);
                 })
+                .then(refreshTokenService.revokeAll(userId))
                 .then(userSessionRepository.deleteByUserId(userId));
     }
 

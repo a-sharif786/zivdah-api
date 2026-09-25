@@ -6,20 +6,26 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.time.Duration;
 import java.util.Date;
 
 @Component
+@Slf4j
 public class JwtTokenProvider {
 
     @Value("${jwt.secret}")
     private String secretKey;
 
-    private static final long EXPIRATION = 86400000;
+    // Short-lived on purpose — clients renew it via POST /auth/refresh-token (see
+    // RefreshTokenService) instead of holding a long-lived bearer token.
+    @Value("${jwt.access-token-expiration:15m}")
+    private Duration accessTokenExpiration;
 
     private Key key;
 
@@ -39,7 +45,7 @@ public class JwtTokenProvider {
                 .claim("userId", userId)
                 .claim("role", role.toUpperCase())
                 .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + EXPIRATION))
+                .setExpiration(new Date(now.getTime() + accessTokenExpiration.toMillis()))
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -57,9 +63,15 @@ public class JwtTokenProvider {
 
         } catch (Exception e) {
 
-            e.printStackTrace();
+            // Expired tokens are now routine (15-min TTL), so no stack trace — just DEBUG.
+            log.debug("JWT validation failed: {}", e.getMessage());
             return false;
         }
+    }
+
+    public long getAccessTokenExpirySeconds() {
+
+        return accessTokenExpiration.toSeconds();
     }
 
     private Claims claims(String token) {
