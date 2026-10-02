@@ -13,6 +13,7 @@ import com.zivdah.order.enums.OrderStatus;
 import com.zivdah.order.kafka.OrderKafkaProducer;
 import com.zivdah.order.repository.OrderItemRepository;
 import com.zivdah.order.repository.OrderRepository;
+import com.zivdah.order.service.OrderPricingService;
 import com.zivdah.order.service.OrderService;
 import com.zivdah.order.service.InvoiceService;
 import com.zivdah.order.enums.OrderStatus;
@@ -47,6 +48,24 @@ public class OrderServiceImpl implements OrderService {
     private final OrderKafkaProducer orderKafkaProducer;
     private final PaymentServiceClient paymentServiceClient;
     private final InvoiceService invoiceService;
+    private final OrderPricingService orderPricingService;
+
+    // Client's expected total may differ from the server's by at most one paisa — the storefront
+    // computes tax with JS floating-point toFixed(2), which can round the last digit differently
+    // from BigDecimal HALF_UP. Anything larger is a real price difference.
+    static final BigDecimal TOTAL_TOLERANCE = new BigDecimal("0.01");
+
+    // Order statuses a failed payment may still cancel — the order hasn't been paid yet.
+    static final Set<OrderStatus> AWAITING_PAYMENT = EnumSet.of(OrderStatus.CREATED, OrderStatus.PAYMENT_PENDING);
+
+    // Order statuses a confirmed payment may move to PAID — AWAITING_PAYMENT plus CANCELLED (see
+    // updatePaymentStatus for why: a failed-then-retried UPI payment settles the same order).
+    static final Set<OrderStatus> PAYABLE =
+            EnumSet.of(OrderStatus.CREATED, OrderStatus.PAYMENT_PENDING, OrderStatus.CANCELLED);
+
+    // Already-finished orders even an ADMIN can't cancel (a delivered order is refunded instead).
+    private static final Set<OrderStatus> ADMIN_NON_CANCELLABLE =
+            EnumSet.of(OrderStatus.DELIVERED, OrderStatus.CANCELLED, OrderStatus.REFUNDED);
 
     // Allowed forward transitions for the admin/vendor-driven lifecycle. Anything not
     // listed here (e.g. skipping straight from CREATED to DELIVERED) is rejected.
@@ -73,10 +92,13 @@ public class OrderServiceImpl implements OrderService {
     // save (order + all items) back on any error in the chain below.
     @Override
     @Transactional
-    public Mono<OrderResponseDto> createOrder(OrderRequestDto dto) {
+    public Mono<OrderResponseDto> createOrder(OrderRequestDto dto, Long currentUserId) {
         if (isBlank(dto.getIdempotencyKey())) {
             return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "idempotencyKey is required"));
         }
+        // The order always belongs to the authenticated caller — the request body's userId is
+        // ignored (it used to be trusted, letting anyone place an order on another user's account).
+        dto.setUserId(currentUserId);
 
         // idempotencyKey identifies one checkout attempt end-to-end — looking it up first makes
         // retrying "Place Order" for the same cart idempotent: an existing order is returned
@@ -84,9 +106,15 @@ public class OrderServiceImpl implements OrderService {
         // would otherwise double-decrement inventory stock and double-notify everyone). See
         // PaymentServiceImpl#initiatePayment for the matching payment-side check.
         return orderRepository.findByIdempotencyKey(dto.getIdempotencyKey())
-                .flatMap(existing -> orderItemRepository.findByOrderId(existing.getId())
-                        .collectList()
-                        .map(items -> mapToResponse(existing, items)))
+                .flatMap(existing -> {
+                    // Never hand back someone else's order just because the key collided.
+                    if (!currentUserId.equals(existing.getUserId())) {
+                        return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT, "Duplicate checkout reference"));
+                    }
+                    return orderItemRepository.findByOrderId(existing.getId())
+                            .collectList()
+                            .map(items -> mapToResponse(existing, items));
+                })
                 .switchIfEmpty(Mono.defer(() -> insertNewOrder(dto)));
     }
 
@@ -94,10 +122,10 @@ public class OrderServiceImpl implements OrderService {
         return s == null || s.isBlank();
     }
 
-    // Light sanity validation before the real insert — items/address must be present and the
-    // client-computed total must roughly match its components. Deliberately NOT checking
-    // inventory/stock availability here: that's only ever done asynchronously today via the
-    // order-created Kafka consumer, with no rollback path if insufficient — a separate,
+    // Light sanity validation before pricing — items/address must be present. Prices are NOT
+    // validated here any more: they're recomputed from scratch by OrderPricingService. Deliberately
+    // NOT checking inventory/stock availability here: that's only ever done asynchronously today
+    // via the order-created Kafka consumer, with no rollback path if insufficient — a separate,
     // pre-existing architectural gap, not something to half-fix as part of this change.
     private ResponseStatusException validateNewOrder(OrderRequestDto dto) {
         if (dto.getItems() == null || dto.getItems().isEmpty()) {
@@ -107,30 +135,15 @@ public class OrderServiceImpl implements OrderService {
             if (item.getQuantity() == null || item.getQuantity() <= 0) {
                 return new ResponseStatusException(HttpStatus.BAD_REQUEST, "Each item quantity must be positive");
             }
-            if (item.getPrice() == null || item.getPrice().compareTo(BigDecimal.ZERO) < 0) {
-                return new ResponseStatusException(HttpStatus.BAD_REQUEST, "Each item price must be non-negative");
-            }
         }
         if (isBlank(dto.getDeliveryAddressLine1()) || isBlank(dto.getDeliveryCity())
                 || isBlank(dto.getDeliveryState()) || isBlank(dto.getDeliveryPinCode())) {
             return new ResponseStatusException(HttpStatus.BAD_REQUEST, "Delivery address is incomplete");
         }
-        BigDecimal expectedTotal = nz(dto.getSubTotal())
-                .add(nz(dto.getTotalTaxAmount()))
-                .add(nz(dto.getDeliveryCharge()))
-                .add(nz(dto.getPackagingCharge()))
-                .add(nz(dto.getHandlingCharge()))
-                .subtract(nz(dto.getDiscountAmount()));
-        if (dto.getTotalAmount() == null
-                || dto.getTotalAmount().subtract(expectedTotal).abs().compareTo(new BigDecimal("0.01")) > 0) {
-            return new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "totalAmount does not match subTotal + tax + charges - discount");
+        if (dto.getTotalAmount() == null) {
+            return new ResponseStatusException(HttpStatus.BAD_REQUEST, "totalAmount is required");
         }
         return null;
-    }
-
-    private static BigDecimal nz(BigDecimal value) {
-        return value != null ? value : BigDecimal.ZERO;
     }
 
     private Mono<OrderResponseDto> insertNewOrder(OrderRequestDto dto) {
@@ -138,9 +151,24 @@ public class OrderServiceImpl implements OrderService {
         if (validationError != null) {
             return Mono.error(validationError);
         }
+        return orderPricingService.price(dto.getItems(), dto.getCouponCode())
+                .flatMap(priced -> {
+                    // The client's total is only ever an "expected total" now: every stored number
+                    // below is the server's own. A mismatch means the cart is stale (a price or
+                    // coupon changed since the customer loaded it) or the request was tampered with
+                    // — either way, don't create an order the customer didn't see the price of.
+                    if (dto.getTotalAmount().subtract(priced.getTotalAmount()).abs().compareTo(TOTAL_TOLERANCE) > 0) {
+                        log.warn("Order total mismatch for user {}: client {} vs server {}",
+                                dto.getUserId(), dto.getTotalAmount(), priced.getTotalAmount());
+                        return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT,
+                                "Prices in your cart have changed. Please review your cart and try again."));
+                    }
+                    return insertPricedOrder(dto, priced);
+                });
+    }
 
-        log.info("Creating order for user {} with {} item(s)", dto.getUserId(),
-                dto.getItems() == null ? 0 : dto.getItems().size());
+    private Mono<OrderResponseDto> insertPricedOrder(OrderRequestDto dto, OrderPricingService.PricedOrder priced) {
+        log.info("Creating order for user {} with {} item(s)", dto.getUserId(), priced.getLines().size());
 
         Order order = Order.builder()
                 .idempotencyKey(dto.getIdempotencyKey())
@@ -148,22 +176,24 @@ public class OrderServiceImpl implements OrderService {
 
                 .orderNumber(generateOrderNumber())   // <-- Add this
 
-                .subTotal(dto.getSubTotal())
+                .subTotal(priced.getSubTotal())
 
-                .gstAmount(dto.getGstAmount())
-                .cgstAmount(dto.getCgstAmount())
-                .sgstAmount(dto.getSgstAmount())
-                .igstAmount(dto.getIgstAmount())
-                .totalTaxAmount(dto.getTotalTaxAmount())
+                // Same tax split the storefront has always sent: the whole tax as GST, no
+                // CGST/SGST/IGST breakdown.
+                .gstAmount(priced.getTaxAmount())
+                .cgstAmount(BigDecimal.ZERO)
+                .sgstAmount(BigDecimal.ZERO)
+                .igstAmount(BigDecimal.ZERO)
+                .totalTaxAmount(priced.getTaxAmount())
 
-                .deliveryCharge(dto.getDeliveryCharge())
-                .packagingCharge(dto.getPackagingCharge())
-                .handlingCharge(dto.getHandlingCharge())
+                .deliveryCharge(priced.getDeliveryCharge())
+                .packagingCharge(priced.getPackagingCharge())
+                .handlingCharge(priced.getHandlingCharge())
 
-                .discountAmount(dto.getDiscountAmount())
-                .couponCode(dto.getCouponCode())
+                .discountAmount(priced.getDiscountAmount())
+                .couponCode(priced.getCouponCode())
 
-                .totalAmount(dto.getTotalAmount())
+                .totalAmount(priced.getTotalAmount())
 
                 .currency(dto.getCurrency())
 
@@ -222,23 +252,19 @@ public class OrderServiceImpl implements OrderService {
 
                 .flatMap(savedOrder ->
 
-                        Flux.fromIterable(dto.getItems())
+                        Flux.fromIterable(priced.getLines())
 
-                                .flatMap(item ->
+                                // price/vendorId come from product-service (OrderPricingService),
+                                // never from the request's own item fields.
+                                .flatMap(line ->
                                         orderItemRepository.save(
                                                 OrderItem.builder()
                                                         .orderId(savedOrder.getId())
-                                                        .productId(item.getProductId())
-                                                        .vendorId(item.getVendorId())
-                                                        .quantity(item.getQuantity())
-                                                        .price(item.getPrice())
-                                                        .subtotal(
-                                                                item.getPrice()
-                                                                        .multiply(
-                                                                                java.math.BigDecimal
-                                                                                        .valueOf(item.getQuantity())
-                                                                        )
-                                                        )
+                                                        .productId(line.getProductId())
+                                                        .vendorId(line.getVendorId())
+                                                        .quantity(line.getQuantity())
+                                                        .price(line.getUnitPrice())
+                                                        .subtotal(line.getSubtotal())
                                                         .build()
                                         )
                                 )
@@ -341,6 +367,31 @@ public class OrderServiceImpl implements OrderService {
                         )
                 )
 
+                .flatMap(order -> orderItemRepository.findByOrderId(orderId).collectList()
+                        .flatMap(items -> {
+                            // Previously any authenticated user could cancel any order, in any
+                            // status (even DELIVERED/REFUNDED). Now: ADMIN may cancel anything not
+                            // already finished (what zivdah-admin's OrderDetailPage offers); the
+                            // customer — or a VENDOR with an item on it — only while the order still
+                            // allows CANCELLED per ALLOWED_TRANSITIONS (what zivdah-web's
+                            // OrderDetail CANCELLABLE_STATUSES offers).
+                            boolean admin = "ADMIN".equalsIgnoreCase(role);
+                            boolean owner = currentUserId != null && currentUserId.equals(order.getUserId());
+                            boolean vendorOnOrder = "VENDOR".equalsIgnoreCase(role)
+                                    && items.stream().anyMatch(i -> currentUserId.equals(i.getVendorId()));
+                            if (!admin && !owner && !vendorOnOrder) {
+                                return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the owner of this order"));
+                            }
+                            boolean cancellable = admin
+                                    ? !ADMIN_NON_CANCELLABLE.contains(order.getStatus())
+                                    : ALLOWED_TRANSITIONS.getOrDefault(order.getStatus(), EnumSet.noneOf(OrderStatus.class))
+                                            .contains(OrderStatus.CANCELLED);
+                            if (!cancellable) {
+                                return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                        "Order in status " + order.getStatus() + " can no longer be cancelled"));
+                            }
+                            return Mono.just(order);
+                        }))
                 .flatMap(order -> {
 
                     OrderStatus oldStatus = order.getStatus();
@@ -372,6 +423,15 @@ public class OrderServiceImpl implements OrderService {
         if (newStatus == OrderStatus.REFUNDED && !"ADMIN".equalsIgnoreCase(role)) {
             return Mono.error(new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "Only ADMIN may mark an order as refunded"));
+        }
+        // PAID is a payment outcome, not a fulfilment step. A VENDOR could previously set it on
+        // any order containing one of their items — and since anyone can self-register as a
+        // VENDOR, that let a customer mark their own unpaid order PAID. Payments now move orders
+        // to PAID only via payment-service (gateway-confirmed UPI, or an admin marking COD
+        // collected); ADMIN keeps the manual override it already had.
+        if (newStatus == OrderStatus.PAID && !"ADMIN".equalsIgnoreCase(role)) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Only a confirmed payment (or an ADMIN) may mark an order as paid"));
         }
 
         return orderRepository.findById(orderId)
@@ -466,6 +526,23 @@ public class OrderServiceImpl implements OrderService {
                         return Mono.<Order>empty();
                     }
 
+                    // A payment result only applies to an order that isn't paid/fulfilled yet.
+                    // Previously PAID was accepted from ANY status (knocking a delivered order back
+                    // to PAID, re-paying a REFUNDED one) and a failed payment could cancel an order
+                    // already in fulfilment. PAID is still accepted on a CANCELLED order: a failed
+                    // UPI attempt cancels its order, and the storefront's "retry payment" reuses that
+                    // same order (same checkoutRef), so a successful retry must be able to settle it.
+                    // That's safe now that only a gateway-verified payment can reach this endpoint.
+                    boolean payable = newStatus == OrderStatus.PAID
+                            ? PAYABLE.contains(order.getStatus())
+                            : AWAITING_PAYMENT.contains(order.getStatus());
+                    if ((newStatus == OrderStatus.PAID || newStatus == OrderStatus.CANCELLED) && !payable) {
+                        log.error("Rejected payment-status {} for order {} in status {}",
+                                newStatus, orderId, order.getStatus());
+                        return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT,
+                                "Order " + orderId + " is not awaiting payment (status " + order.getStatus() + ")"));
+                    }
+
                     if (newStatus == OrderStatus.REFUNDED) {
                         Set<OrderStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(order.getStatus(), EnumSet.noneOf(OrderStatus.class));
                         if (!allowed.contains(OrderStatus.REFUNDED)) {
@@ -523,6 +600,8 @@ public class OrderServiceImpl implements OrderService {
             return Mono.empty();
         }
         return orderRepository.findById(orderId)
+                // A cancelled/refunded order must never be revived by a delivery update.
+                .filter(order -> order.getStatus() != OrderStatus.CANCELLED && order.getStatus() != OrderStatus.REFUNDED)
                 .flatMap(order -> {
                     order.setStatus(mapped);
                     order.setUpdatedAt(LocalDateTime.now());

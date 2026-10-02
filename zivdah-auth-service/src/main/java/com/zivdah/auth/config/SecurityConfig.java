@@ -2,7 +2,10 @@ package com.zivdah.auth.config;
 
 import com.zivdah.auth.security.JwtAuthenticationFilter;
 import com.zivdah.common.logging.CorrelationIdWebFilter;
+import com.zivdah.common.security.InternalAuth;
+import com.zivdah.common.security.InternalServiceAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
@@ -26,7 +29,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
+    public SecurityWebFilterChain securityWebFilterChain(
+            ServerHttpSecurity http, @Value("${internal.api-token}") String internalApiToken) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
@@ -47,23 +51,22 @@ public class SecurityConfig {
                                 "/restful/v1/api/auth/logout",
                                 "/restful/v1/api/auth/forget-password",
                                 "/restful/v1/api/auth/verify-registration-otp",
-                                "/restful/v1/api/auth/reset-password",
-                                "/restful/v1/api/auth/deactivate/*",
-                                "/restful/v1/api/auth/activate/*",
-                                "/restful/v1/api/auth/activate/*",
-                                "/restful/v1/api/auth/all-users",
-                                // internal, notification-service-only fan-out lookup — no
-                                // user JWT available for that call (see AuthController). The
-                                // single-segment wildcard covers both /internal/device-tokens/{userId}
-                                // (GET) and /internal/device-tokens/deactivate (PATCH).
-                                "/restful/v1/api/auth/internal/admin-ids",
-                                "/restful/v1/api/auth/internal/device-tokens/*",
-                                // internal, order-service-only lookup for invoice generation —
-                                // no user JWT available for that call (see AuthController)
-                                "/restful/v1/api/auth/internal/users/*"
+                                "/restful/v1/api/auth/reset-password"
+                                // (Removed from this list: deactivate/*, activate/*, all-users. They
+                                // are user/admin actions and now require a login; deactivate/* in
+                                // particular ran with NO login at all, because its owner-or-admin
+                                // check silently passed on an empty security context.)
                         ).permitAll()
+                        // Internal, service-to-service only — order-service (invoice customer info),
+                        // payment-service (vendor bank details for payouts), notification-service and
+                        // chat-service (admin ids, device tokens). These were permitAll(), and the public
+                        // api-gateway routes all of /auth/**, so anyone could read any user's name,
+                        // email, mobile, bank account, IFSC and UPI id by sequential id. Now they need
+                        // the shared internal token (see InternalServiceAuthenticationFilter).
+                        .pathMatchers("/restful/v1/api/auth/internal/**").hasRole(InternalAuth.ROLE)
                         .anyExchange().authenticated()
                 )
+                .addFilterBefore(new InternalServiceAuthenticationFilter(internalApiToken), SecurityWebFiltersOrder.AUTHENTICATION)
                 .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .build();
     }

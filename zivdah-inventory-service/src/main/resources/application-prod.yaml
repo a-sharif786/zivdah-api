@@ -8,7 +8,7 @@ spring:
   r2dbc:
     url: r2dbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    password: ${DB_PASSWORD}
     pool:
       initial-size: 5
       max-size: 20
@@ -17,7 +17,7 @@ spring:
   flyway:
     url: jdbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
     user: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    password: ${DB_PASSWORD}
     locations: classpath:db/migration
     table: flyway_schema_history_inventory  # dedicated history table: zivdah_db is shared across services,
                                              # so each service needs its own version numbering
@@ -62,3 +62,8 @@ logging:
 
 jwt:
   secret: ${JWT_SECRET}
+
+# Shared secret for service-to-service calls (see zivdah-common InternalServiceAuthenticationFilter).
+# No fallback on purpose - startup fails unless INTERNAL_API_TOKEN is set (same value in every service).
+internal:
+  api-token: ${INTERNAL_API_TOKEN}

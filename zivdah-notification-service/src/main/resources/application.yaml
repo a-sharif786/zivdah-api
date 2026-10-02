@@ -3,3 +3,15 @@ spring:
     name: zivdah-notification-service
   profiles:
     active: dev
+  # Per-developer secrets file OUTSIDE the repo (third-party credentials must never be committed).
+  # Optional: absent in Docker/prod, where the same keys come from the server .env instead.
+  config:
+    import: optional:file:${user.home}/.zivdah/zivdah-secrets.yaml
+
+# Firebase Admin SDK service-account key (see config/FirebaseConfig). Read from a file path, never
+# the classpath: the key used to live in src/main/resources, i.e. in git and inside every jar and
+# Docker image. Dev: set in ~/.zivdah/zivdah-secrets.yaml. Prod: FIREBASE_CREDENTIALS_PATH points
+# at the file docker-compose.yml mounts read-only.
+firebase:
+  enabled: ${FIREBASE_ENABLED:true}
+  credentials-path: ${FIREBASE_CREDENTIALS_PATH:}

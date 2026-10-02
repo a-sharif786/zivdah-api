@@ -3,3 +3,16 @@ spring:
     name: zivdah-order-service
   profiles:
     active: dev
+
+# Server-side order pricing (see OrderPricingService). These MUST match the storefront's own
+# checkout math (zivdah-web src/pages/Checkout.jsx: tax = 5% of the item subtotal, delivery is
+# free at/above 500, otherwise 40) — the server recomputes every total from these instead of
+# trusting the client's numbers, and rejects the order if the client's total disagrees.
+# Profile-independent business config, so it lives here rather than in application-{dev,prod}.yaml.
+order:
+  pricing:
+    tax-rate: 0.05
+    free-delivery-threshold: 500
+    delivery-charge: 40
+    packaging-charge: 0
+    handling-charge: 0

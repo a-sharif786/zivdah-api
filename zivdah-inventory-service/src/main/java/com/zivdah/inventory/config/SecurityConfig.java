@@ -1,8 +1,11 @@
 package com.zivdah.inventory.config;
 
 import com.zivdah.common.logging.CorrelationIdWebFilter;
+import com.zivdah.common.security.InternalAuth;
+import com.zivdah.common.security.InternalServiceAuthenticationFilter;
 import com.zivdah.inventory.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -27,7 +30,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
+    public SecurityWebFilterChain securityWebFilterChain(
+            ServerHttpSecurity http, @Value("${internal.api-token}") String internalApiToken) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
@@ -35,11 +39,13 @@ public class SecurityConfig {
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
                 .authorizeExchange(auth -> auth
                         .pathMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/webjars/**").permitAll()
-                        // internal, product-service-only push (see ProductServiceClient in
-                        // zivdah-product-service) — no user JWT available for this call
-                        .pathMatchers(HttpMethod.PUT, "/restful/v1/api/inventory/*/sync-quantity").permitAll()
+                        // Internal, product-service-only push (see InventoryServiceClient in
+                        // zivdah-product-service). Was permitAll(): anyone could set any product's
+                        // available quantity through the public api-gateway. Now needs the internal token.
+                        .pathMatchers(HttpMethod.PUT, "/restful/v1/api/inventory/*/sync-quantity").hasRole(InternalAuth.ROLE)
                         .anyExchange().authenticated()
                 )
+                .addFilterBefore(new InternalServiceAuthenticationFilter(internalApiToken), SecurityWebFiltersOrder.AUTHENTICATION)
                 .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .build();
     }

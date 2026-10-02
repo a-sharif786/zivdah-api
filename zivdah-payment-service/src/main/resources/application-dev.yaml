@@ -20,9 +20,7 @@ spring:
     password: root
     locations: classpath:db/migration
     table: flyway_schema_history_payment  # dedicated history table: zivdahDB is shared across services,
-                                           # so each service needs its own version numbering (see zivdah-order-service)
     baseline-on-migrate: true             # public schema already has other services' tables; baseline this new
-                                           # history table at V1 (already-run init) instead of erroring on non-empty schema
 
   kafka:
     bootstrap-servers: localhost:9092
@@ -43,16 +41,11 @@ spring:
         spring.json.trusted.packages: com.zivdah.common.event
         spring.json.use.type.headers: true
 
-# order-service runs on the same host in dev (see zivdah-order-service's own
-# application-dev.yaml, port 8005) — see application-prod.yaml for why this differs there.
 order-service:
   url: http://localhost:8005/restful/v1/api/orders
 
-# auth-service runs on the same host in dev (port 8002) — see application-prod.yaml for why
-# this differs there. Used by VendorPayoutServiceImpl/AuthServiceClient to fetch a vendor's
-# bank/UPI details on file before submitting a payout.
 auth-service:
-  url: http://localhost:8002/restful/v1/api/auth
+  internal-url: http://localhost:8002/restful/v1/api/auth
 
 ecomworldpay:
   base-url: ${ECOMWORLDPAY_BASE_URL:https://api.ecomworldpay.net}
@@ -60,10 +53,10 @@ ecomworldpay:
   status-check-path: /api/merchant/transactions/status
   payout-path: /api/payout/payments
   payout-status-path: /api/payout/transStatus
-  tenant-id: ${ECOMWORLDPAY_TENANT_ID:TRN053}
-  merchant-id: ${ECOMWORLDPAY_MERCHANT_ID:lCqSVz12j6M=NTI=}
-  api-key: ${ECOMWORLDPAY_API_KEY:d6618af0-4b61-4313-baa3-08fd1e3a03a3}
-  secret-key: ${ECOMWORLDPAY_SECRET_KEY:f4026293-9059-43da-917e-c010746154c4}
+  tenant-id: ${ECOMWORLDPAY_TENANT_ID}
+  merchant-id: ${ECOMWORLDPAY_MERCHANT_ID}
+  api-key: ${ECOMWORLDPAY_API_KEY}
+  secret-key: ${ECOMWORLDPAY_SECRET_KEY}
 
 eureka:
   instance:
@@ -77,4 +70,11 @@ logging:
     org.springframework.security: DEBUG
 
 jwt:
-  secret: my_super_secret_key_that_is_at_least_32_characters_long_123456
+  secret: ${JWT_SECRET:my_super_secret_key_that_is_at_least_32_characters_long_123456}
+
+# Shared secret for service-to-service calls (see zivdah-common InternalServiceAuthenticationFilter).
+# Dev-only fallback so a local IntelliJ run works without extra setup; application-prod.yaml has
+# NO fallback, so production fails fast at startup unless INTERNAL_API_TOKEN is set. Must be the
+# same value in every service.
+internal:
+  api-token: ${INTERNAL_API_TOKEN:206384bb376b7f98825a70d8412d5f167e6aaec4793fbecb4d321ccedfdb9861}

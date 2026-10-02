@@ -23,19 +23,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
-        <!-- Shared Cloudinary upload logic -->
+        <!-- Shared local-disk upload logic (LocalFileStorageService) -->
         <dependency>
             <groupId>com.zivdah</groupId>
             <artifactId>zivdah-common</artifactId>
             <version>1.0.0</version>
-        </dependency>
-        <!-- Cloudinary SDK itself: zivdah-common declares this as "provided" (so it doesn't
-             leak transitively into every other service that depends on zivdah-common just for
-             logging), so the actual consumer needs its own direct copy. -->
-        <dependency>
-            <groupId>com.cloudinary</groupId>
-            <artifactId>cloudinary-http44</artifactId>
-            <version>1.38.0</version>
         </dependency>
         <!-- Security -->
         <dependency>

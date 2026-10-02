@@ -66,13 +66,6 @@
             <artifactId>zivdah-common</artifactId>
             <version>1.0.0</version>
         </dependency>
-        <!-- Chat attachments (images/files) via the shared CloudinaryUploadService in
-             zivdah-common — same dependency/version zivdah-product-service already uses. -->
-        <dependency>
-            <groupId>com.cloudinary</groupId>
-            <artifactId>cloudinary-http44</artifactId>
-            <version>1.38.0</version>
-        </dependency>
         <!-- Rate limiting — first use in the platform (see the plan's security section),
              deliberately scoped only to this service's own endpoints via RateLimitWebFilter. -->
         <dependency>

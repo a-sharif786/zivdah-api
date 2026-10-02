@@ -35,7 +35,7 @@ public class CartController {
             @Valid @RequestBody CartItemRequestDto dto) {
 
 
-        log.info("Cart add request received: {}", dto);
+        log.info("Cart add request received: productId={}, quantity={}", dto.getProductId(), dto.getQuantity());
 
 
         return cartService.addToCart(dto)

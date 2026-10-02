@@ -1,12 +1,17 @@
 package com.zivdah.payment.client;
 
+import com.zivdah.common.security.InternalAuth;
+import com.zivdah.payment.client.dto.ApiEnvelope;
+import com.zivdah.payment.client.dto.OrderSnapshotDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,7 +35,27 @@ public class OrderServiceClient {
     @Value("${order-service.url}")
     private String orderServiceUrl;
 
+    // order-service's /payment-status and GET /{orderId} need the internal service token (see
+    // zivdah-common InternalServiceAuthenticationFilter). Added per call, never as a default
+    // header on the shared WebClient — that same WebClient also calls EcomWorldPay, which must
+    // never receive it.
+    @Value("${internal.api-token}")
+    private String internalApiToken;
+
     private final WebClient webClient;
+
+    // The order a payment is being linked to (see PaymentServiceImpl#linkOrder), read over the
+    // internal API so the payment can be checked against the order's own owner, status and
+    // server-computed total. Errors propagate: without the order there's nothing safe to link.
+    public Mono<OrderSnapshotDto> getOrder(Long orderId) {
+        return webClient.get()
+                .uri(orderServiceUrl + "/{orderId}", orderId)
+                .header(InternalAuth.HEADER, internalApiToken)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<ApiEnvelope<OrderSnapshotDto>>() {})
+                .timeout(Duration.ofSeconds(5))
+                .mapNotNull(ApiEnvelope::getData);
+    }
 
     public Mono<Void> updatePaymentStatus(Long orderId, String status) {
         return updatePaymentStatus(orderId, status, null, null, null);
@@ -51,6 +76,7 @@ public class OrderServiceClient {
         body.put("paidAt", paidAt);
         return webClient.put()
                 .uri(orderServiceUrl + "/{orderId}/payment-status", orderId)
+                .header(InternalAuth.HEADER, internalApiToken)
                 .bodyValue(body)
                 .retrieve()
                 .toBodilessEntity()

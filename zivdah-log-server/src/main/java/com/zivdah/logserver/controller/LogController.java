@@ -13,11 +13,14 @@ import reactor.core.publisher.Mono;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+// ADMIN-only (see config/SecurityConfig). No @CrossOrigin("*") any more — CORS is the api-gateway's job.
 @RestController
 @RequestMapping("/restful/v1/api/logs")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class LogController {
+
+    // One page can't pull an unbounded slice of the log table (size was uncapped).
+    private static final int MAX_PAGE_SIZE = 200;
 
     private final LogQueryService logQueryService;
 
@@ -30,7 +33,8 @@ public class LogController {
             @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return logQueryService.search(service, level, from, to, q, PageRequest.of(page, size))
+        PageRequest pageRequest = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE));
+        return logQueryService.search(service, level, from, to, q, pageRequest)
                 .collectList()
                 .map(list -> ResponseEntity.ok(ApiResponse.<List<LogEntryDto>>builder()
                         .status("success").statusCode(200).message("Logs retrieved successfully").data(list).build()));

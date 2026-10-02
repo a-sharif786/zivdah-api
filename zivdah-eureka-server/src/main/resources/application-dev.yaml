@@ -1,0 +1,20 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+
+  security:
+    user:
+      name: zivdah-eureka
+      # Unused while auth is disabled; only stops Spring generating a random password.
+      password: dev-only-not-a-secret
+
+zivdah:
+  eureka:
+    auth:
+      enabled: false
+
+# Dev only: drop stopped IntelliJ instances quickly. Prod keeps the default (on), so a service
+# that briefly misses heartbeats (GC pause, CPU spike) isn't evicted and 503'd by the gateway.
+eureka:
+  server:
+    enable-self-preservation: true

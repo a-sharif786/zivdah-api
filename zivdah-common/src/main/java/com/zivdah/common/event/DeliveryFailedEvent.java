@@ -19,10 +19,6 @@ public class DeliveryFailedEvent {
     private Long vendorId;
     private Long userId;
     private Long deliveryBoyId;
-
-    // CUSTOMER_NOT_AVAILABLE, WRONG_ADDRESS, CUSTOMER_REFUSED, PAYMENT_ISSUE,
-    // DAMAGED_ORDER, OTHER — see com.zivdah.delivery.enums.FailureReason
     private String failureReason;
-    // Free-text detail, expected (but not required) when failureReason = OTHER
     private String failureNote;
 }

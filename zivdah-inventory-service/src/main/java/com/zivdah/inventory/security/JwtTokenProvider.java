@@ -17,7 +17,7 @@ import java.util.Date;
 @Component
 public class JwtTokenProvider {
 
-    @Value("${jwt.secret:my_super_secret_key_that_is_at_least_32_chars}")
+    @Value("${jwt.secret}")
     private String secretKey;
     private final long EXPIRATION_MS = 24 * 60 * 60 * 1000; // 1 day
 

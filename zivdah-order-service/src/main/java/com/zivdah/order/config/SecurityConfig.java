@@ -1,8 +1,11 @@
 package com.zivdah.order.config;
 
 import com.zivdah.common.logging.CorrelationIdWebFilter;
+import com.zivdah.common.security.InternalAuth;
+import com.zivdah.common.security.InternalServiceAuthenticationFilter;
 import com.zivdah.order.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -27,7 +30,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
+    public SecurityWebFilterChain securityWebFilterChain(
+            ServerHttpSecurity http, @Value("${internal.api-token}") String internalApiToken) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
@@ -35,26 +39,21 @@ public class SecurityConfig {
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
                 .authorizeExchange(auth -> auth
                         .pathMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/webjars/**").permitAll()
-                        // explicit: must be evaluated before the single-segment wildcard below, since
-                        // "all" would otherwise also match "/orders/*" the same way "/orders/{orderId}" does
-                        .pathMatchers(HttpMethod.GET, "/restful/v1/api/orders/all").authenticated()
-                        .pathMatchers(HttpMethod.GET, "/restful/v1/api/orders/stats").authenticated()
-                        .pathMatchers("/restful/v1/api/orders/*").permitAll()
-                        // internal, payment-service-only transition — no user JWT available for this call
-                        // (see OrderController#updatePaymentStatus); the status value itself is restricted
-                        // server-side to PAID/CANCELLED
-                        .pathMatchers(HttpMethod.PUT, "/restful/v1/api/orders/*/payment-status").permitAll()
-                        // internal, delivery-service-only sync — no user JWT available for this call
-                        // (see OrderController#syncDeliveryStatus)
-                        .pathMatchers(HttpMethod.PUT, "/restful/v1/api/orders/*/delivery-status").permitAll()
-
-                        // Invoice endpoints are all ownership/role-checked in InvoiceController
-                        // itself (owner/ADMIN/vendor-with-item) — just require *some* authenticated
-                        // caller here, same as the orders endpoints above.
-                        .pathMatchers("/restful/v1/api/invoices/**").authenticated()
-
+                        // Internal, service-to-service only (payment-service / delivery-service) — these
+                        // used to be permitAll(), which (since the public api-gateway routes all of
+                        // /orders/**) let anyone on the internet mark any order PAID or DELIVERED.
+                        // Now they need the shared internal token (see InternalServiceAuthenticationFilter).
+                        .pathMatchers(HttpMethod.PUT,
+                                "/restful/v1/api/orders/*/payment-status",
+                                "/restful/v1/api/orders/*/delivery-status").hasRole(InternalAuth.ROLE)
+                        // Everything else — create, GET /{orderId}, /user/{userId}, cancel, invoices —
+                        // needs an authenticated caller (a user JWT or, for the internal GET /{orderId}
+                        // lookups other services make, the internal token), with ownership then checked
+                        // in OrderController/InvoiceController itself. The old "/orders/*" permitAll()
+                        // exposed create and GET /{orderId} (full delivery address) to anyone.
                         .anyExchange().authenticated()
                 )
+                .addFilterBefore(new InternalServiceAuthenticationFilter(internalApiToken), SecurityWebFiltersOrder.AUTHENTICATION)
                 .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .build();
     }

@@ -14,36 +14,20 @@ public interface AuthService {
     Mono<Void> sendOtp(String mobile);
     Mono<LoginResponseDTO> verifyOtp(VerifyLoginOtpDTO request);
 
-    // Exchanges a valid refresh token for a new access + refresh token pair (the presented
-    // refresh token is revoked — see RefreshTokenService for rotation/reuse detection).
+   
     Mono<LoginResponseDTO> refreshToken(RefreshTokenRequestDTO request);
     Flux<AuthUserResponseDTO> getAllUsers();
 
-    // Narrower than getAllUsers (ADMIN-only) — lets a VENDOR resolve the delivery-boy
-    // pool for assignment (see zivdah-delivery-service's /assign) without exposing every
-    // other user's email/mobile/role to them. Returns both active and inactive delivery
-    // boys so callers can still resolve the name of one already assigned before being
-    // deactivated; filtering to active-only for an assignment dropdown is a UI concern.
     Flux<AuthUserResponseDTO> getUsersByRole(Role role);
 
-    // Internal, service-to-service use only (see AuthController's unauthenticated
-    // /internal/admin-ids endpoint) — just the ids, to keep an unauthenticated endpoint's
-    // data exposure minimal.
+    
     Flux<Long> getAdminUserIds();
 
-    // Registers/refreshes one device's FCM token (upserted by fcmToken — see
-    // device_tokens migration). Called at login/verify-otp with deviceType defaulted to WEB,
-    // and again any time after login since permission is granted asynchronously and tokens
-    // rotate. A user may have several active rows at once (multiple devices/browsers).
     Mono<Void> registerDeviceToken(Long userId, String role, String deviceType, String fcmToken);
 
-    // Internal, service-to-service use only (see AuthController's unauthenticated
-    // /internal/device-tokens/{userId} endpoint) — zivdah-notification-service resolves a
-    // user's active tokens across every device through this before sending a push.
     Flux<String> getActiveDeviceTokens(Long userId);
 
-    // Internal, service-to-service use only — called by zivdah-notification-service when
-    // Firebase reports a token as unregistered/invalid, so future sends skip it.
+  
     Mono<Void> deactivateDeviceToken(String fcmToken);
 
     Mono<UserResponseDTO> updateProfile(Long userId, UpdateUserProfileDTO dto);
@@ -51,11 +35,6 @@ public interface AuthService {
     Mono<Boolean> sendPasswordResetOtp(String email);
     Mono<ResetPasswordResponseDTO> resetPassword(ResetPasswordDTO request);
     Mono<LoginResponseDTO> verifyRegistrationOtp(VerifyOtpDTO request);
-
-    // fcmToken is optional — when present, only that device's token is deactivated instead
-    // of leaving every device's push registration untouched (see LogoutRequestDTO).
-    // refreshToken is optional too — present revokes just that one, absent revokes all of
-    // the user's refresh tokens.
     Mono<Void> logout(Long userId, String fcmToken, String refreshToken);
     Mono<UserResponseDTO> updateRole(Long userId, Role role);
     Mono<Void> deactivateAccount(Long userId);

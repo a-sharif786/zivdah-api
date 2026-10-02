@@ -15,6 +15,7 @@ import com.zivdah.payment.service.VendorPayoutService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -58,11 +59,11 @@ public class VendorPayoutServiceImpl implements VendorPayoutService {
     @Override
     public Mono<VendorPayoutResponseDto> initiateAdminPayout(Long adminId, Long vendorId, BigDecimal amount, PayoutMode payoutMode) {
         return authServiceClient.getVendorBankDetails(vendorId)
-                // Unlike the vendor path (always the caller's own, always-valid id), this is the
-                // first caller passing an arbitrary vendor id — sanitized so a nonexistent id's
-                // WebClientResponseException (which embeds auth-service's internal URL) never
-                // reaches the client.
-                .onErrorMap(WebClientResponseException.class, ex -> new RuntimeException("Vendor not found"))
+                .onErrorMap(WebClientResponseException.class, ex -> mapVendorLookupError(vendorId, ex))
+                .onErrorMap(WebClientRequestException.class, ex -> {
+                    log.error("Vendor lookup for {} could not reach auth-service: {}", vendorId, ex.getMessage());
+                    return new RuntimeException("Auth service is unreachable from payment-service — check AUTH_SERVICE_INTERNAL_URL");
+                })
                 .flatMap(bank -> {
                     if (!bank.isVendor()) {
                         return Mono.error(new RuntimeException("Selected user is not a vendor"));
@@ -77,6 +78,26 @@ public class VendorPayoutServiceImpl implements VendorPayoutService {
                     return buildAndSavePayout(vendorId, amount, payoutMode, bank, PayoutInitiator.ADMIN, adminId);
                 })
                 .map(this::toDto);
+    }
+
+    // Only a genuinely missing user is "Vendor not found" — auth-service answers that with a
+    // "User not found with id: N" body. A 401/403 (INTERNAL_API_TOKEN mismatch) or a gateway 404
+    // (AUTH_SERVICE_INTERNAL_URL pointed at the public domain) used to masquerade as the same
+    // message, which made prod-only misconfiguration look like bad data.
+    private RuntimeException mapVendorLookupError(Long vendorId, WebClientResponseException ex) {
+        String body = ex.getResponseBodyAsString();
+        log.warn("Vendor lookup for {} failed: {} {} from {} body={}", vendorId, ex.getStatusCode().value(),
+                ex.getStatusText(), ex.getRequest() != null ? ex.getRequest().getURI() : "?", body);
+        int status = ex.getStatusCode().value();
+        if (status == 401 || status == 403) {
+            return new RuntimeException("Payment service is not authorized by auth-service (HTTP " + status
+                    + ") — INTERNAL_API_TOKEN differs between containers");
+        }
+        if (body != null && body.contains("User not found")) {
+            return new RuntimeException("Vendor not found");
+        }
+        return new RuntimeException("Vendor lookup failed: auth-service returned HTTP " + status
+                + (status == 404 ? " — check AUTH_SERVICE_INTERNAL_URL points at http://auth-service:8002" : ""));
     }
 
     // Shared by both creation paths: duplicate-payout guard, mode-specific field snapshot
@@ -227,10 +248,23 @@ public class VendorPayoutServiceImpl implements VendorPayoutService {
             log.warn("EcomWorldPay payout callback received with no TransactionId — ignoring");
             return Mono.empty();
         }
+        // The callback endpoint is unauthenticated (EcomWorldPay calls it with no credentials and
+        // sends no signature), so its body is never trusted: anyone could POST
+        // "SettlementCompleted" or "Declined" for a known reference. It's used only as a signal —
+        // the payout's real status is pulled from EcomWorldPay's authenticated Payout Status API
+        // and THAT result is applied, exactly like the admin's manual refresh.
         return vendorPayoutRepository.findByGatewayReferenceId(data.getTransactionId())
                 .switchIfEmpty(Mono.fromRunnable(() ->
                         log.warn("EcomWorldPay payout callback for unknown transaction {} — ignoring", data.getTransactionId())))
-                .flatMap(payout -> applyStatusResult(payout, data))
+                .filter(payout -> payout.getStatus() == VendorPayoutStatus.PROCESSING)
+                .flatMap(payout -> ecomWorldPayClient.checkPayoutStatus(payout.getGatewayReferenceId())
+                        .flatMap(verified -> applyStatusResult(payout, verified.getData()))
+                        .onErrorResume(ex -> {
+                            // Ack the callback anyway; the admin's "refresh status" can retry later.
+                            log.warn("Could not verify payout callback for payout {} with EcomWorldPay: {}",
+                                    payout.getId(), ex.getMessage());
+                            return Mono.empty();
+                        }))
                 .then();
     }
 

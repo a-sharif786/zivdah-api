@@ -4,7 +4,7 @@
   <include resource="logback/kafka-appender-include.xml"/> from that service's own thin
   logback-spring.xml. Logback's <include> resolves through the classloader, so this works
   across the zivdah-common jar boundary — same "define once in common, thin per-service
-  wiring" pattern used for CloudinaryUploadService/CloudinaryConfig.
+  wiring" pattern used for LocalFileStorageService/MediaStorageConfig.
 
   Root element must be <included> (not <configuration>) — this file is only ever pulled in via
   <include>, never parsed standalone.

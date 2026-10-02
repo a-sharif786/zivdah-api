@@ -25,7 +25,7 @@ public class JwtTokenProvider {
     // Short-lived on purpose — clients renew it via POST /auth/refresh-token (see
     // RefreshTokenService) instead of holding a long-lived bearer token.
     @Value("${jwt.access-token-expiration:15m}")
-    private Duration accessTokenExpiration;
+    private Duration tokenExpiration;
 
     private Key key;
 
@@ -45,7 +45,7 @@ public class JwtTokenProvider {
                 .claim("userId", userId)
                 .claim("role", role.toUpperCase())
                 .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + accessTokenExpiration.toMillis()))
+                .setExpiration(new Date(now.getTime() + tokenExpiration.toMillis()))
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -71,7 +71,7 @@ public class JwtTokenProvider {
 
     public long getAccessTokenExpirySeconds() {
 
-        return accessTokenExpiration.toSeconds();
+        return tokenExpiration.toSeconds();
     }
 
     private Claims claims(String token) {
@@ -117,7 +117,7 @@ public class JwtTokenProvider {
 //@Component
 //public class JwtTokenProvider {
 //
-//    @Value("${jwt.secret:my_super_secret_key_that_is_at_least_32_chars}")
+//    @Value("${jwt.secret}")
 //    private String secretKey;
 //    private final long EXPIRATION_MS = 24 * 60 * 60 * 1000; // 1 day
 //

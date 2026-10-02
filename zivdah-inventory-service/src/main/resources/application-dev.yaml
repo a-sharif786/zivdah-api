@@ -59,4 +59,9 @@ logging:
     io.r2dbc: DEBUG
 
 jwt:
-  secret: my_super_secret_key_that_is_at_least_32_characters_long_123456
+  secret: ${JWT_SECRET:my_super_secret_key_that_is_at_least_32_characters_long_123456}
+
+# Shared secret for service-to-service calls (see zivdah-common InternalServiceAuthenticationFilter).
+# Dev-only fallback; application-prod.yaml has NO fallback (startup fails unless INTERNAL_API_TOKEN is set).
+internal:
+  api-token: ${INTERNAL_API_TOKEN:206384bb376b7f98825a70d8412d5f167e6aaec4793fbecb4d321ccedfdb9861}

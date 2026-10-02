@@ -50,6 +50,19 @@
 		</dependency>
 
 		<dependency>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+		</dependency>
+
+		<!-- HTTP Basic on the registry + dashboard in prod (see config/SecurityConfig). Without it,
+		     anyone who can reach :8761 can register a rogue instance under a real service name and
+		     have the api-gateway's lb:// routes send it live traffic, bearer tokens included. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>

@@ -21,12 +21,5 @@ public class LogEvent {
     private String exception;
     private String correlationId;
     private String threadName;
-
-    /**
-     * ISO-8601 instant string (e.g. "2026-08-29T10:15:30.123Z"). Kept as a plain String
-     * rather than java.time.Instant so the log-shipping appender — which runs before the
-     * Spring ApplicationContext (and its JavaTimeModule-registered ObjectMapper) exists —
-     * can serialize it with a bare, dependency-free Jackson ObjectMapper.
-     */
     private String loggedAt;
 }

@@ -8,7 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 // Returned identically by /login, /verify-otp, /verify-registration-otp and /refresh-token.
-// `token` is kept (same value as accessToken) for clients that predate refresh tokens.
+// `token` is kept (same value as token) for clients that predate refresh tokens.
 @Data
 @Builder
 @NoArgsConstructor
@@ -23,11 +23,8 @@ public class LoginResponseDTO {
     private String email;
     private Role role;
     private String token;
-
-    private String accessToken;
     private String refreshToken;
     private String tokenType;
-    // Seconds until accessToken / refreshToken expire.
     private Long expiresIn;
     private Long refreshExpiresIn;
 

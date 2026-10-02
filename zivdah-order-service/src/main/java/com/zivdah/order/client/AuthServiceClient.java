@@ -2,6 +2,7 @@ package com.zivdah.order.client;
 
 import com.zivdah.order.client.dto.ApiEnvelope;
 import com.zivdah.order.client.dto.CustomerInfoDto;
+import com.zivdah.common.security.InternalAuth;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,9 +12,9 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 // Synchronous, service-to-service call into auth-service so InvoiceService can print the
-// customer's name/email on a generated invoice PDF — order-service otherwise only ever stores
+// customer's name/email on a generated invoice PDF â€” order-service otherwise only ever stores
 // a userId, never a name/email snapshot (see Order entity). Best-effort: a auth-service hiccup
-// here must not block invoice generation (the order/payment data is already confirmed) — falls
+// here must not block invoice generation (the order/payment data is already confirmed) â€” falls
 // back to a placeholder name, same reasoning as OrderServiceClient/PaymentServiceClient's other
 // best-effort cross-service calls.
 @Service
@@ -21,17 +22,23 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class AuthServiceClient {
 
-    // Externalized per-profile (see application-dev.yaml / application-prod.yaml) — must not be
+    // Externalized per-profile (see application-dev.yaml / application-prod.yaml) â€” must not be
     // hardcoded to localhost, which only resolves in dev/UAT where every service is a separate
     // process on one host (see zivdah-delivery-service's identical mistake in production).
-    @Value("${auth-service.url}")
+    @Value("${auth-service.internal-url}")
     private String authServiceUrl;
+
+    // auth-service's /internal/** is internal-only (hasRole SERVICE) â€” see
+    // zivdah-common InternalServiceAuthenticationFilter.
+    @Value("${internal.api-token}")
+    private String internalApiToken;
 
     private final WebClient webClient;
 
     public Mono<CustomerInfoDto> getCustomerInfo(Long userId) {
         return webClient.get()
                 .uri(authServiceUrl + "/internal/users/{userId}", userId)
+                .header(InternalAuth.HEADER, internalApiToken)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ApiEnvelope<CustomerInfoDto>>() {})
                 .map(ApiEnvelope::getData)

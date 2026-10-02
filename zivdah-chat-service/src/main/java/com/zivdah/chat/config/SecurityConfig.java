@@ -5,6 +5,7 @@ import com.zivdah.common.logging.CorrelationIdWebFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
@@ -40,6 +41,9 @@ public class SecurityConfig {
                         // failure), not through this filter chain. This permitAll only lets the
                         // handshake request through to that handler; it is not a real auth bypass.
                         .pathMatchers("/ws/chat/**").permitAll()
+                        // Stored attachments — only mapped when media.serve-locally=true (dev);
+                        // prod serves them from nginx.
+                        .pathMatchers(HttpMethod.GET, "/media/chat/**").permitAll()
                         // Every chat endpoint is behind an authenticated JWT — granular role/ownership
                         // checks (USER vs ADMIN, and conversation.customerId == caller) live at the
                         // controller/service layer via @PreAuthorize + explicit ownership checks, same

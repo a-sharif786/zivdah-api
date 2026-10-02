@@ -1,5 +1,6 @@
 package com.zivdah.chat.client;
 
+import com.zivdah.common.security.InternalAuth;
 import com.zivdah.chat.client.dto.ApiEnvelope;
 import com.zivdah.chat.client.dto.OrderSummaryDto;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +48,11 @@ public class OrderServiceClient {
     @Value("${order-service.url}")
     private String orderServiceUrl;
 
+    // Internal, service-to-service calls authenticate with the shared internal token (see
+    // zivdah-common InternalServiceAuthenticationFilter) — those endpoints are no longer permitAll().
+    @Value("${internal.api-token}")
+    private String internalApiToken;
+
     private final WebClient webClient;
 
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
@@ -54,6 +60,7 @@ public class OrderServiceClient {
     public Mono<OrderSummaryDto> getOrder(Long orderId) {
         return webClient.get()
                 .uri(orderServiceUrl + "/{orderId}", orderId)
+                .header(InternalAuth.HEADER, internalApiToken)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ApiEnvelope<OrderSummaryDto>>() {})
                 .timeout(TIMEOUT)

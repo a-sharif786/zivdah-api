@@ -3,3 +3,7 @@ spring:
     name: zivdah-payment-service
   profiles:
     active: dev
+  # Per-developer secrets file OUTSIDE the repo (third-party credentials must never be committed).
+  # Optional: absent in Docker/prod, where the same keys come from the server .env instead.
+  config:
+    import: optional:file:${user.home}/.zivdah/zivdah-secrets.yaml

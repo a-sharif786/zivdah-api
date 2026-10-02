@@ -1,5 +1,6 @@
 package com.zivdah.chat.client;
 
+import com.zivdah.common.security.InternalAuth;
 import com.zivdah.chat.client.dto.ApiEnvelope;
 import com.zivdah.chat.client.dto.PaymentSummaryDto;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,11 @@ public class PaymentServiceClient {
     @Value("${payment-service.url}")
     private String paymentServiceUrl;
 
+    // Internal, service-to-service calls authenticate with the shared internal token (see
+    // zivdah-common InternalServiceAuthenticationFilter) — those endpoints are no longer permitAll().
+    @Value("${internal.api-token}")
+    private String internalApiToken;
+
     private final WebClient webClient;
 
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
@@ -42,6 +48,7 @@ public class PaymentServiceClient {
     public Mono<List<PaymentSummaryDto>> getPaymentsByOrder(Long orderId) {
         return webClient.get()
                 .uri(paymentServiceUrl + "/order/{orderId}", orderId)
+                .header(InternalAuth.HEADER, internalApiToken)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ApiEnvelope<List<PaymentSummaryDto>>>() {})
                 .timeout(TIMEOUT)

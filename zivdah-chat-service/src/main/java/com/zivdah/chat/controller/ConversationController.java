@@ -19,11 +19,10 @@ import com.zivdah.chat.service.ConversationService;
 import com.zivdah.chat.service.MessageService;
 import com.zivdah.chat.service.OrderContextService;
 import com.zivdah.chat.service.RatingService;
-import com.zivdah.common.upload.CloudinaryUploadService;
+import com.zivdah.common.upload.LocalFileStorageService;
 import com.zivdah.common.upload.UploadCategory;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -62,10 +61,7 @@ public class ConversationController {
     private final RatingService ratingService;
     private final OrderContextService orderContextService;
     private final MessageService messageService;
-    private final CloudinaryUploadService cloudinaryUploadService;
-
-    @Value("${cloudinary.folder}")
-    private String cloudinaryFolder;
+    private final LocalFileStorageService chatAttachmentStorage;
 
     private Mono<Long> currentUserId() {
         return ReactiveSecurityContextHolder.getContext()
@@ -192,9 +188,9 @@ public class ConversationController {
                         .status("success").statusCode(200).message("Message sent").data(dto).build()));
     }
 
-    // Paperclip upload — validated/stored via the shared CloudinaryUploadService (zivdah-common),
-    // same one zivdah-product-service already uses; no new file-storage code. Returns the full
-    // created message record (not a bare URL) so the frontend needs no second round-trip.
+    // Paperclip upload — validated/stored via the shared LocalFileStorageService (zivdah-common),
+    // one sub-directory per conversation. Returns the full created message record (not a bare
+    // URL) so the frontend needs no second round-trip.
     @PostMapping(value = "/{id}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public Mono<ResponseEntity<ApiResponse<MessageResponseDto>>> uploadAttachment(
@@ -204,11 +200,11 @@ public class ConversationController {
                         .flatMap(conversation -> requireSenderAllowed(conversation, caller))
                         .flatMap(conversation -> {
                             UploadCategory category = categoryFor(file);
-                            return cloudinaryUploadService.upload(file, category, cloudinaryFolder + "/" + id)
+                            return chatAttachmentStorage.store(file, category, String.valueOf(id))
                                     .flatMap(result -> messageService.sendMessage(id, caller.getT1(),
                                             senderTypeFor(caller.getT2()),
                                             category == UploadCategory.IMAGE ? MessageType.IMAGE : MessageType.FILE,
-                                            file.filename(), result.getSecureUrl()));
+                                            file.filename(), result.getUrl()));
                         }))
                 .map(ConversationController::toDto)
                 .map(dto -> ResponseEntity.ok(ApiResponse.<MessageResponseDto>builder()

@@ -62,7 +62,8 @@ public class ChatWebSocketHandler implements WebSocketHandler {
         String token = query.getFirst("token");
 
         if (conversationId == null || token == null || token.isBlank() || !jwtTokenProvider.validateToken(token)) {
-            log.warn("Rejecting WS handshake: missing/invalid token or conversation id (uri={})", uri);
+            // path only — the query string carries the access token (?token=...)
+            log.warn("Rejecting WS handshake: missing/invalid token or conversation id (path={})", uri.getPath());
             return session.close(CloseStatus.POLICY_VIOLATION);
         }
 

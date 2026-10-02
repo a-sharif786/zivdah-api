@@ -36,10 +36,7 @@ public class UserController {
 
         return ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
-                .doOnNext(auth -> {
-                    log.info("Authentication: {}", auth);
-                    log.info("Name: {}", auth.getName());
-                })
+                // (Removed: log.info of the whole Authentication object on every profile read.)
                 .flatMap(auth ->
                         userService.getProfileByUserId(Long.valueOf(auth.getName()), token)
                 )

@@ -14,11 +14,6 @@ services:
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
 
-    # No host port published: every service reaches this over zivdah-network
-    # via the "postgres-db" DNS name. Publishing 5432 here fights with any
-    # native postgres on the host bound to the same port (seen on prod).
-    # Use `docker exec -it zivdah-postgres psql -U postgres -d zivdah_db`
-    # for direct access instead.
 
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -47,10 +42,15 @@ services:
     container_name: zivdah-redis
     restart: unless-stopped
 
-    command: redis-server --appendonly yes
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+      # lets the healthcheck's redis-cli authenticate without putting the password on its command line
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
 
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
     volumes:
       - redis-data:/data
@@ -104,8 +104,12 @@ services:
     depends_on:
       - zookeeper
 
+    # Host-local only. The broker has no authentication, and anyone who could reach the old
+    # public 0.0.0.0:9092 could publish a forged "payment-completed" event or read every topic
+    # (app-logs included). Services use the INTERNAL listener (kafka:29092) over zivdah-network;
+    # the EXTERNAL listener is now only for tools on the host itself (or an SSH tunnel).
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
 
     environment:
 
@@ -117,7 +121,8 @@ services:
 
       KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
 
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://${SERVER_IP}:9092
+      # Advertised as localhost (was the public ${SERVER_IP}) to match the host-local binding above.
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
 
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
 
@@ -154,9 +159,16 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SERVER_PORT: 8761
+      # HTTP Basic on the registry/dashboard (see zivdah-eureka-server SecurityConfig). Every
+      # client's EUREKA_CLIENT_SERVICEURL_DEFAULTZONE below is built from this same pair, so they
+      # can't drift apart. Keep the password URL-safe (no @ : / # ?) since it sits inside a URL.
+      EUREKA_USERNAME: ${EUREKA_USERNAME:?EUREKA_USERNAME must be set in .env}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:?EUREKA_PASSWORD must be set in .env}
 
+    # Host-local only (dashboard via SSH tunnel: ssh -L 8761:127.0.0.1:8761 <server>). The
+    # services register over zivdah-network as eureka-server:8761.
     ports:
-      - "8761:8761"
+      - "127.0.0.1:8761:8761"
 
     depends_on:
       - kafka
@@ -185,15 +197,20 @@ services:
 
       SERVER_PORT: 8080
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
 
       SPRING_DATA_REDIS_HOST: ${REDIS_HOST}
       SPRING_DATA_REDIS_PORT: ${REDIS_PORT}
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
 
+    # nginx on the host terminates TLS and proxies to 127.0.0.1:8080, so the gateway only needs
+    # to be reachable from the host. The old "8080:8080" also exposed it as plain HTTP on the
+    # public IP, bypassing TLS entirely. Set GATEWAY_BIND_ADDRESS=0.0.0.0 in .env only if a
+    # deployment genuinely needs direct access to the raw port.
     ports:
-      - "8080:8080"
+      - "${GATEWAY_BIND_ADDRESS:-127.0.0.1}:8080:8080"
 
     depends_on:
       - eureka-server
@@ -223,7 +240,7 @@ services:
 
       SPRING_PROFILES_ACTIVE: prod
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
       SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
 
@@ -274,7 +291,7 @@ services:
 
       SPRING_PROFILES_ACTIVE: prod
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
 
       SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
@@ -326,7 +343,7 @@ services:
 
       SPRING_PROFILES_ACTIVE: prod
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
       SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
 
@@ -346,7 +363,19 @@ services:
 
       SPRING_DATA_REDIS_PORT: ${REDIS_PORT}
 
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+
       JWT_SECRET: ${JWT_SECRET}
+
+      # Product/banner image storage (see MediaStorageConfig). Defaults match the bind mounts
+      # below; if you change a *_STORAGE_PATH, change its volume line to the same path.
+      PRODUCT_STORAGE_PATH: ${PRODUCT_STORAGE_PATH:-/var/www/zivdah-media/products/}
+
+      PRODUCT_PUBLIC_BASE_URL: ${PRODUCT_PUBLIC_BASE_URL:-https://zivdahonlinegrocery.com/media/products}
+
+      BANNER_STORAGE_PATH: ${BANNER_STORAGE_PATH:-/var/www/zivdah-media/banners/}
+
+      BANNER_PUBLIC_BASE_URL: ${BANNER_PUBLIC_BASE_URL:-https://zivdahonlinegrocery.com/media/banners}
 
     depends_on:
       postgres-db:
@@ -363,6 +392,13 @@ services:
 
     networks:
       - zivdah-network
+
+    # Same bind-mount model as order-service's invoices: same path on host and container, so
+    # nginx on the host serves exactly what this container writes. Create once before deploy:
+    #   sudo mkdir -p /var/www/zivdah-media/{products,banners} && sudo chown -R 1000:1000 /var/www/zivdah-media
+    volumes:
+      - /var/www/zivdah-media/products:/var/www/zivdah-media/products
+      - /var/www/zivdah-media/banners:/var/www/zivdah-media/banners
 
 
   # ============================================================
@@ -384,7 +420,7 @@ services:
 
       SPRING_PROFILES_ACTIVE: prod
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
       SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
 
@@ -435,7 +471,7 @@ services:
 
       SPRING_PROFILES_ACTIVE: prod
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
       SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
 
@@ -453,10 +489,7 @@ services:
 
       JWT_SECRET: ${JWT_SECRET}
 
-      # NOT the same var as user-service's AUTH_SERVICE_URL (that one points at the public
-      # gateway domain) — see order-service's application-prod.yaml for why this one must stay
-      # internal-network-only. Spring's own ${...:default} fallback (see that file) covers it
-      # if this isn't set in .env — see .env.example.
+  
       AUTH_SERVICE_INTERNAL_URL: ${AUTH_SERVICE_INTERNAL_URL}
 
       INVOICE_STORAGE_PATH: ${INVOICE_STORAGE_PATH}
@@ -518,7 +551,7 @@ services:
 
       SPRING_PROFILES_ACTIVE: prod
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
       SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
 
@@ -583,7 +616,7 @@ services:
 
       SPRING_PROFILES_ACTIVE: prod
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
       SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
 
@@ -600,6 +633,15 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
 
       JWT_SECRET: ${JWT_SECRET}
+
+      # Firebase Admin SDK key, mounted read-only below — no longer baked into the jar/image.
+      FIREBASE_CREDENTIALS_PATH: /run/secrets/firebase-adminsdk.json
+
+    # Place the (rotated) service-account JSON on the server at this path before deploying,
+    # e.g. /opt/new_zivdah_backend/secrets/firebase-adminsdk.json, chmod 600. If it's missing,
+    # Docker creates an empty directory there and notification-service fails fast at startup.
+    volumes:
+      - ${FIREBASE_CREDENTIALS_HOST_PATH:-./secrets/firebase-adminsdk.json}:/run/secrets/firebase-adminsdk.json:ro
 
     depends_on:
       postgres-db:
@@ -634,7 +676,7 @@ services:
 
       SPRING_PROFILES_ACTIVE: prod
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
       SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
 
@@ -685,7 +727,7 @@ services:
 
       SPRING_PROFILES_ACTIVE: prod
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
       SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
 
@@ -736,7 +778,7 @@ services:
 
       SPRING_PROFILES_ACTIVE: prod
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
       SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
 
@@ -787,7 +829,7 @@ services:
 
       SPRING_PROFILES_ACTIVE: prod
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
       SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
 
@@ -802,6 +844,9 @@ services:
       SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD}
 
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+
+      # The log API is now ADMIN-only and validates auth-service's access tokens.
+      JWT_SECRET: ${JWT_SECRET}
 
     depends_on:
       postgres-db:
@@ -836,7 +881,7 @@ services:
 
       SPRING_PROFILES_ACTIVE: prod
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
       SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
 
@@ -887,7 +932,7 @@ services:
 
       SPRING_PROFILES_ACTIVE: prod
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@eureka-server:8761/eureka
 
       SPRING_R2DBC_URL: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
 
@@ -911,6 +956,11 @@ services:
       # needed here unless a deployment needs to point somewhere non-standard (same convention
       # every other inter-service caller in this compose file already follows).
 
+      # Chat attachment storage (see MediaStorageConfig); keep in sync with the volume below.
+      CHAT_STORAGE_PATH: ${CHAT_STORAGE_PATH:-/var/www/zivdah-media/chat/}
+
+      CHAT_PUBLIC_BASE_URL: ${CHAT_PUBLIC_BASE_URL:-https://zivdahonlinegrocery.com/media/chat}
+
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -923,6 +973,10 @@ services:
 
     networks:
       - zivdah-network
+
+    #   sudo mkdir -p /var/www/zivdah-media/chat && sudo chown -R 1000:1000 /var/www/zivdah-media
+    volumes:
+      - /var/www/zivdah-media/chat:/var/www/zivdah-media/chat
 
 
 # ==============================================================

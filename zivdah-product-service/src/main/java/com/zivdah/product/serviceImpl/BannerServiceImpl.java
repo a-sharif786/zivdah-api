@@ -1,7 +1,7 @@
 package com.zivdah.product.serviceImpl;
 
-import com.zivdah.common.upload.CloudinaryUploadResult;
-import com.zivdah.common.upload.CloudinaryUploadService;
+import com.zivdah.common.upload.LocalFileStorageService;
+import com.zivdah.common.upload.StoredFile;
 import com.zivdah.common.upload.UploadCategory;
 import com.zivdah.product.dto.BannerRequestDto;
 import com.zivdah.product.dto.BannerResponseDto;
@@ -10,7 +10,6 @@ import com.zivdah.product.repository.BannerRepository;
 import com.zivdah.product.service.BannerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
@@ -24,14 +23,8 @@ import reactor.core.publisher.Mono;
 public class BannerServiceImpl implements BannerService {
 
     private final BannerRepository bannerRepository;
-    private final CloudinaryUploadService cloudinaryUploadService;
-
-    @Value("${cloudinary.folder}")
-    private String cloudinaryFolder;
-
-    private String bannersFolder() {
-        return cloudinaryFolder + "/banners";
-    }
+    // Bean "bannerImageStorage" (MediaStorageConfig), matched by name.
+    private final LocalFileStorageService bannerImageStorage;
 
     @Override
     public Flux<BannerResponseDto> getBanners() {
@@ -48,7 +41,7 @@ public class BannerServiceImpl implements BannerService {
         if (image == null) {
             return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Banner image is required"));
         }
-        return cloudinaryUploadService.upload(image, UploadCategory.IMAGE, bannersFolder())
+        return bannerImageStorage.store(image, UploadCategory.IMAGE)
                 .flatMap(uploaded -> {
                     Banner banner = Banner.builder()
                             .title(dto.getTitle())
@@ -72,14 +65,13 @@ public class BannerServiceImpl implements BannerService {
                     if (image == null) {
                         return bannerRepository.save(banner);
                     }
-                    String oldPublicId = banner.getImagePublicId();
-                    String oldResourceType = banner.getImageResourceType();
-                    return cloudinaryUploadService.upload(image, UploadCategory.IMAGE, bannersFolder())
+                    String oldStorageKey = banner.getImagePublicId();
+                    return bannerImageStorage.store(image, UploadCategory.IMAGE)
                             .flatMap(uploaded -> {
                                 applyUploadResult(banner, uploaded);
                                 return bannerRepository.save(banner);
                             })
-                            .flatMap(saved -> cloudinaryUploadService.delete(oldPublicId, oldResourceType).thenReturn(saved));
+                            .flatMap(saved -> bannerImageStorage.delete(oldStorageKey).thenReturn(saved));
                 })
                 .doOnSuccess(b -> log.info("Banner updated: {}", b.getId()))
                 .map(this::mapToResponse);
@@ -89,8 +81,8 @@ public class BannerServiceImpl implements BannerService {
     public Mono<Void> deleteBanner(Long id) {
         return bannerRepository.findById(id)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Banner not found: " + id)))
-                .flatMap(banner -> cloudinaryUploadService.delete(banner.getImagePublicId(), banner.getImageResourceType())
-                        .then(bannerRepository.deleteById(id)))
+                .flatMap(banner -> bannerRepository.deleteById(id)
+                        .then(bannerImageStorage.delete(banner.getImagePublicId())))
                 .doOnSuccess(v -> log.info("Banner deleted: {}", id));
     }
 
@@ -106,9 +98,10 @@ public class BannerServiceImpl implements BannerService {
                 .map(this::mapToResponse);
     }
 
-    private void applyUploadResult(Banner banner, CloudinaryUploadResult uploaded) {
-        banner.setImageUrl(uploaded.getSecureUrl());
-        banner.setImagePublicId(uploaded.getPublicId());
+    // image_public_id holds the local storage key (see ProductServiceImpl#applyUploadResult).
+    private void applyUploadResult(Banner banner, StoredFile uploaded) {
+        banner.setImageUrl(uploaded.getUrl());
+        banner.setImagePublicId(uploaded.getStorageKey());
         banner.setImageResourceType(uploaded.getResourceType());
         banner.setImageFormat(uploaded.getFormat());
         banner.setImageSizeBytes(uploaded.getBytes());

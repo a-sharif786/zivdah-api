@@ -36,7 +36,7 @@ spring:
         spring.json.use.type.headers: true
 
 # order-service runs on the same host in dev (see zivdah-order-service's own
-# application-dev.yaml, port 8005) — see application-prod.yaml for why this differs there.
+# application-dev.yaml, port 8005) â€” see application-prod.yaml for why this differs there.
 order-service:
   url: http://localhost:8005/restful/v1/api/orders
 
@@ -52,4 +52,15 @@ logging:
     org.springframework.security: DEBUG
 
 jwt:
-  secret: my_super_secret_key_that_is_at_least_32_characters_long_123456
+  secret: ${JWT_SECRET:my_super_secret_key_that_is_at_least_32_characters_long_123456}
+
+# Shared secret for service-to-service calls (see zivdah-common InternalServiceAuthenticationFilter).
+# Dev-only fallback so a local IntelliJ run works without extra setup; application-prod.yaml has
+# NO fallback, so production fails fast at startup unless INTERNAL_API_TOKEN is set. Must be the
+# same value in every service.
+internal:
+  api-token: ${INTERNAL_API_TOKEN:206384bb376b7f98825a70d8412d5f167e6aaec4793fbecb4d321ccedfdb9861}
+
+# auth-service /internal/** lookups (admin ids, device tokens) â€” see client/AuthServiceClient.
+auth-service:
+  internal-url: http://localhost:8002/restful/v1/api/auth

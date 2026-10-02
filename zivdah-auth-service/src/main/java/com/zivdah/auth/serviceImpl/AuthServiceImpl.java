@@ -1,5 +1,6 @@
 package com.zivdah.auth.serviceImpl;
 
+import com.zivdah.common.logging.LogSanitizer;
 import com.resend.Resend;
 import com.resend.services.emails.model.CreateEmailOptions;
 import com.zivdah.auth.dto.*;
@@ -86,7 +87,7 @@ public class AuthServiceImpl implements AuthService {
                             .flatMap(saved -> sendOtpEmail(saved.getEmail(), emailOtp,
                                     "Verify your Zivdah account").thenReturn(saved));
                 })
-                .doOnSuccess(user -> log.info("User registered: {}", user.getMobile()))
+                .doOnSuccess(user -> log.info("User registered: id={}", user.getId()))  // id only — mobile is PII
                 .then();
     }
 
@@ -131,15 +132,14 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private LoginResponseDTO toLoginResponse(UserEntity user, String refreshToken) {
-        String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getMobile(), user.getRole().name());
+        String token = jwtTokenProvider.generateToken(user.getId(), user.getMobile(), user.getRole().name());
         return LoginResponseDTO.builder()
                 .id(user.getId())
                 .mobile(user.getMobile())
                 .name(user.getName())
                 .email(user.getEmail())
                 .role(user.getRole())
-                .token(accessToken)
-                .accessToken(accessToken)
+                .token(token)
                 .refreshToken(refreshToken)
                 .tokenType("Bearer")
                 .expiresIn(jwtTokenProvider.getAccessTokenExpirySeconds())
@@ -168,7 +168,7 @@ public class AuthServiceImpl implements AuthService {
                     user.setOtpGeneratedAt(LocalDateTime.now());
                     return userRepository.save(user);
                 })
-                .doOnSuccess(u -> log.info("OTP {} sent to {}", STATIC_OTP, mobile))
+                .doOnSuccess(u -> log.info("Login OTP issued for user id={}", u.getId()))  // never the OTP itself or the mobile
                 .then();
     }
 
@@ -184,17 +184,17 @@ public class AuthServiceImpl implements AuthService {
                         return Mono.error(new RuntimeException("Account is deactivated"));
                     }
                     return buildLoginResponse(user, null)
-                            .flatMap(resp -> saveSession(user, resp.getAccessToken(), request.getDeviceToken())
+                            .flatMap(resp -> saveSession(user, resp.getToken(), request.getDeviceToken())
                                     .thenReturn(resp));
                 });
     }
 
     // user_sessions bookkeeping + device-token registration done by both OTP login flows.
-    private Mono<Void> saveSession(UserEntity user, String accessToken, String deviceToken) {
+    private Mono<Void> saveSession(UserEntity user, String token, String deviceToken) {
         Mono<UserSession> sessionMono = userSessionRepository.findByUserId(user.getId())
                 .defaultIfEmpty(UserSession.builder().userId(user.getId()).build())
                 .flatMap(session -> {
-                    session.setToken(accessToken);
+                    session.setToken(token);
                     session.setDeviceToken(deviceToken);
                     session.setCreatedAt(LocalDateTime.now());
                     return userSessionRepository.save(session);
@@ -319,7 +319,7 @@ public class AuthServiceImpl implements AuthService {
                     return resend.emails().send(params);
                 })
                 .subscribeOn(Schedulers.boundedElastic())
-                .doOnError(e -> log.error("Failed to send OTP email to {}", toEmail, e))
+                .doOnError(e -> log.error("Failed to send OTP email to {}", LogSanitizer.sanitize(toEmail), e))
                 .then();
     }
 
@@ -365,7 +365,7 @@ public class AuthServiceImpl implements AuthService {
 
                     return userRepository.save(user)
                             .flatMap(saved -> buildLoginResponse(saved, null)
-                                    .flatMap(resp -> saveSession(saved, resp.getAccessToken(), request.getDeviceToken())
+                                    .flatMap(resp -> saveSession(saved, resp.getToken(), request.getDeviceToken())
                                             .thenReturn(resp)));
                 });
     }

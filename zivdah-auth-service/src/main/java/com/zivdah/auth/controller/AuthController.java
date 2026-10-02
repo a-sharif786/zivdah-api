@@ -41,8 +41,13 @@ public class AuthController {
                 .orElse(""));
     }
 
+    // switchIfEmpty: with no authenticated caller, currentAuth() completes EMPTY — and an empty
+    // Mono here used to mean "allowed", since callers chain .then(...). That's how
+    // /deactivate/{userId} deactivated any account without a login. No authentication is a denial.
     private Mono<Void> requireOwnerOrAdmin(Long userId) {
-        return currentAuth().flatMap(auth -> {
+        return currentAuth()
+                .switchIfEmpty(Mono.error(new AccessDeniedException("Not authenticated")))
+                .flatMap(auth -> {
             if (auth.getName().equals(String.valueOf(userId)) || isAdmin(auth)) {
                 return Mono.empty();
             }
@@ -97,7 +102,7 @@ public class AuthController {
     @GetMapping("/byUserId/{userId}")
     public Mono<ResponseEntity<ApiResponse<LoginResponseDTO>>> getUserById(@PathVariable Long userId) {
         return requireOwnerOrAdmin(userId)
-                .then(authService.getUserById(userId))
+                .then(Mono.defer(() -> authService.getUserById(userId)))
                 .map(user -> {
                     LoginResponseDTO resp = new LoginResponseDTO(user.getId(), user.getMobile(),
                             user.getName(), user.getEmail(), user.getRole(), null);
@@ -197,7 +202,7 @@ public class AuthController {
     public Mono<ResponseEntity<ApiResponse<UserResponseDTO>>> updateProfile(
             @PathVariable Long userId, @Valid @RequestBody UpdateUserProfileDTO dto) {
         return requireOwnerOrAdmin(userId)
-                .then(authService.updateProfile(userId, dto))
+                .then(Mono.defer(() -> authService.updateProfile(userId, dto)))
                 .map(r -> ResponseEntity.ok(ApiResponse.<UserResponseDTO>builder()
                         .status("success").statusCode(200).message("Profile updated successfully").data(r).build()));
     }
@@ -207,7 +212,7 @@ public class AuthController {
     @GetMapping("/bank-details/{userId}")
     public Mono<ResponseEntity<ApiResponse<BankDetailsResponseDTO>>> getBankDetails(@PathVariable Long userId) {
         return requireOwnerOrAdmin(userId)
-                .then(authService.getBankDetails(userId))
+                .then(Mono.defer(() -> authService.getBankDetails(userId)))
                 .map(r -> ResponseEntity.ok(ApiResponse.<BankDetailsResponseDTO>builder()
                         .status("success").statusCode(200).message("Bank details fetched").data(r).build()));
     }
@@ -279,7 +284,7 @@ public class AuthController {
     @PutMapping("/deactivate/{userId}")
     public Mono<ResponseEntity<ApiResponse<Object>>> deactivateAccount(@PathVariable Long userId) {
         return requireOwnerOrAdmin(userId)
-                .then(authService.deactivateAccount(userId))
+                .then(Mono.defer(() -> authService.deactivateAccount(userId)))
                 .thenReturn(ResponseEntity.ok(ApiResponse.<Object>builder()
                         .status("success").statusCode(200).message("Account deactivated successfully").data(null).build()));
     }

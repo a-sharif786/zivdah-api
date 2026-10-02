@@ -29,7 +29,7 @@ spring:
   kafka:
     bootstrap-servers: localhost:9092
 
-    # Not used yet in Phase 1 (no producer/consumer wired) — present now so later phases
+    # Not used yet in Phase 1 (no producer/consumer wired) â€” present now so later phases
     # (human-handoff events in Phase 3, notification listeners in Phase 5) need no yaml change.
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -59,9 +59,9 @@ logging:
     org.springframework.security: DEBUG
 
 jwt:
-  secret: my_super_secret_key_that_is_at_least_32_characters_long_123456
+  secret: ${JWT_SECRET:my_super_secret_key_that_is_at_least_32_characters_long_123456}
 
-# Inter-service WebClient targets — plain http://localhost:<port> in dev, matching every other
+# Inter-service WebClient targets â€” plain http://localhost:<port> in dev, matching every other
 # service's own convention (see order-service/delivery-service's application-dev.yaml).
 order-service:
   url: http://localhost:8005/restful/v1/api/orders
@@ -78,11 +78,26 @@ product-service:
 coupon-service:
   url: http://localhost:8011/restful/v1/api/coupons
 
-# Same internal, unauthenticated lookup endpoint order-service's InvoiceService already calls —
+# Same internal, unauthenticated lookup endpoint order-service's InvoiceService already calls â€”
 # reusing that established name/shape rather than inventing a new one.
 auth-service:
-  url: http://localhost:8002/restful/v1/api/auth
+  internal-url: http://localhost:8002/restful/v1/api/auth
 
 # WaitingConversationEscalationScheduler's direct-REST call into notification-service.
 notification-service:
   url: http://localhost:8007/restful/v1/api/notifications
+
+# Chat attachment storage (see MediaStorageConfig) â€” project-relative folder in dev (gitignored
+# media/), served by this service itself at /media/chat/** since there's no nginx locally.
+media:
+  serve-locally: true
+  chat:
+    storage-path: ./media/chat
+    public-base-url: http://localhost:8014/media/chat
+
+# Shared secret for service-to-service calls (see zivdah-common InternalServiceAuthenticationFilter).
+# Dev-only fallback so a local IntelliJ run works without extra setup; application-prod.yaml has
+# NO fallback, so production fails fast at startup unless INTERNAL_API_TOKEN is set. Must be the
+# same value in every service.
+internal:
+  api-token: ${INTERNAL_API_TOKEN:206384bb376b7f98825a70d8412d5f167e6aaec4793fbecb4d321ccedfdb9861}

@@ -1,0 +1,9 @@
+# Test-only config (classpath:/config/ overrides the main application.yaml). Supplies dummy values
+# for the third-party credentials that are no longer committed, so `mvn test` works on machines
+# without ~/.zivdah/zivdah-secrets.yaml (e.g. the Jenkins agent). No test talks to these services.
+ECOMWORLDPAY_TENANT_ID: test-tenant
+ECOMWORLDPAY_MERCHANT_ID: test-merchant
+ECOMWORLDPAY_API_KEY: test-api-key
+ECOMWORLDPAY_SECRET_KEY: test-secret-key
+firebase:
+  enabled: false

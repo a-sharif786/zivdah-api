@@ -11,7 +11,9 @@ import reactor.core.publisher.Mono;
 import java.time.LocalDateTime;
 
 public interface OrderService {
-    Mono<OrderResponseDto> createOrder(OrderRequestDto dto);
+    // currentUserId is the authenticated caller — the order is always created for them, and every
+    // price is recomputed server-side (see OrderPricingService); dto.userId/prices are ignored.
+    Mono<OrderResponseDto> createOrder(OrderRequestDto dto, Long currentUserId);
     Mono<OrderResponseDto> getOrderById(Long orderId);
     Flux<OrderResponseDto> getOrdersByUser(Long userId);
     Mono<Void> cancelOrder(Long orderId, Long currentUserId, String role);

@@ -1,8 +1,8 @@
 package com.zivdah.product.serviceImpl;
 
 import com.zivdah.common.event.ProductCreatedEvent;
-import com.zivdah.common.upload.CloudinaryUploadResult;
-import com.zivdah.common.upload.CloudinaryUploadService;
+import com.zivdah.common.upload.LocalFileStorageService;
+import com.zivdah.common.upload.StoredFile;
 import com.zivdah.common.upload.UploadCategory;
 import com.zivdah.product.client.InventoryServiceClient;
 import com.zivdah.product.dto.ProductRequestDto;
@@ -16,7 +16,6 @@ import com.zivdah.product.repository.WishlistRepository;
 import com.zivdah.product.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.codec.multipart.FilePart;
@@ -36,16 +35,10 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final WishlistRepository wishlistRepository;
-    private final CloudinaryUploadService cloudinaryUploadService;
+    // Bean "productImageStorage" (MediaStorageConfig), matched by name.
+    private final LocalFileStorageService productImageStorage;
     private final ProductKafkaProducer productKafkaProducer;
     private final InventoryServiceClient inventoryServiceClient;
-
-    @Value("${cloudinary.folder}")
-    private String cloudinaryFolder;
-
-    private String productsFolder() {
-        return cloudinaryFolder + "/products";
-    }
 
     // Adds the real availableQuantity from inventory-service to an already-built DTO. Falls
     // back to the product's own stockQuantity if inventory-service is unreachable or has no
@@ -65,7 +58,7 @@ public class ProductServiceImpl implements ProductService {
             return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product image is required"));
         }
         Long vendorId = "VENDOR".equalsIgnoreCase(role) ? currentUserId : null;
-        return cloudinaryUploadService.upload(image, UploadCategory.IMAGE, productsFolder())
+        return productImageStorage.store(image, UploadCategory.IMAGE)
                 .flatMap(uploaded -> {
                     ProductEntity entity = ProductEntity.builder()
                             .name(dto.getName()).category(dto.getCategory()).price(dto.getPrice())
@@ -147,14 +140,13 @@ public class ProductServiceImpl implements ProductService {
                     if (image == null) {
                         return productRepository.save(entity);
                     }
-                    String oldPublicId = entity.getImagePublicId();
-                    String oldResourceType = entity.getImageResourceType();
-                    return cloudinaryUploadService.upload(image, UploadCategory.IMAGE, productsFolder())
+                    String oldStorageKey = entity.getImagePublicId();
+                    return productImageStorage.store(image, UploadCategory.IMAGE)
                             .flatMap(uploaded -> {
                                 applyUploadResult(entity, uploaded);
                                 return productRepository.save(entity);
                             })
-                            .flatMap(saved -> cloudinaryUploadService.delete(oldPublicId, oldResourceType).thenReturn(saved));
+                            .flatMap(saved -> productImageStorage.delete(oldStorageKey).thenReturn(saved));
                 })
                 .doOnSuccess(p -> log.info("Product updated: {}", p.getId()))
                 .flatMap(p -> inventoryServiceClient.setAvailableQuantitySync(p.getId(), p.getStockQuantity()).thenReturn(p))
@@ -172,8 +164,8 @@ public class ProductServiceImpl implements ProductService {
                     if ("VENDOR".equalsIgnoreCase(role) && !currentUserId.equals(entity.getVendorId())) {
                         return Mono.<ProductEntity>error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the owner of this product"));
                     }
-                    return cloudinaryUploadService.delete(entity.getImagePublicId(), entity.getImageResourceType())
-                            .then(productRepository.deleteById(id))
+                    return productRepository.deleteById(id)
+                            .then(productImageStorage.delete(entity.getImagePublicId()))
                             .thenReturn(entity);
                 })
                 .doOnSuccess(v -> log.info("Product deleted: {}", id))
@@ -201,9 +193,11 @@ public class ProductServiceImpl implements ProductService {
                 .doOnSuccess(p -> log.info("Wishlist updated for user {} product {} -> fav={}", userId, productId, fav));
     }
 
-    private void applyUploadResult(ProductEntity entity, CloudinaryUploadResult uploaded) {
-        entity.setImageUrl(uploaded.getSecureUrl());
-        entity.setImagePublicId(uploaded.getPublicId());
+    // image_public_id now holds the local storage key (e.g. "<uuid>.jpg"); rows uploaded before the
+    // move off Cloudinary keep their old id, which LocalFileStorageService#delete simply ignores.
+    private void applyUploadResult(ProductEntity entity, StoredFile uploaded) {
+        entity.setImageUrl(uploaded.getUrl());
+        entity.setImagePublicId(uploaded.getStorageKey());
         entity.setImageResourceType(uploaded.getResourceType());
         entity.setImageFormat(uploaded.getFormat());
         entity.setImageSizeBytes(uploaded.getBytes());

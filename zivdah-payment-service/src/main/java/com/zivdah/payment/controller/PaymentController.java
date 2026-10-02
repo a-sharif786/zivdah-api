@@ -1,5 +1,6 @@
 package com.zivdah.payment.controller;
 
+import com.zivdah.common.security.InternalAuth;
 import com.zivdah.payment.dto.ApiResponse;
 import com.zivdah.payment.dto.LinkOrderRequestDto;
 import com.zivdah.payment.dto.PaymentRequestDto;
@@ -12,9 +13,14 @@ import com.zivdah.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
@@ -28,10 +34,35 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
+    // Caller identity comes only from the security context (JWT or internal token), never from the
+    // request body. For an internal-service caller the principal isn't a user id, hence null.
+    private record Caller(Long userId, boolean privileged) {}
+
+    private Mono<Caller> caller() {
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
+                .map(auth -> {
+                    boolean privileged = auth.getAuthorities().stream().map(GrantedAuthority::getAuthority)
+                            .anyMatch(a -> a.equals("ROLE_ADMIN") || a.equals("ROLE_" + InternalAuth.ROLE));
+                    Long userId = auth.getName() != null && auth.getName().matches("\\d+") ? Long.valueOf(auth.getName()) : null;
+                    return new Caller(userId, privileged);
+                });
+    }
+
+    // A real (numeric) user id — initiate/link are storefront actions, not something an internal
+    // service or a token without a userId claim can do.
+    private Mono<Long> currentUserId() {
+        return caller()
+                .filter(c -> c.userId() != null)
+                .map(Caller::userId)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "A user login is required")));
+    }
+
     @PostMapping("/initiate")
     public Mono<ResponseEntity<ApiResponse<PaymentResponseDto>>> initiatePayment(
             @RequestBody PaymentRequestDto dto) {
-        return paymentService.initiatePayment(dto)
+        return currentUserId()
+                .flatMap(userId -> paymentService.initiatePayment(dto, userId))
                 .map(r -> ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
                         .status("success").statusCode(200).message("Payment initiated").data(r).build()));
     }
@@ -39,31 +70,41 @@ public class PaymentController {
     // Attaches the real orderId to a payment intent that was validated/created before the order
     // existed (see PaymentServiceImpl#initiatePayment) — called by the frontend right after
     // orderApi.create() succeeds. Idempotent no-op if already linked to this same orderId.
+    // Verifies ownership of both sides and that the payment amount equals the order total.
     @PutMapping("/{paymentId}/link-order")
     public Mono<ResponseEntity<ApiResponse<PaymentResponseDto>>> linkOrder(
             @PathVariable Long paymentId, @RequestBody LinkOrderRequestDto dto) {
-        return paymentService.linkOrder(paymentId, dto.getOrderId())
+        return currentUserId()
+                .flatMap(userId -> paymentService.linkOrder(paymentId, dto.getOrderId(), userId))
                 .map(r -> ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
                         .status("success").statusCode(200).message("Order linked to payment").data(r).build()));
     }
 
+    // The payment's own customer (checkout polling) or ADMIN (payment detail page).
     @GetMapping("/{paymentId}")
     public Mono<ResponseEntity<ApiResponse<PaymentResponseDto>>> getPayment(@PathVariable Long paymentId) {
-        return paymentService.getPayment(paymentId)
+        return caller()
+                .flatMap(c -> paymentService.getPayment(paymentId, c.userId(), c.privileged()))
                 .map(r -> ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
                         .status("success").statusCode(200).message("Payment retrieved").data(r).build()));
     }
 
+    // ADMIN / internal services (order-service, chat-service) see all of the order's payments;
+    // anyone else only their own.
     @GetMapping("/order/{orderId}")
     public Mono<ResponseEntity<ApiResponse<List<PaymentResponseDto>>>> getPaymentsByOrder(
             @PathVariable Long orderId) {
-        return paymentService.getPaymentsByOrder(orderId)
-                .collectList()
+        return caller()
+                .flatMap(c -> paymentService.getPaymentsByOrder(orderId, c.userId(), c.privileged()).collectList())
                 .map(list -> ResponseEntity.ok(ApiResponse.<List<PaymentResponseDto>>builder()
                         .status("success").statusCode(200).message("Payments retrieved").data(list).build()));
     }
 
+    // Manual override (e.g. COD cash collected) — ADMIN only. Previously any logged-in customer
+    // could call this and mark their own (or anyone's) payment successful, and the storefront
+    // itself did so for non-UPI methods.
     @PutMapping("/success/{paymentId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public Mono<ResponseEntity<ApiResponse<PaymentResponseDto>>> markSuccess(@PathVariable Long paymentId) {
         return paymentService.markPaymentSuccess(paymentId)
                 .map(r -> ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
@@ -71,6 +112,7 @@ public class PaymentController {
     }
 
     @PutMapping("/failed/{paymentId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public Mono<ResponseEntity<ApiResponse<PaymentResponseDto>>> markFailed(@PathVariable Long paymentId) {
         return paymentService.markPaymentFailed(paymentId)
                 .map(r -> ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
@@ -86,10 +128,11 @@ public class PaymentController {
                         .status("success").statusCode(200).message("Payment refunded").data(r).build()));
     }
 
-    // Internal, order-service-only sync — no user JWT available for this call (see
-    // SecurityConfig, same pattern as order-service's own /payment-status endpoint). Fully
-    // refunds this order's payment; a no-op if there's nothing left to refund.
+    // Internal, order-service-only sync — authenticated by the internal service token (see
+    // SecurityConfig), not a user JWT. Fully refunds this order's payment; a no-op if there's
+    // nothing left to refund.
     @PutMapping("/order/{orderId}/refund")
+    @PreAuthorize("hasRole('SERVICE')")
     public Mono<ResponseEntity<ApiResponse<Void>>> refundByOrder(@PathVariable Long orderId) {
         return paymentService.refundByOrder(orderId)
                 .thenReturn(ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -117,10 +160,6 @@ public class PaymentController {
                         .status("success").statusCode(200).message("Payments retrieved").data(list).build()));
     }
 
-    // Pushed by EcomWorldPay itself (see PAYIN doc, API Name: TRANSACTION CALLBACK) — no user JWT
-    // available, must stay permitAll (see SecurityConfig). Always acks 200 even for an unmatched
-    // invoiceNumber, so the gateway doesn't treat a stale/duplicate callback as a delivery failure
-    // and keep retrying it (see PaymentServiceImpl#handleGatewayCallback).
     @PostMapping("/callback/ecomworldpay")
     public Mono<ResponseEntity<ApiResponse<Void>>> ecomWorldPayCallback(@RequestBody EcomWorldPayTransactionDto callback) {
         return paymentService.handleGatewayCallback(callback)
@@ -132,7 +171,8 @@ public class PaymentController {
     // above is missed or delayed.
     @GetMapping("/{paymentId}/gateway-status")
     public Mono<ResponseEntity<ApiResponse<PaymentResponseDto>>> refreshGatewayStatus(@PathVariable Long paymentId) {
-        return paymentService.refreshGatewayStatus(paymentId)
+        return caller()
+                .flatMap(c -> paymentService.refreshGatewayStatus(paymentId, c.userId(), c.privileged()))
                 .map(r -> ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
                         .status("success").statusCode(200).message("Gateway status refreshed").data(r).build()));
     }

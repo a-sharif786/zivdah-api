@@ -8,7 +8,7 @@ spring:
   r2dbc:
     url: r2dbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    password: ${DB_PASSWORD}
     pool:
       initial-size: 5
       max-size: 20
@@ -17,12 +17,10 @@ spring:
   flyway:
     url: jdbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
     user: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    password: ${DB_PASSWORD}
     locations: classpath:db/migration
     table: flyway_schema_history_payment  # dedicated history table: zivdah_db is shared across services,
-                                           # so each service needs its own version numbering (see zivdah-order-service)
     baseline-on-migrate: true             # public schema already has other services' tables; baseline this new
-                                           # history table at V1 (already-run init) instead of erroring on non-empty schema
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
@@ -43,24 +41,16 @@ spring:
         spring.json.trusted.packages: com.zivdah.common.event
         spring.json.use.type.headers: true
 
-# Reached over the compose network by order-service's Compose service name (see
-# docker-compose.yml's "order-service:" key), NOT localhost — see
-# zivdah-delivery-service's application-prod.yaml for the full explanation (same class of bug,
-# same fix, applied there first after it silently broke delivery-row creation in production).
 order-service:
   url: ${ORDER_SERVICE_URL:http://order-service:8005/restful/v1/api/orders}
 
-# Reached over the compose network by auth-service's Compose service name — same reasoning as
-# order-service above. Used by VendorPayoutServiceImpl/AuthServiceClient to fetch a vendor's
-# bank/UPI details before submitting a payout.
-# NOTE: this hits an unauthenticated /internal/** endpoint (see auth-service's SecurityConfig),
-# so it must stay on the internal Docker network and never round-trip through the public
-# gateway, where that same unauthenticated path would otherwise be reachable by anyone — same
-# reasoning as zivdah-order-service's own AUTH_SERVICE_INTERNAL_URL.
+# Key is "internal-url", NOT "url": Spring relaxed binding maps env var AUTH_SERVICE_URL onto
+# "auth-service.url", and .env sets AUTH_SERVICE_URL to the PUBLIC gateway (for user-service).
+# Every container loads all of .env, so "auth-service.url" silently became the public URL and
+# /internal/** calls 404'd at the gateway. Same rename in order/notification/chat-service.
 auth-service:
-  url: ${AUTH_SERVICE_INTERNAL_URL:http://auth-service:8002/restful/v1/api/auth}
+  internal-url: ${AUTH_SERVICE_INTERNAL_URL:http://auth-service:8002/restful/v1/api/auth}
 
-# EcomWorldPay UPI QR (PayIn) + Payout — see application-dev.yaml and .env.example for the same block.
 ecomworldpay:
   base-url: ${ECOMWORLDPAY_BASE_URL:https://api.ecomworldpay.net}
   qr-intent-path: /api/registerupiintent
@@ -85,3 +75,6 @@ logging:
 
 jwt:
   secret: ${JWT_SECRET}
+
+internal:
+  api-token: ${INTERNAL_API_TOKEN}

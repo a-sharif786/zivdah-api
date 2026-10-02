@@ -8,7 +8,7 @@ spring:
   r2dbc:
     url: r2dbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    password: ${DB_PASSWORD}
     pool:
       initial-size: 5
       max-size: 20
@@ -17,7 +17,7 @@ spring:
   flyway:
     url: jdbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
     user: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    password: ${DB_PASSWORD}
     locations: classpath:db/migration
     table: flyway_schema_history_product  # dedicated history table: zivdah_db is shared across services,
                                            # so each service needs its own version numbering
@@ -44,6 +44,17 @@ spring:
 inventory-service:
   url: ${INVENTORY_SERVICE_URL:http://inventory-service:8008/restful/v1/api/inventory}
 
+# Product/banner image storage (see MediaStorageConfig) — local disk, bind-mounted at the same
+# path on host and container (docker-compose.yml) and served by nginx under /media/products/ and
+# /media/banners/, exactly like order-service's invoices.
+media:
+  products:
+    storage-path: ${PRODUCT_STORAGE_PATH:/var/www/zivdah-media/products/}
+    public-base-url: ${PRODUCT_PUBLIC_BASE_URL:https://zivdahonlinegrocery.com/media/products}
+  banners:
+    storage-path: ${BANNER_STORAGE_PATH:/var/www/zivdah-media/banners/}
+    public-base-url: ${BANNER_PUBLIC_BASE_URL:https://zivdahonlinegrocery.com/media/banners}
+
 eureka:
   instance:
     prefer-ip-address: true
@@ -58,3 +69,8 @@ logging:
 
 jwt:
   secret: ${JWT_SECRET}
+
+# Shared secret for service-to-service calls (see zivdah-common InternalServiceAuthenticationFilter).
+# No fallback on purpose - startup fails unless INTERNAL_API_TOKEN is set (same value in every service).
+internal:
+  api-token: ${INTERNAL_API_TOKEN}

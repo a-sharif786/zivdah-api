@@ -1,5 +1,6 @@
 package com.zivdah.inventory.client;
 
+import com.zivdah.common.security.InternalAuth;
 import com.zivdah.inventory.dto.ApiResponse;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,11 @@ public class ProductServiceClient {
     @Value("${product-service.url}")
     private String productServiceUrl;
 
+    // Internal, service-to-service calls authenticate with the shared internal token (see
+    // zivdah-common InternalServiceAuthenticationFilter) — the sync endpoints are no longer permitAll().
+    @Value("${internal.api-token}")
+    private String internalApiToken;
+
     private final WebClient webClient;
 
     /**
@@ -54,13 +60,14 @@ public class ProductServiceClient {
 
     /**
      * Fire-and-forget push: tells product-service to set its stockQuantity to match
-     * inventory's new availableQuantity. Internal endpoint (no auth) — see
+     * inventory's new availableQuantity. Internal endpoint (internal service token) — see
      * ProductController's PUT /products/{id}/sync-stock. Never fails the caller's own
      * inventory mutation if product-service is unreachable; just logs.
      */
     public Mono<Void> syncStockQuantity(Long productId, Integer availableQuantity) {
         return webClient.put()
                 .uri(productServiceUrl + "/{id}/sync-stock", productId)
+                .header(InternalAuth.HEADER, internalApiToken)
                 .bodyValue(Map.of("stockQuantity", availableQuantity))
                 .retrieve()
                 .toBodilessEntity()

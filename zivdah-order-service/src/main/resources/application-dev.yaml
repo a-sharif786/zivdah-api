@@ -44,23 +44,42 @@ spring:
         spring.json.use.type.headers: true
 
 # payment-service runs on the same host in dev (see zivdah-payment-service's own
-# application-dev.yaml, port 8006) — see application-prod.yaml for why this differs there.
+# application-dev.yaml, port 8006) â€” see application-prod.yaml for why this differs there.
 payment-service:
   url: http://localhost:8006/restful/v1/api/payments
 
-# auth-service runs on the same host in dev (port 8002) — see application-prod.yaml for why
+# auth-service runs on the same host in dev (port 8002) â€” see application-prod.yaml for why
 # this differs there. Used by InvoiceService/AuthServiceClient to print the customer's
 # name/email on a generated invoice.
 auth-service:
-  url: http://localhost:8002/restful/v1/api/auth
+  internal-url: http://localhost:8002/restful/v1/api/auth
+
+# Server-side order pricing (see OrderPricingService) â€” product prices/vendorIds and coupon
+# definitions are read from these services rather than trusted from the client's request.
+product-service:
+  url: http://localhost:8003/restful/v1/api/products
+coupon-service:
+  url: http://localhost:8011/restful/v1/api/coupons
+
+# Used to authorize a DELIVERY_BOY reading an order they're assigned to (see
+# OrderController#requireOrderAccess / DeliveryServiceClient).
+delivery-service:
+  url: http://localhost:8013/restful/v1/api/delivery
+
+# Shared secret for service-to-service calls (see zivdah-common InternalServiceAuthenticationFilter).
+# Dev-only fallback so a local IntelliJ run works without extra setup; application-prod.yaml has
+# NO fallback, so production fails fast at startup unless INTERNAL_API_TOKEN is set. Must be the
+# same value in every service.
+internal:
+  api-token: ${INTERNAL_API_TOKEN:206384bb376b7f98825a70d8412d5f167e6aaec4793fbecb4d321ccedfdb9861}
 
 # Invoice Management (see InvoiceService/InvoicePdfGenerator/InvoiceStorageService).
 # /var/www/zivdah-media/invoices/ (the prod path) doesn't exist on a dev machine, so this
-# points at a project-relative folder instead — see application-prod.yaml for the real path.
+# points at a project-relative folder instead â€” see application-prod.yaml for the real path.
 invoice:
   storage:
     path: ./media/invoices
-  # No nginx in front locally, so this just needs to be *some* well-formed base URL — the
+  # No nginx in front locally, so this just needs to be *some* well-formed base URL â€” the
   # frontend should call the authenticated /invoices/{id}/download endpoint regardless (see
   # InvoiceResponseDto#downloadUrl), never this raw one, in every environment.
   public-base-url: http://localhost:8001/media/invoices
@@ -85,4 +104,4 @@ logging:
     org.springframework.security: DEBUG
 
 jwt:
-  secret: my_super_secret_key_that_is_at_least_32_characters_long_123456
+  secret: ${JWT_SECRET:my_super_secret_key_that_is_at_least_32_characters_long_123456}

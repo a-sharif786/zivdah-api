@@ -42,6 +42,18 @@ spring:
 inventory-service:
   url: http://localhost:8008/restful/v1/api/inventory
 
+# Product/banner image storage (see MediaStorageConfig). /var/www/zivdah-media/ (the prod path)
+# doesn't exist on a dev machine, so this uses a project-relative folder (gitignored media/) and
+# this service serves the files itself at /media/** since there's no nginx locally.
+media:
+  serve-locally: true
+  products:
+    storage-path: ./media/products
+    public-base-url: http://localhost:8003/media/products
+  banners:
+    storage-path: ./media/banners
+    public-base-url: http://localhost:8003/media/banners
+
 eureka:
   instance:
     prefer-ip-address: true
@@ -59,4 +71,8 @@ logging:
 
 
 jwt:
-  secret: my_super_secret_key_that_is_at_least_32_characters_long_123456
+  secret: ${JWT_SECRET:my_super_secret_key_that_is_at_least_32_characters_long_123456}
+# Shared secret for service-to-service calls (see zivdah-common InternalServiceAuthenticationFilter).
+# Dev-only fallback; application-prod.yaml has NO fallback (startup fails unless INTERNAL_API_TOKEN is set).
+internal:
+  api-token: ${INTERNAL_API_TOKEN:206384bb376b7f98825a70d8412d5f167e6aaec4793fbecb4d321ccedfdb9861}

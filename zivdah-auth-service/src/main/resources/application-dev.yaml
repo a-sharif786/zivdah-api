@@ -44,7 +44,13 @@ resend:
   from-email: ${MAIL_FROM_ADDRESS:no-reply@zivdahonlinegrocery.com}
 
 jwt:
-  secret: my_super_secret_key_that_is_at_least_32_characters_long_123456
+  secret: ${JWT_SECRET:my_super_secret_key_that_is_at_least_32_characters_long_123456}
   # access token is short-lived; clients renew it via POST /auth/refresh-token
   access-token-expiration: ${JWT_ACCESS_TTL:15m}
   refresh-token-expiration: ${JWT_REFRESH_TTL:7d}
+# Shared secret for service-to-service calls (see zivdah-common InternalServiceAuthenticationFilter).
+# Dev-only fallback so a local IntelliJ run works without extra setup; application-prod.yaml has
+# NO fallback, so production fails fast at startup unless INTERNAL_API_TOKEN is set. Must be the
+# same value in every service.
+internal:
+  api-token: ${INTERNAL_API_TOKEN:206384bb376b7f98825a70d8412d5f167e6aaec4793fbecb4d321ccedfdb9861}

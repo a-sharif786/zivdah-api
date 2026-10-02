@@ -1,7 +1,5 @@
 package com.zivdah.payment.serviceImpl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zivdah.common.event.PaymentCompletedEvent;
 import com.zivdah.payment.client.OrderServiceClient;
 import com.zivdah.payment.dto.DailyAmountDto;
@@ -41,18 +39,44 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
-    private final ObjectMapper objectMapper;
     private final PaymentRepository paymentRepository;
     private final PaymentStatsRepository paymentStatsRepository;
     private final PaymentKafkaProducer paymentKafkaProducer;
     private final OrderServiceClient orderServiceClient;
     private final EcomWorldPayClient ecomWorldPayClient;
 
+    // Same one-paisa allowance order-service uses between the storefront's JS-computed total and
+    // its own BigDecimal one (see OrderServiceImpl#TOTAL_TOLERANCE) — the payment amount is that
+    // same client-computed grand total.
+    private static final BigDecimal LINK_AMOUNT_TOLERANCE = new BigDecimal("0.01");
+
+    private static boolean isTerminal(PaymentStatus s) {
+        return s == PaymentStatus.SUCCESS || s == PaymentStatus.FAILED
+                || s == PaymentStatus.REFUNDED || s == PaymentStatus.CANCELLED;
+    }
+
+    // Callers see only their own payments; ADMIN and internal services see any. A payment that
+    // isn't yours looks exactly like one that doesn't exist, so ids can't be probed.
+    private Mono<Payment> requireAccess(Payment p, Long currentUserId, boolean privileged) {
+        if (privileged || (currentUserId != null && currentUserId.equals(p.getUserId()))) {
+            return Mono.just(p);
+        }
+        return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + p.getId()));
+    }
+
     @Override
-    public Mono<PaymentResponseDto> initiatePayment(PaymentRequestDto dto) {
+    public Mono<PaymentResponseDto> initiatePayment(PaymentRequestDto dto, Long currentUserId) {
         if (isBlank(dto.getCheckoutRef())) {
             return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "checkoutRef is required"));
         }
+        if (dto.getAmount() == null || dto.getAmount().signum() <= 0) {
+            return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount must be positive"));
+        }
+        // The payment always belongs to the authenticated caller (the body's userId used to be
+        // trusted), and is never tied to an order here — only linkOrder() attaches one, after
+        // checking the order's owner, status and total against this payment.
+        dto.setUserId(currentUserId);
+        dto.setOrderId(null);
 
         // checkoutRef identifies one checkout attempt end-to-end — looking it up first makes
         // retrying "Place Order" for the same cart idempotent: a FAILED row gets retried in
@@ -60,9 +84,14 @@ public class PaymentServiceImpl implements PaymentService {
         // (PENDING/PROCESSING/SUCCESS) is returned as-is, and only a genuinely new attempt
         // inserts a new row. See OrderServiceImpl#createOrder for the matching order-side check.
         return paymentRepository.findByCheckoutRef(dto.getCheckoutRef())
-                .flatMap(existing -> existing.getStatus() == PaymentStatus.FAILED
-                        ? retryUpiIntent(existing, dto)
-                        : Mono.just(existing))
+                .flatMap(existing -> {
+                    if (!currentUserId.equals(existing.getUserId())) {
+                        return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT, "Duplicate checkout reference"));
+                    }
+                    return existing.getStatus() == PaymentStatus.FAILED
+                            ? retryUpiIntent(existing, dto)
+                            : Mono.just(existing);
+                })
                 .switchIfEmpty(Mono.defer(() -> createNewPayment(dto)))
                 .map(this::mapToResponse);
     }
@@ -84,21 +113,10 @@ public class PaymentServiceImpl implements PaymentService {
         // Only UPI goes through EcomWorldPay's QR intent flow (this integration's whole scope) —
         // every other method keeps the pre-existing behaviour of a bare PENDING record that the
         // caller (COD) or a future gateway integration (CARD/NET_BANKING/...) settles separately.
-
-
-
-
-
-
-        try {
-            log.warn(
-                    "EcomWorldPay payment not found: {}",
-                    objectMapper.writeValueAsString(dto)
-            );
-        } catch (JsonProcessingException e) {
-            log.warn("EcomWorldPay payment not found: {}", payment, e);
-        }
-
+        //
+        // (Removed: three log.warn blocks here and in registerUpiIntent that serialized the whole
+        // request/payment — customer name, mobile, email, amount — at WARN on every checkout,
+        // under a misleading "payment not found" message, into the centralized log store.)
         if (dto.getMethod() != PaymentMethod.UPI) {
             return paymentRepository.save(payment);
         }
@@ -108,14 +126,6 @@ public class PaymentServiceImpl implements PaymentService {
             return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "firstName, lastName, mobile and email are required for UPI payments"));
         }
-        try {
-            log.warn(
-                    "EcomWorldPay payment not found: {}",
-                    objectMapper.writeValueAsString(payment)
-            );
-        } catch (JsonProcessingException e) {
-            log.warn("EcomWorldPay payment not found: {}", payment, e);
-        }
         return paymentRepository.save(payment)
                 .flatMap(saved -> registerUpiIntent(saved, dto));
     }
@@ -124,17 +134,31 @@ public class PaymentServiceImpl implements PaymentService {
     // than inserting a second row. amount/currency may be stale if the cart changed without the
     // checkout attempt resetting (e.g. a coupon applied between attempts); refresh them from the
     // incoming request first, since registerUpiIntent builds the gateway request from the stored
-    // row, not the DTO.
+    // row, not the DTO — but ONLY while the payment isn't linked to an order yet. Once linked, its
+    // amount was already verified against that order's server-computed total (see linkOrder), and
+    // letting a retry overwrite it would let a customer re-price an existing order to ₹1.
     private Mono<Payment> retryUpiIntent(Payment existing, PaymentRequestDto dto) {
-        existing.setAmount(dto.getAmount());
-        existing.setCurrency(dto.getCurrency());
+        if (existing.getOrderId() == null) {
+            existing.setAmount(dto.getAmount());
+            existing.setCurrency(dto.getCurrency());
+        }
         return registerUpiIntent(existing, dto);
     }
 
+    // Attaches the order to the payment — the step that makes a later gateway SUCCESS mark that
+    // order PAID, so it's where the amount has to be proven. Previously any caller could link any
+    // payment to any order, with no check that the amounts matched: pay ₹1, link it to a ₹3000
+    // order, and the order went PAID. Now the payment must be the caller's own, the order (read
+    // from order-service) must also be theirs and still awaiting payment, and the payment amount
+    // must equal the order's server-computed total.
     @Override
-    public Mono<PaymentResponseDto> linkOrder(Long paymentId, Long orderId) {
+    public Mono<PaymentResponseDto> linkOrder(Long paymentId, Long orderId, Long currentUserId) {
+        if (orderId == null) {
+            return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "orderId is required"));
+        }
         return paymentRepository.findById(paymentId)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId)))
+                .flatMap(p -> requireAccess(p, currentUserId, false))
                 .flatMap(p -> {
                     if (p.getOrderId() != null && !p.getOrderId().equals(orderId)) {
                         return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT,
@@ -143,9 +167,37 @@ public class PaymentServiceImpl implements PaymentService {
                     if (orderId.equals(p.getOrderId())) {
                         return Mono.just(p); // already linked — idempotent no-op
                     }
-                    p.setOrderId(orderId);
-                    p.setUpdatedAt(LocalDateTime.now());
-                    return paymentRepository.save(p);
+                    if (p.getStatus() == PaymentStatus.SUCCESS || p.getStatus() == PaymentStatus.REFUNDED
+                            || p.getStatus() == PaymentStatus.CANCELLED) {
+                        return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT,
+                                "Payment " + paymentId + " can no longer be linked to an order"));
+                    }
+                    return orderServiceClient.getOrder(orderId)
+                            .onErrorMap(ex -> !(ex instanceof ResponseStatusException), ex -> {
+                                log.warn("Order lookup for linking payment {} to order {} failed: {}",
+                                        paymentId, orderId, ex.getMessage());
+                                return new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found: " + orderId);
+                            })
+                            .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found: " + orderId)))
+                            .flatMap(order -> {
+                                if (!currentUserId.equals(order.getUserId())) {
+                                    return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found: " + orderId));
+                                }
+                                if (!"CREATED".equals(order.getStatus()) && !"PAYMENT_PENDING".equals(order.getStatus())) {
+                                    return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT,
+                                            "Order " + orderId + " is not awaiting payment"));
+                                }
+                                if (order.getTotalAmount() == null || p.getAmount() == null
+                                        || p.getAmount().subtract(order.getTotalAmount()).abs().compareTo(LINK_AMOUNT_TOLERANCE) > 0) {
+                                    log.warn("Payment {} amount {} does not match order {} total {}",
+                                            paymentId, p.getAmount(), orderId, order.getTotalAmount());
+                                    return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT,
+                                            "Payment amount does not match the order total"));
+                                }
+                                p.setOrderId(orderId);
+                                p.setUpdatedAt(LocalDateTime.now());
+                                return paymentRepository.save(p);
+                            });
                 })
                 .map(this::mapToResponse);
     }
@@ -169,16 +221,6 @@ public class PaymentServiceImpl implements PaymentService {
                 .currency(saved.getCurrency() != null ? saved.getCurrency() : "INR")
                 .email(dto.getEmail())
                 .build();
-
-
-        try {
-            log.warn(
-                    "EcomWorldPay payment not found: {}",
-                    objectMapper.writeValueAsString(request)
-            );
-        } catch (JsonProcessingException e) {
-            log.warn("EcomWorldPay payment not found: {}", request, e);
-        }
 
         return ecomWorldPayClient.createUpiIntent(request)
                 .flatMap(response -> {
@@ -210,9 +252,11 @@ public class PaymentServiceImpl implements PaymentService {
 
 
     @Override
-    public Mono<PaymentResponseDto> getPayment(Long paymentId) {
+    public Mono<PaymentResponseDto> getPayment(Long paymentId, Long currentUserId, boolean privileged) {
         return paymentRepository.findById(paymentId)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId)))
+                // access is checked BEFORE the gateway refresh, so a stranger can't even trigger one
+                .flatMap(p -> requireAccess(p, currentUserId, privileged))
                 .flatMap(this::refreshIfAwaitingGateway)
                 .map(this::mapToResponse);
     }
@@ -232,9 +276,13 @@ public class PaymentServiceImpl implements PaymentService {
                 });
     }
 
+    // Internal callers (order-service verifying a Kafka event, chat-service) and ADMIN see every
+    // payment on the order; anyone else only the ones that are their own.
     @Override
-    public Flux<PaymentResponseDto> getPaymentsByOrder(Long orderId) {
-        return paymentRepository.findByOrderId(orderId).map(this::mapToResponse);
+    public Flux<PaymentResponseDto> getPaymentsByOrder(Long orderId, Long currentUserId, boolean privileged) {
+        return paymentRepository.findByOrderId(orderId)
+                .filter(p -> privileged || (currentUserId != null && currentUserId.equals(p.getUserId())))
+                .map(this::mapToResponse);
     }
 
     @Override
@@ -291,22 +339,50 @@ public class PaymentServiceImpl implements PaymentService {
                 });
     }
 
+    // The callback endpoint is necessarily unauthenticated (EcomWorldPay pushes it with no
+    // credentials and no signature), so its body is NEVER applied: previously anyone could POST
+    // {"invoiceNumber": "<a payment's transactionId>", "status": "SUCCESS"} and the order went
+    // PAID. The callback is now only a signal that the payment may have resolved — its real
+    // outcome is pulled from EcomWorldPay's authenticated Transaction Status API (the same call the
+    // storefront's polling and "check now" use), and only THAT result is applied, after the
+    // amount/identity checks in applyGatewayResult. Always completes (never errors), so the
+    // controller still acks 200 and the gateway doesn't retry endlessly.
     @Override
     public Mono<Void> handleGatewayCallback(EcomWorldPayTransactionDto callback) {
+        if (callback == null || isBlank(callback.getInvoiceNumber())) {
+            log.warn("EcomWorldPay callback with no invoiceNumber — ignoring");
+            return Mono.empty();
+        }
         return paymentRepository.findByTransactionId(callback.getInvoiceNumber())
                 .switchIfEmpty(Mono.defer(() -> {
                     log.warn("EcomWorldPay callback for unknown invoiceNumber {} (pgTxnId {})",
                             callback.getInvoiceNumber(), callback.getPgTxnId());
                     return Mono.empty();
                 }))
-                .flatMap(p -> applyGatewayResult(p, callback))
+                .filter(p -> !isTerminal(p.getStatus()))
+                .flatMap(p -> {
+                    if (isBlank(p.getGatewayTxnId())) {
+                        // No gateway transaction was ever registered for this payment (QR creation
+                        // failed), so there's nothing to verify the callback against.
+                        log.warn("EcomWorldPay callback for payment {} with no gateway transaction — ignoring", p.getId());
+                        return Mono.empty();
+                    }
+                    return ecomWorldPayClient.checkTransactionStatus(p.getGatewayTxnId())
+                            .flatMap(verified -> applyGatewayResult(p, verified))
+                            .onErrorResume(TransactionNotYetAvailableException.class, ex -> Mono.just(p))
+                            .onErrorResume(ex -> {
+                                log.warn("Could not verify EcomWorldPay callback for payment {}: {}", p.getId(), ex.getMessage());
+                                return Mono.just(p);
+                            });
+                })
                 .then();
     }
 
     @Override
-    public Mono<PaymentResponseDto> refreshGatewayStatus(Long paymentId) {
+    public Mono<PaymentResponseDto> refreshGatewayStatus(Long paymentId, Long currentUserId, boolean privileged) {
         return paymentRepository.findById(paymentId)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId)))
+                .flatMap(p -> requireAccess(p, currentUserId, privileged))
                 .flatMap(p -> {
                     if (isBlank(p.getGatewayTxnId())) {
                         return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -333,9 +409,21 @@ public class PaymentServiceImpl implements PaymentService {
     // treated as a decline: EcomWorldPay's flat DTO shape is only sent for a truly resolved outcome
     // (see EcomWorldPayClient#checkTransactionStatus for the "not resolved yet" case), so reaching
     // here with neither SUCCESS nor a real status is unexpected and safest treated as "try again".
+    //
+    // A SUCCESS is only accepted if it's provably for THIS payment and the FULL amount — the
+    // gateway's reported amount must equal ours exactly, and its invoiceNumber / pgTxnId (when it
+    // reports them) must match ours. Previously the amount was never compared at all.
     private Mono<Payment> applyGatewayResult(Payment p, EcomWorldPayTransactionDto result) {
-        if (p.getStatus() == PaymentStatus.SUCCESS || p.getStatus() == PaymentStatus.FAILED
-                || p.getStatus() == PaymentStatus.REFUNDED || p.getStatus() == PaymentStatus.CANCELLED) {
+        if (isTerminal(p.getStatus())) {
+            return Mono.just(p);
+        }
+
+        boolean reportedSuccess = result.getStatus() != null && result.getStatus().equalsIgnoreCase("SUCCESS");
+        // Checked against the payment's identifiers as they were BEFORE this result is merged in.
+        String mismatch = reportedSuccess ? successMismatch(p, result) : null;
+        if (reportedSuccess && result.getAmount() == null) {
+            // Can't prove the amount — fail closed: don't settle, stay PROCESSING for a later poll.
+            log.error("EcomWorldPay reported SUCCESS for payment {} without an amount — not settling", p.getId());
             return Mono.just(p);
         }
 
@@ -359,8 +447,27 @@ public class PaymentServiceImpl implements PaymentService {
         if (result.getStatus() == null) {
             return Mono.just(p); // unresolved/unrecognized — stay PROCESSING, don't guess
         }
-        boolean success = result.getStatus().equalsIgnoreCase("SUCCESS");
-        return success ? transitionToSuccess(p) : transitionToFailed(p, result.getResponseMessage());
+        if (mismatch != null) {
+            log.error("EcomWorldPay SUCCESS for payment {} failed verification ({}) — flagged for review",
+                    p.getId(), mismatch);
+            return transitionToFailed(p,
+                    "Payment could not be verified. If money was debited, it will be reviewed and refunded.");
+        }
+        return reportedSuccess ? transitionToSuccess(p) : transitionToFailed(p, result.getResponseMessage());
+    }
+
+    // null when the gateway's SUCCESS matches this payment; otherwise a short (log-only) reason.
+    private static String successMismatch(Payment p, EcomWorldPayTransactionDto result) {
+        if (result.getAmount() != null && (p.getAmount() == null || result.getAmount().compareTo(p.getAmount()) != 0)) {
+            return "amount " + result.getAmount() + " != expected " + p.getAmount();
+        }
+        if (!isBlank(result.getInvoiceNumber()) && !result.getInvoiceNumber().equals(p.getTransactionId())) {
+            return "invoiceNumber mismatch";
+        }
+        if (!isBlank(result.getPgTxnId()) && !isBlank(p.getGatewayTxnId()) && !result.getPgTxnId().equals(p.getGatewayTxnId())) {
+            return "pgTxnId mismatch";
+        }
+        return null;
     }
 
     @Override
@@ -424,20 +531,6 @@ public class PaymentServiceImpl implements PaymentService {
                             : Mono.empty();
                     return syncOrder.thenReturn(saved);
                 });
-    }
-
-    @Override
-    public Mono<Boolean> processPayment(Long orderId, BigDecimal amount) {
-        boolean success = new java.util.Random().nextBoolean();
-        Payment payment = Payment.builder()
-                .orderId(orderId).amount(amount)
-                .status(success ? PaymentStatus.SUCCESS : PaymentStatus.FAILED)
-                .transactionId(UUID.randomUUID().toString())
-                .createdAt(LocalDateTime.now())
-                .build();
-        return paymentRepository.save(payment)
-                .doOnSuccess(p -> log.info("Payment for order {} processed: {}", orderId, success ? "SUCCESS" : "FAILED"))
-                .map(p -> success);
     }
 
     @Override

@@ -1,5 +1,7 @@
 package com.zivdah.order.controller;
 
+import com.zivdah.common.security.InternalAuth;
+import com.zivdah.order.client.DeliveryServiceClient;
 import com.zivdah.order.dto.ApiResponse;
 import com.zivdah.order.dto.DeliveryStatusSyncDto;
 import com.zivdah.order.dto.OrderRequestDto;
@@ -11,6 +13,7 @@ import com.zivdah.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,6 +34,7 @@ import java.util.List;
 public class OrderController {
 
     private final OrderService orderService;
+    private final DeliveryServiceClient deliveryServiceClient;
 
     private Mono<Long> currentUserId() {
         return ReactiveSecurityContextHolder.getContext()
@@ -48,25 +52,74 @@ public class OrderController {
                         .orElse(""));
     }
 
+    // Order access for reads: the internal service token (delivery/notification/chat/payment-service
+    // lookups), ADMIN, the order's own customer, a VENDOR with an item on it (same rule as
+    // InvoiceController#requireOrderAccess), or a DELIVERY_BOY assigned to it (the delivery-boy
+    // portal hydrates each of its deliveries through this endpoint). Everyone else gets the same
+    // "Order not found" as a genuinely missing order, so order ids can't be probed. Previously
+    // GET /{orderId} was permitAll — anyone could read any order's delivery address.
+    private Mono<OrderResponseDto> requireOrderAccess(OrderResponseDto order, String authorization) {
+        return Mono.zip(currentUserPrincipal(), currentRole())
+                .flatMap(t -> {
+                    String principal = t.getT1();
+                    String role = t.getT2();
+                    if (InternalAuth.ROLE.equals(role) || "ADMIN".equalsIgnoreCase(role)
+                            || principal.equals(String.valueOf(order.getUserId()))) {
+                        return Mono.just(true);
+                    }
+                    if ("VENDOR".equalsIgnoreCase(role)) {
+                        return Mono.just(order.getItems().stream()
+                                .anyMatch(i -> principal.equals(String.valueOf(i.getVendorId()))));
+                    }
+                    if ("DELIVERY_BOY".equalsIgnoreCase(role)) {
+                        return deliveryServiceClient.isAssignedToCaller(order.getOrderId(), bearerToken(authorization));
+                    }
+                    return Mono.just(false);
+                })
+                .filter(Boolean::booleanValue)
+                .map(allowed -> order)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found")));
+    }
+
+    private Mono<String> currentUserPrincipal() {
+        return ReactiveSecurityContextHolder.getContext()
+                .map(ctx -> ctx.getAuthentication())
+                .map(Authentication::getName);
+    }
+
+    private static String bearerToken(String authorization) {
+        return authorization != null && authorization.startsWith("Bearer ") ? authorization.substring(7) : null;
+    }
+
     @PostMapping("/create")
     public Mono<ResponseEntity<ApiResponse<OrderResponseDto>>> createOrder(
             @RequestBody OrderRequestDto dto) {
-        return orderService.createOrder(dto)
+        return currentUserId()
+                .flatMap(userId -> orderService.createOrder(dto, userId))
                 .map(r -> ResponseEntity.ok(ApiResponse.<OrderResponseDto>builder()
                         .status("success").statusCode(200).message("Order created successfully").data(r).build()));
     }
 
     @GetMapping("/{orderId}")
-    public Mono<ResponseEntity<ApiResponse<OrderResponseDto>>> getOrder(@PathVariable Long orderId) {
+    public Mono<ResponseEntity<ApiResponse<OrderResponseDto>>> getOrder(
+            @PathVariable Long orderId,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         return orderService.getOrderById(orderId)
+                .flatMap(order -> requireOrderAccess(order, authorization))
                 .map(r -> ResponseEntity.ok(ApiResponse.<OrderResponseDto>builder()
                         .status("success").statusCode(200).message("Order retrieved successfully").data(r).build()));
     }
 
+    // A user's own order history (storefront, Flutter, chat-service forwarding the user's token)
+    // or ADMIN. Previously any authenticated user could list any other user's orders.
     @GetMapping("/user/{userId}")
     public Mono<ResponseEntity<ApiResponse<List<OrderResponseDto>>>> getOrdersByUser(@PathVariable Long userId) {
-        return orderService.getOrdersByUser(userId)
-                .collectList()
+        return Mono.zip(currentUserPrincipal(), currentRole())
+                .filter(t -> t.getT1().equals(String.valueOf(userId))
+                        || "ADMIN".equalsIgnoreCase(t.getT2()) || InternalAuth.ROLE.equals(t.getT2()))
+                .switchIfEmpty(Mono.error(new ResponseStatusException(
+                        HttpStatus.FORBIDDEN, "Not authorized to view this user's orders")))
+                .flatMap(t -> orderService.getOrdersByUser(userId).collectList())
                 .map(list -> ResponseEntity.ok(ApiResponse.<List<OrderResponseDto>>builder()
                         .status("success").statusCode(200).message("Orders retrieved successfully").data(list).build()));
     }

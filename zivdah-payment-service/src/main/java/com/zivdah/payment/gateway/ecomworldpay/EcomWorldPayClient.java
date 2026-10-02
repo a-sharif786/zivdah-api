@@ -1,6 +1,7 @@
 package com.zivdah.payment.gateway.ecomworldpay;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.zivdah.common.logging.LogSanitizer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zivdah.payment.gateway.ecomworldpay.dto.EcomWorldPayPayoutRequest;
@@ -65,18 +66,9 @@ public class EcomWorldPayClient {
     @Value("${ecomworldpay.secret-key}")
     private String secretKey;
 
+    // (Removed: a log.warn that serialized the whole QR request — merchant id, customer name,
+    // mobile, email, amount — on every UPI checkout into the centralized log store.)
     public Mono<QrIntentResponse> createUpiIntent(QrIntentRequest request) {
-
-
-        try {
-            log.warn(
-                    "EcomWorldPay payment not found: {}",
-                    objectMapper.writeValueAsString(request)
-            );
-        } catch (JsonProcessingException e) {
-            log.warn("EcomWorldPay payment not found: {}", request, e);
-        }
-
         return webClient.post()
                 .uri(baseUrl + qrIntentPath)
                 .header("X-TenantID", tenantId)
@@ -156,7 +148,7 @@ public class EcomWorldPayClient {
             return Mono.just(objectMapper.treeToValue(root, EcomWorldPayTransactionDto.class));
         } catch (JsonProcessingException e) {
             return Mono.error(new IllegalStateException(
-                    "Failed to parse EcomWorldPay status check response: " + raw, e));
+                    "Failed to parse EcomWorldPay status check response: " + safeBody(raw), e));
         }
     }
 
@@ -215,7 +207,7 @@ public class EcomWorldPayClient {
                 return Mono.just(objectMapper.readValue(raw, type));
             } catch (JsonProcessingException e) {
                 return Mono.error(new IllegalStateException(
-                        "Failed to parse EcomWorldPay " + context + " response: " + raw, e));
+                        "Failed to parse EcomWorldPay " + context + " response: " + safeBody(raw), e));
             }
         });
     }
@@ -223,9 +215,22 @@ public class EcomWorldPayClient {
     // WebClientResponseException.getMessage() only carries the status line (e.g. "500 Internal
     // Server Error from POST ..."); the gateway's actual error reason is in the response body,
     // which is otherwise silently discarded.
+    // Gateway response bodies can echo payer details (name, mobile, VPA) and payout account data
+    // back at us. They're kept in logs only as a scrubbed, truncated excerpt — enough to diagnose
+    // a failure, not a copy of the payload.
+    private static final int MAX_LOGGED_BODY = 300;
+
+    static String safeBody(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String scrubbed = LogSanitizer.sanitize(raw);
+        return scrubbed.length() <= MAX_LOGGED_BODY ? scrubbed : scrubbed.substring(0, MAX_LOGGED_BODY) + "…(truncated)";
+    }
+
     private static String describeError(Throwable ex) {
         if (ex instanceof WebClientResponseException wcre) {
-            return wcre.getMessage() + " - body: " + wcre.getResponseBodyAsString();
+            return wcre.getMessage() + " - body: " + safeBody(wcre.getResponseBodyAsString());
         }
         return ex.getMessage();
     }

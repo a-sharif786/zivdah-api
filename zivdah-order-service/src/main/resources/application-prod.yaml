@@ -8,7 +8,7 @@ spring:
   r2dbc:
     url: r2dbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    password: ${DB_PASSWORD}
     pool:
       initial-size: 5
       max-size: 20
@@ -17,7 +17,7 @@ spring:
   flyway:
     url: jdbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
     user: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    password: ${DB_PASSWORD}
     locations: classpath:db/migration
     table: flyway_schema_history_order   # dedicated history table: zivdah_db is shared across services,
                                           # so each service needs its own version numbering (see V2 checksum collision with product-service)
@@ -44,26 +44,42 @@ spring:
         spring.json.use.type.headers: true
 
 # Reached over the compose network by payment-service's Compose service name (see
-# docker-compose.yml's "payment-service:" key), NOT localhost — see
+# docker-compose.yml's "payment-service:" key), NOT localhost â€” see
 # zivdah-delivery-service's application-prod.yaml for the full explanation (same class of bug,
 # same fix, applied there first after it silently broke delivery-row creation in production).
 payment-service:
   url: ${PAYMENT_SERVICE_URL:http://payment-service:8006/restful/v1/api/payments}
 
-# Reached over the compose network by auth-service's Compose service name — same reasoning as
+# Reached over the compose network by auth-service's Compose service name â€” same reasoning as
 # payment-service above. Used by InvoiceService/AuthServiceClient to print the customer's
 # name/email on a generated invoice.
 #
 # Deliberately a DIFFERENT env var from AUTH_SERVICE_URL (which zivdah-user-service already
-# uses, pointed at the public gateway domain — see its own application-prod.yaml): this call is
+# uses, pointed at the public gateway domain â€” see its own application-prod.yaml): this call is
 # to an unauthenticated /internal/** endpoint (see auth-service's SecurityConfig), so it must
 # stay on the internal Docker network and never round-trip through the public gateway, where
 # that same unauthenticated path would otherwise be reachable by anyone on the internet.
 auth-service:
-  url: ${AUTH_SERVICE_INTERNAL_URL:http://auth-service:8002/restful/v1/api/auth}
+  internal-url: ${AUTH_SERVICE_INTERNAL_URL:http://auth-service:8002/restful/v1/api/auth}
+
+# Server-side order pricing (see OrderPricingService) â€” same compose-network env vars
+# zivdah-chat-service already uses for these two services.
+product-service:
+  url: ${PRODUCT_SERVICE_URL:http://product-service:8003/restful/v1/api/products}
+coupon-service:
+  url: ${COUPON_SERVICE_URL:http://coupon-service:8011/restful/v1/api/coupons}
+
+# Used to authorize a DELIVERY_BOY reading an order they're assigned to (see DeliveryServiceClient).
+delivery-service:
+  url: ${DELIVERY_SERVICE_URL:http://delivery-service:8013/restful/v1/api/delivery}
+
+# Shared secret for service-to-service calls (see zivdah-common InternalServiceAuthenticationFilter).
+# No fallback on purpose â€” startup fails unless INTERNAL_API_TOKEN is set (same value in every service).
+internal:
+  api-token: ${INTERNAL_API_TOKEN}
 
 # Invoice Management (see InvoiceService/InvoicePdfGenerator/InvoiceStorageService). The
-# storage path must be a volume shared with (or served directly by) nginx — see
+# storage path must be a volume shared with (or served directly by) nginx â€” see
 # nginx/invoices-media.conf, which serves this same directory at /media/invoices/.
 invoice:
   storage:

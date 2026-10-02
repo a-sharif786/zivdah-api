@@ -8,7 +8,7 @@ spring:
   r2dbc:
     url: r2dbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    password: ${DB_PASSWORD}
     pool:
       initial-size: 5
       max-size: 20
@@ -17,15 +17,12 @@ spring:
   flyway:
     url: jdbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
     user: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    password: ${DB_PASSWORD}
     locations: classpath:db/migration
     table: flyway_schema_history_delivery  # dedicated history table: zivdah_db is shared across services,
                                           # so each service needs its own version numbering
     baseline-on-migrate: true            # public schema already has other services' tables
 
-  # See application-dev.yaml for why this block is required, not optional — without it every
-  # order-status-changed message fails to deserialize and gets dropped, so no delivery is ever
-  # created. Mirrors zivdah-order-service's own (working) config exactly.
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
 
@@ -45,16 +42,6 @@ spring:
         spring.json.trusted.packages: com.zivdah.common.event
         spring.json.use.type.headers: true
 
-# Reached over the compose network by order-service's Compose service name (see
-# docker-compose.yml's "order-service:" key — that's the DNS name on zivdah-network, not the
-# "zivdah-order-service" container_name), NOT localhost: unlike dev, where every service is a
-# separate process on one host, each service here is its own container, so localhost only
-# ever reaches this container's own loopback — never order-service's. Getting this wrong
-# doesn't crash anything: OrderServiceClient#getVendorIds catches the connection failure and
-# returns an empty vendor list, which createPendingDeliveriesForOrder treats as "no vendors on
-# this order" and silently skips creating any Delivery row instead of erroring — confirmed
-# live as the cause of production orders landing in `orders` with zero matching `deliveries`
-# rows while dev/UAT (same host, so localhost worked) was unaffected.
 order-service:
   url: ${ORDER_SERVICE_URL:http://order-service:8005/restful/v1/api/orders}
 
@@ -71,3 +58,8 @@ logging:
 
 jwt:
   secret: ${JWT_SECRET}
+
+# Shared secret for service-to-service calls (see zivdah-common InternalServiceAuthenticationFilter).
+# No fallback on purpose — startup fails unless INTERNAL_API_TOKEN is set (same value in every service).
+internal:
+  api-token: ${INTERNAL_API_TOKEN}

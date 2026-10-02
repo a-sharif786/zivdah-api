@@ -1,5 +1,6 @@
 package com.zivdah.delivery.client;
 
+import com.zivdah.common.security.InternalAuth;
 import com.zivdah.delivery.dto.ApiResponse;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,11 @@ public class OrderServiceClient {
     @Value("${order-service.url}")
     private String orderServiceUrl;
 
+    // Internal, service-to-service calls authenticate with the shared internal token (see
+    // zivdah-common InternalServiceAuthenticationFilter) — those endpoints are no longer permitAll().
+    @Value("${internal.api-token}")
+    private String internalApiToken;
+
     private final WebClient webClient;
 
     /** One entry per distinct vendor on the order, PLUS an {@code Optional.empty()} entry if
@@ -54,6 +60,7 @@ public class OrderServiceClient {
     public Mono<List<Optional<Long>>> getVendorIds(Long orderId) {
         return webClient.get()
                 .uri(orderServiceUrl + "/{orderId}", orderId)
+                .header(InternalAuth.HEADER, internalApiToken)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ApiResponse<OrderSummary>>() {})
                 .map(resp -> {
@@ -82,6 +89,7 @@ public class OrderServiceClient {
     public Mono<Void> syncOrderDeliveryStatus(Long orderId, String deliveryStatus) {
         return webClient.put()
                 .uri(orderServiceUrl + "/{orderId}/delivery-status", orderId)
+                .header(InternalAuth.HEADER, internalApiToken)
                 .bodyValue(new DeliveryStatusSyncBody(deliveryStatus))
                 .retrieve()
                 .bodyToMono(Void.class)

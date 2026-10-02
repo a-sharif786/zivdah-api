@@ -8,7 +8,7 @@ spring:
   r2dbc:
     url: r2dbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    password: ${DB_PASSWORD}
     pool:
       initial-size: 5
       max-size: 20
@@ -17,7 +17,7 @@ spring:
   flyway:
     url: jdbc:postgresql://${DB_HOST:postgres-db}:${DB_PORT:5432}/${DB_NAME:zivdah_db}
     user: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    password: ${DB_PASSWORD}
     locations: classpath:db/migration
     table: flyway_schema_history_chat   # dedicated history table: zivdah_db is shared across services,
                                           # so each service needs its own version numbering (see order-service's
@@ -29,7 +29,7 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
 
-    # Not used yet in Phase 1 (no producer/consumer wired) — present now so later phases
+    # Not used yet in Phase 1 (no producer/consumer wired) â€” present now so later phases
     # (human-handoff events in Phase 3, notification listeners in Phase 5) need no yaml change.
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -61,7 +61,7 @@ logging:
 jwt:
   secret: ${JWT_SECRET}
 
-# Inter-service WebClient targets — externalized with the docker-compose service name as
+# Inter-service WebClient targets â€” externalized with the docker-compose service name as
 # fallback, matching every other service's own convention (see order-service/delivery-service's
 # application-prod.yaml; recall the prior prod-only bug from hardcoded localhost URLs here).
 order-service:
@@ -82,8 +82,20 @@ coupon-service:
 # Reuses order-service's own AUTH_SERVICE_INTERNAL_URL env var (same internal, unauthenticated
 # lookup endpoint) rather than inventing a new one.
 auth-service:
-  url: ${AUTH_SERVICE_INTERNAL_URL:http://auth-service:8002/restful/v1/api/auth}
+  internal-url: ${AUTH_SERVICE_INTERNAL_URL:http://auth-service:8002/restful/v1/api/auth}
 
 # WaitingConversationEscalationScheduler's direct-REST call into notification-service.
 notification-service:
   url: ${NOTIFICATION_SERVICE_URL:http://notification-service:8007/restful/v1/api/notifications}
+
+# Chat attachment storage (see MediaStorageConfig) â€” local disk, bind-mounted in
+# docker-compose.yml and served by nginx under /media/chat/.
+media:
+  chat:
+    storage-path: ${CHAT_STORAGE_PATH:/var/www/zivdah-media/chat/}
+    public-base-url: ${CHAT_PUBLIC_BASE_URL:https://zivdahonlinegrocery.com/media/chat}
+
+# Shared secret for service-to-service calls (see zivdah-common InternalServiceAuthenticationFilter).
+# No fallback on purpose â€” startup fails unless INTERNAL_API_TOKEN is set (same value in every service).
+internal:
+  api-token: ${INTERNAL_API_TOKEN}

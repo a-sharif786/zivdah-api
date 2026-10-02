@@ -1,8 +1,11 @@
 package com.zivdah.product.config;
 
 import com.zivdah.common.logging.CorrelationIdWebFilter;
+import com.zivdah.common.security.InternalAuth;
+import com.zivdah.common.security.InternalServiceAuthenticationFilter;
 import com.zivdah.product.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -27,7 +30,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
+    public SecurityWebFilterChain securityWebFilterChain(
+            ServerHttpSecurity http, @Value("${internal.api-token}") String internalApiToken) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
@@ -49,13 +53,19 @@ public class SecurityConfig {
                                 // Also covers GET /category/{id}; GET /category/all stays gated
                                 // by @PreAuthorize("hasRole('ADMIN')") on the controller method,
                                 // same pattern as the /products/* wildcard above.
-                                "/restful/v1/api/category/*"
+                                "/restful/v1/api/category/*",
+                                // Stored product/banner images — only mapped when
+                                // media.serve-locally=true (dev); prod serves them from nginx.
+                                "/media/products/**",
+                                "/media/banners/**"
                         ).permitAll()
-                        // internal, inventory-service-only push (see InventoryServiceClient in
-                        // zivdah-inventory-service) — no user JWT available for this call
-                        .pathMatchers(HttpMethod.PUT, "/restful/v1/api/products/*/sync-stock").permitAll()
+                        // Internal, inventory-service-only push (see ProductServiceClient in
+                        // zivdah-inventory-service). Was permitAll(): anyone could set any product's
+                        // stock through the public api-gateway. Now needs the internal service token.
+                        .pathMatchers(HttpMethod.PUT, "/restful/v1/api/products/*/sync-stock").hasRole(InternalAuth.ROLE)
                         .anyExchange().authenticated()
                 )
+                .addFilterBefore(new InternalServiceAuthenticationFilter(internalApiToken), SecurityWebFiltersOrder.AUTHENTICATION)
                 .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .build();
     }

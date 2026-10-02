@@ -1,5 +1,6 @@
 package com.zivdah.product.client;
 
+import com.zivdah.common.security.InternalAuth;
 import com.zivdah.product.dto.ApiResponse;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,11 @@ public class InventoryServiceClient {
     @Value("${inventory-service.url}")
     private String inventoryServiceUrl;
 
+    // Internal, service-to-service calls authenticate with the shared internal token (see
+    // zivdah-common InternalServiceAuthenticationFilter) — the sync endpoints are no longer permitAll().
+    @Value("${internal.api-token}")
+    private String internalApiToken;
+
     private final WebClient webClient;
 
     /**
@@ -42,6 +48,9 @@ public class InventoryServiceClient {
     public Mono<Integer> getAvailableQuantity(Long productId) {
         return webClient.get()
                 .uri(inventoryServiceUrl + "/{productId}", productId)
+                // GET /inventory/{productId} requires an authenticated caller; without this the
+                // call always 401'd and silently fell back to stockQuantity (see javadoc above).
+                .header(InternalAuth.HEADER, internalApiToken)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ApiResponse<InventorySummary>>() {})
                 .mapNotNull(resp -> resp.getData() != null ? resp.getData().getAvailableQuantity() : null)
@@ -53,13 +62,14 @@ public class InventoryServiceClient {
 
     /**
      * Fire-and-forget push: tells inventory-service to set availableQuantity to match this
-     * product's new stockQuantity. Internal endpoint (no auth) — see InventoryController's
+     * product's new stockQuantity. Internal endpoint (internal service token) — see InventoryController's
      * PUT /inventory/{productId}/sync-quantity. Never fails the caller's own product update
      * if inventory-service is unreachable; just logs.
      */
     public Mono<Void> setAvailableQuantitySync(Long productId, Integer stockQuantity) {
         return webClient.put()
                 .uri(inventoryServiceUrl + "/{productId}/sync-quantity", productId)
+                .header(InternalAuth.HEADER, internalApiToken)
                 .bodyValue(Map.of("availableQuantity", stockQuantity != null ? stockQuantity : 0))
                 .retrieve()
                 .toBodilessEntity()

@@ -401,11 +401,52 @@ class VendorPayoutServiceImplTest {
         data.setStatus("Declined");
         data.setTransactionId("REF123");
         data.setRemark("Transaction Failed");
+        // the callback is only a signal — the status actually applied is the one pulled from the gateway
+        when(ecomWorldPayClient.checkPayoutStatus("REF123")).thenReturn(Mono.just(wrap(data)));
 
         StepVerifier.create(service.handlePayoutCallback(wrap(data))).verifyComplete();
 
+        verify(ecomWorldPayClient).checkPayoutStatus("REF123");
         verify(vendorPayoutRepository).save(argThat(p ->
                 p.getStatus() == VendorPayoutStatus.FAILED && "Transaction Failed".equals(p.getGatewayDescription())));
+    }
+
+    @Test
+    void handlePayoutCallback_ignoresForgedSettlement_whenGatewaySaysStillProcessing() {
+        VendorPayout payout = VendorPayout.builder()
+                .id(5L).vendorId(7L).status(VendorPayoutStatus.PROCESSING).gatewayReferenceId("REF123").build();
+        when(vendorPayoutRepository.findByGatewayReferenceId("REF123")).thenReturn(Mono.just(payout));
+        mockSave();
+
+        EcomWorldPayPayoutResponse.Data forged = new EcomWorldPayPayoutResponse.Data();
+        forged.setStatus("SettlementCompleted");
+        forged.setTransactionId("REF123");
+        forged.setUtrNumber("FAKEUTR");
+        EcomWorldPayPayoutResponse.Data real = new EcomWorldPayPayoutResponse.Data();
+        real.setStatus("Processing");
+        real.setTransactionId("REF123");
+        when(ecomWorldPayClient.checkPayoutStatus("REF123")).thenReturn(Mono.just(wrap(real)));
+
+        StepVerifier.create(service.handlePayoutCallback(wrap(forged))).verifyComplete();
+
+        verify(vendorPayoutRepository, never()).save(argThat(p -> p.getStatus() == VendorPayoutStatus.SUCCESS));
+        org.assertj.core.api.Assertions.assertThat(payout.getStatus()).isEqualTo(VendorPayoutStatus.PROCESSING);
+        org.assertj.core.api.Assertions.assertThat(payout.getUtrNumber()).isNull();
+    }
+
+    @Test
+    void handlePayoutCallback_acksWithoutChange_whenGatewayUnreachable() {
+        VendorPayout payout = VendorPayout.builder()
+                .id(5L).vendorId(7L).status(VendorPayoutStatus.PROCESSING).gatewayReferenceId("REF123").build();
+        when(vendorPayoutRepository.findByGatewayReferenceId("REF123")).thenReturn(Mono.just(payout));
+        when(ecomWorldPayClient.checkPayoutStatus("REF123")).thenReturn(Mono.error(new RuntimeException("timeout")));
+
+        EcomWorldPayPayoutResponse.Data data = new EcomWorldPayPayoutResponse.Data();
+        data.setStatus("SettlementCompleted");
+        data.setTransactionId("REF123");
+
+        StepVerifier.create(service.handlePayoutCallback(wrap(data))).verifyComplete();
+        verify(vendorPayoutRepository, never()).save(any());
     }
 
     @Test

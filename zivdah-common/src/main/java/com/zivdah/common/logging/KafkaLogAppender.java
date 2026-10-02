@@ -15,21 +15,6 @@ import java.time.Instant;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicReference;
 
-/**
- * Ships every log event on a service's root logger to the "app-logs" Kafka topic as JSON, so
- * zivdah-log-server can consume and persist it. Deliberately self-contained — it talks to
- * Kafka with a raw {@link KafkaProducer}, not Spring's {@code KafkaTemplate} — because
- * Logback initializes before the Spring ApplicationContext exists, so no Spring bean would be
- * available yet at appender-construction time.
- *
- * Always wrap this appender with a Logback {@code AsyncAppender} in logback-spring.xml (see
- * {@code src/main/resources/logback/kafka-appender-include.xml} in this module) so publishing
- * to Kafka never blocks the thread that produced the log line.
- *
- * Wired via that include file, pulled into each service's own thin logback-spring.xml —
- * mirrors the "shared logic defined once in zivdah-common, thin per-service wiring" pattern
- * already used for {@code CloudinaryUploadService}/{@code CloudinaryConfig}.
- */
 public class KafkaLogAppender extends AppenderBase<ILoggingEvent> {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -59,9 +44,12 @@ public class KafkaLogAppender extends AppenderBase<ILoggingEvent> {
                     .serviceName(serviceName)
                     .level(event.getLevel().toString())
                     .loggerName(event.getLoggerName())
-                    .message(event.getFormattedMessage())
+                    // Scrubbed before it leaves the service: the log store is long-lived and
+                    // searchable, so no token/password/OTP/e-mail/mobile should ever land in it
+                    // verbatim, whatever an individual log statement happened to include.
+                    .message(LogSanitizer.sanitize(event.getFormattedMessage()))
                     .exception(event.getThrowableProxy() != null
-                            ? ThrowableProxyUtil.asString(event.getThrowableProxy())
+                            ? LogSanitizer.sanitize(ThrowableProxyUtil.asString(event.getThrowableProxy()))
                             : null)
                     .correlationId(event.getMDCPropertyMap() != null
                             ? event.getMDCPropertyMap().get("correlationId")
