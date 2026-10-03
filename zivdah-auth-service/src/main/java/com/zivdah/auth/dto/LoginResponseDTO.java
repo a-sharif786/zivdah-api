@@ -8,7 +8,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 // Returned identically by /login, /verify-otp, /verify-registration-otp and /refresh-token.
-// `token` is kept (same value as token) for clients that predate refresh tokens.
+// `token` is the (only) access-token field — clients must read `token`, there is no
+// `accessToken` field (reading one stored `undefined` and logged users out ~15 min in).
 @Data
 @Builder
 @NoArgsConstructor
