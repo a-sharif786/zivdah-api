@@ -1,7 +1,7 @@
 package com.zivdah.auth.security;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
@@ -13,11 +13,14 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
 
 @Component
 @Slf4j
 public class JwtTokenProvider {
+
+    private static final String AUTH_TIME_CLAIM = "auth_time";
 
     @Value("${jwt.secret}")
     private String secretKey;
@@ -34,20 +37,35 @@ public class JwtTokenProvider {
         key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 
+    // authTime = when the user last fully authenticated (password/OTP), carried across refreshes;
+    // emitted as the standard OIDC "auth_time" claim (epoch seconds) and omitted when null (MPIN
+    // logins). Other services ignore it — only MPIN setup reads it, to require a recent full login.
     public String generateToken(Long userId,
                                 String mobile,
-                                String role) {
+                                String role,
+                                Instant authTime) {
 
         Date now = new Date();
 
-        return Jwts.builder()
+        JwtBuilder builder = Jwts.builder()
                 .setSubject(mobile)
                 .claim("userId", userId)
                 .claim("role", role.toUpperCase())
                 .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + tokenExpiration.toMillis()))
+                .setExpiration(new Date(now.getTime() + tokenExpiration.toMillis()));
+        if (authTime != null) {
+            builder.claim(AUTH_TIME_CLAIM, authTime.getEpochSecond());
+        }
+        return builder
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public Instant getAuthTimeFromToken(String token) {
+
+        Object authTime = claims(token).get(AUTH_TIME_CLAIM);
+
+        return authTime == null ? null : Instant.ofEpochSecond(Long.parseLong(authTime.toString()));
     }
 
     public boolean validateToken(String token) {

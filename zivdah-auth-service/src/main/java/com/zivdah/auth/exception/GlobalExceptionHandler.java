@@ -66,6 +66,48 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
     }
 
+    @ExceptionHandler(MpinException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMpin(MpinException ex) {
+        log.warn("MPIN request failed: {}", ex.getMessage());
+
+        ApiResponse<Object> response = ApiResponse.builder()
+                .status("error")
+                .message(ex.getMessage())
+                .statusCode(ex.getStatus().value())
+                .data(null)
+                .build();
+
+        return new ResponseEntity<>(response, ex.getStatus());
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleNotFound(ResourceNotFoundException ex) {
+        log.warn("Not found: {}", ex.getMessage());
+
+        ApiResponse<Object> response = ApiResponse.builder()
+                .status("error")
+                .message(ex.getMessage())
+                .statusCode(HttpStatus.NOT_FOUND.value())
+                .data(null)
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(ResourceConflictException.class)
+    public ResponseEntity<ApiResponse<Object>> handleConflict(ResourceConflictException ex) {
+        log.warn("Conflict: {}", ex.getMessage());
+
+        ApiResponse<Object> response = ApiResponse.builder()
+                .status("error")
+                .message(ex.getMessage())
+                .statusCode(HttpStatus.CONFLICT.value())
+                .data(null)
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
     // Handle runtime exceptions (custom or general)
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<Object>> handleRuntimeException(RuntimeException ex) {

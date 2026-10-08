@@ -25,4 +25,7 @@ public class RefreshToken {
     private LocalDateTime expiresAt;
     private LocalDateTime createdAt;
     private LocalDateTime revokedAt;
+    // Last full (password/OTP) login of this family, carried across rotations; null for
+    // MPIN-started families. Feeds the access JWT's auth_time claim (see MpinServiceImpl#setup).
+    private LocalDateTime authTime;
 }

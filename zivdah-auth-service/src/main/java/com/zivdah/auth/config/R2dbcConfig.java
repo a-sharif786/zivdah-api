@@ -1,5 +1,6 @@
 package com.zivdah.auth.config;
 
+import com.zivdah.auth.enums.AppPlatform;
 import com.zivdah.auth.enums.Role;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,8 +20,25 @@ public class R2dbcConfig {
     public R2dbcCustomConversions r2dbcCustomConversions() {
         return R2dbcCustomConversions.of(
                 PostgresDialect.INSTANCE,
-                List.of(new RoleWritingConverter(), new RoleReadingConverter())
+                List.of(new RoleWritingConverter(), new RoleReadingConverter(),
+                        new AppPlatformWritingConverter(), new AppPlatformReadingConverter())
         );
+    }
+
+    @WritingConverter
+    static class AppPlatformWritingConverter implements Converter<AppPlatform, String> {
+        @Override
+        public String convert(@NonNull AppPlatform platform) {
+            return platform.name();
+        }
+    }
+
+    @ReadingConverter
+    static class AppPlatformReadingConverter implements Converter<String, AppPlatform> {
+        @Override
+        public AppPlatform convert(@NonNull String source) {
+            return AppPlatform.valueOf(source);
+        }
     }
 
     @WritingConverter

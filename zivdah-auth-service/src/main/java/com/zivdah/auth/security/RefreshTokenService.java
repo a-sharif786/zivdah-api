@@ -12,14 +12,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.UUID;
 
 // Refresh tokens are deliberately opaque random strings, NOT JWTs: every service in the
@@ -36,28 +30,25 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class RefreshTokenService {
 
-    private static final int TOKEN_BYTES = 32;
-
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
-    private final SecureRandom secureRandom = new SecureRandom();
 
     @Value("${jwt.refresh-token-expiration:7d}")
     private Duration refreshTokenExpiration;
 
     // The user a refresh token belongs to (re-read from the DB, so role/active changes take
-    // effect on the next refresh) plus the newly issued replacement token.
-    public record Rotation(UserEntity user, String refreshToken) {}
+    // effect on the next refresh), the newly issued replacement token, and the family's
+    // last full-login time (null for MPIN-started families).
+    public record Rotation(UserEntity user, String refreshToken, LocalDateTime authTime) {}
 
     public long getRefreshTokenExpirySeconds() {
         return refreshTokenExpiration.toSeconds();
     }
 
-    // familyId null = a fresh login, starting a new rotation chain.
-    public Mono<String> issue(Long userId, String familyId) {
-        byte[] bytes = new byte[TOKEN_BYTES];
-        secureRandom.nextBytes(bytes);
-        String rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    // familyId null = a fresh login, starting a new rotation chain. authTime = when the user
+    // last fully authenticated (password/OTP) — now for such logins, null for MPIN logins.
+    public Mono<String> issue(Long userId, String familyId, LocalDateTime authTime) {
+        String rawToken = SecureTokens.randomToken();
         LocalDateTime now = LocalDateTime.now();
         RefreshToken entity = RefreshToken.builder()
                 .userId(userId)
@@ -65,6 +56,7 @@ public class RefreshTokenService {
                 .familyId(familyId != null ? familyId : UUID.randomUUID().toString())
                 .createdAt(now)
                 .expiresAt(now.plus(refreshTokenExpiration))
+                .authTime(authTime)
                 .build();
         return refreshTokenRepository.save(entity).thenReturn(rawToken);
     }
@@ -91,8 +83,8 @@ public class RefreshTokenService {
                                             .filter(UserEntity::isActive)
                                             .switchIfEmpty(Mono.defer(() ->
                                                     revokeFamilyAndFail(token, "Account is deactivated")))
-                                            .flatMap(user -> issue(user.getId(), token.getFamilyId())
-                                                    .map(newToken -> new Rotation(user, newToken))));
+                                            .flatMap(user -> issue(user.getId(), token.getFamilyId(), token.getAuthTime())
+                                                    .map(newToken -> new Rotation(user, newToken, token.getAuthTime()))));
                 });
     }
 
@@ -127,11 +119,6 @@ public class RefreshTokenService {
     }
 
     private static String hash(String rawToken) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(rawToken.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 not available", e);
-        }
+        return SecureTokens.sha256Hex(rawToken);
     }
 }
