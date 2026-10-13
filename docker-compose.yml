@@ -45,9 +45,9 @@ services:
     command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
 
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env.production}
       # lets the healthcheck's redis-cli authenticate without putting the password on its command line
-      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env.production}
 
     ports:
       - "127.0.0.1:6379:6379"
@@ -154,7 +154,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -162,8 +162,8 @@ services:
       # HTTP Basic on the registry/dashboard (see zivdah-eureka-server SecurityConfig). Every
       # client's EUREKA_CLIENT_SERVICEURL_DEFAULTZONE below is built from this same pair, so they
       # can't drift apart. Keep the password URL-safe (no @ : / # ?) since it sits inside a URL.
-      EUREKA_USERNAME: ${EUREKA_USERNAME:?EUREKA_USERNAME must be set in .env}
-      EUREKA_PASSWORD: ${EUREKA_PASSWORD:?EUREKA_PASSWORD must be set in .env}
+      EUREKA_USERNAME: ${EUREKA_USERNAME:?EUREKA_USERNAME must be set in .env.production}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:?EUREKA_PASSWORD must be set in .env.production}
 
     # Host-local only (dashboard via SSH tunnel: ssh -L 8761:127.0.0.1:8761 <server>). The
     # services register over zivdah-network as eureka-server:8761.
@@ -190,7 +190,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -207,7 +207,7 @@ services:
 
     # nginx on the host terminates TLS and proxies to 127.0.0.1:8080, so the gateway only needs
     # to be reachable from the host. The old "8080:8080" also exposed it as plain HTTP on the
-    # public IP, bypassing TLS entirely. Set GATEWAY_BIND_ADDRESS=0.0.0.0 in .env only if a
+    # public IP, bypassing TLS entirely. Set GATEWAY_BIND_ADDRESS=0.0.0.0 in .env.production only if a
     # deployment genuinely needs direct access to the raw port.
     ports:
       - "${GATEWAY_BIND_ADDRESS:-127.0.0.1}:8080:8080"
@@ -234,7 +234,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
 
@@ -285,7 +285,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
 
@@ -337,7 +337,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
 
@@ -414,7 +414,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
 
@@ -465,7 +465,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
 
@@ -545,7 +545,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
 
@@ -610,7 +610,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
 
@@ -670,7 +670,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
 
@@ -721,7 +721,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
 
@@ -772,7 +772,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
 
@@ -823,7 +823,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
 
@@ -875,7 +875,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
 
@@ -926,7 +926,7 @@ services:
     restart: unless-stopped
 
     env_file:
-      - .env
+      - .env.production
 
     environment:
 

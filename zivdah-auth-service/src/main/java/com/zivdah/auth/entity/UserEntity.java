@@ -23,9 +23,13 @@ public class UserEntity {
     private String mobile;
     private Role role;
     private boolean active;
-    private String mobileOtp;
+    private String mobileOtp;          // legacy (static demo OTP) — no longer written, see V8
     private String emailOtp;
     private LocalDateTime otpGeneratedAt;
+    // SMS provider's reference for the outstanding mobile OTP (authkey LogID) + wrong guesses
+    // against it. Only ever changed via UserRepository's atomic OTP queries (MobileOtpService).
+    private String mobileOtpRef;
+    private int mobileOtpAttempts;
 
     // Vendor payout destination — entered by the vendor themselves (see AuthController's
     // update-profile/bank-details endpoints), read by zivdah-payment-service's internal

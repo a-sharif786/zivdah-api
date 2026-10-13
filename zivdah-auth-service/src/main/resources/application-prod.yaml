@@ -43,6 +43,20 @@ resend:
   api-key: ${RESEND_API_KEY}
   from-email: ${MAIL_FROM_ADDRESS:no-reply@zivdahonlinegrocery.com}
 
+# Mobile OTP via authkey.io 2FA SMS. No fallbacks for the auth key / sid: with provider=authkey
+# the service refuses to start unless AUTHKEY_AUTH_KEY and AUTHKEY_SID are set. AUTHKEY_SID is
+# the SMS template's SID from the authkey console; the template must contain {#2fa#}.
+# base-url must be console.authkey.io: the 2FA endpoints 500 on api.authkey.io.
+otp:
+  max-attempts: 5
+  resend-cooldown: 60s
+  sms:
+    provider: ${AUTH_OTP_SMS_PROVIDER:authkey}
+    authkey:
+      base-url: ${AUTHKEY_BASE_URL:https://console.authkey.io}
+      auth-key: ${AUTHKEY_AUTH_KEY}
+      sid: ${AUTHKEY_SID}
+      country-code: ${AUTHKEY_COUNTRY_CODE:91}
 
 jwt:
   secret: ${JWT_SECRET}

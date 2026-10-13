@@ -15,6 +15,7 @@ import com.zivdah.auth.repository.UserSessionRepository;
 import com.zivdah.auth.security.LoginResponseFactory;
 import com.zivdah.auth.security.RefreshTokenService;
 import com.zivdah.auth.service.AuthService;
+import com.zivdah.auth.sms.MobileOtpService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,6 +42,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenService refreshTokenService;
     private final LoginResponseFactory loginResponseFactory;
     private final MpinDeviceRepository mpinDeviceRepository;
+    private final MobileOtpService mobileOtpService;
     private final Resend resend;
 
     @Value("${resend.from-email}")
@@ -48,7 +50,6 @@ public class AuthServiceImpl implements AuthService {
 
     // In-memory OTP store (use Redis in production)
     private final Map<String, String> otpStorage = new ConcurrentHashMap<>();
-    private static final String STATIC_OTP = "123456";
 
     @Override
     public Mono<Void> register(RegisterRequestDTO request) {
@@ -71,8 +72,8 @@ public class AuthServiceImpl implements AuthService {
                 .then(Mono.fromCallable(() -> passwordEncoder.encode(request.getPassword()))
                         .subscribeOn(Schedulers.boundedElastic()))
                 .flatMap(encodedPassword -> {
-                    // Mobile OTP stays the static demo value until a real SMS provider is wired
-                    // up; email OTP is real now, sent the same way forget-password sends its.
+                    // Email OTP is generated here; the mobile OTP is generated and sent by the SMS
+                    // provider (MobileOtpService), which also sets otp_generated_at.
                     String emailOtp = generateOtp();
                     UserEntity user = UserEntity.builder()
                             .name(request.getName())
@@ -81,13 +82,20 @@ public class AuthServiceImpl implements AuthService {
                             .role(role)
                             .password(encodedPassword)
                             .active(false)
-                            .mobileOtp(STATIC_OTP)
                             .emailOtp(emailOtp)
-                            .otpGeneratedAt(LocalDateTime.now())
                             .build();
                     return userRepository.save(user)
                             .flatMap(saved -> sendOtpEmail(saved.getEmail(), emailOtp,
-                                    "Verify your Zivdah account").thenReturn(saved));
+                                    "Verify your Zivdah account").thenReturn(saved))
+                            // Best effort: the account already exists, so failing /register here
+                            // would leave the user unable to re-register. They can resend the SMS
+                            // via /send-otp (it works for not-yet-verified accounts too).
+                            .flatMap(saved -> mobileOtpService.send(saved)
+                                    .onErrorResume(e -> {
+                                        log.warn("Registration SMS OTP not sent for user id={}: {}", saved.getId(), e.getMessage());
+                                        return Mono.empty();
+                                    })
+                                    .thenReturn(saved));
                 })
                 .doOnSuccess(user -> log.info("User registered: id={}", user.getId()))  // id only — mobile is PII
                 .then();
@@ -144,34 +152,27 @@ public class AuthServiceImpl implements AuthService {
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found with id: " + userId)));
     }
 
+    // Login OTP — and also the "resend" for a registration that hasn't been verified yet.
     @Override
     public Mono<Void> sendOtp(String mobile) {
         return userRepository.findByMobile(mobile)
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found")))
-                .flatMap(user -> {
-                    user.setMobileOtp(STATIC_OTP);
-                    user.setOtpGeneratedAt(LocalDateTime.now());
-                    return userRepository.save(user);
-                })
-                .doOnSuccess(u -> log.info("Login OTP issued for user id={}", u.getId()))  // never the OTP itself or the mobile
-                .then();
+                .flatMap(mobileOtpService::send);
     }
 
     @Override
     public Mono<LoginResponseDTO> verifyOtp(VerifyLoginOtpDTO request) {
         return userRepository.findByMobile(request.getMobile())
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found")))
-                .flatMap(user -> {
-                    if (!STATIC_OTP.equals(request.getOtp())) {
-                        return Mono.error(new RuntimeException("Invalid OTP"));
-                    }
-                    if (!user.isActive()) {
-                        return Mono.error(new RuntimeException("Account is deactivated"));
-                    }
-                    return buildLoginResponse(user)
-                            .flatMap(resp -> saveSession(user, resp.getToken(), request.getDeviceToken())
-                                    .thenReturn(resp));
-                });
+                .flatMap(user -> mobileOtpService.verify(user, request.getOtp())
+                        .then(Mono.defer(() -> {
+                            if (!user.isActive()) {
+                                return Mono.error(new RuntimeException("Account is deactivated"));
+                            }
+                            return buildLoginResponse(user)
+                                    .flatMap(resp -> saveSession(user, resp.getToken(), request.getDeviceToken())
+                                            .thenReturn(resp));
+                        })));
     }
 
     // user_sessions bookkeeping + device-token registration done by both OTP login flows.
@@ -342,16 +343,22 @@ public class AuthServiceImpl implements AuthService {
                 .flatMap(user -> {
                     if (!user.getEmail().equals(request.getEmail()))
                         return Mono.error(new RuntimeException("Email does not match"));
-                    if (!request.getMobileOtp().equals(user.getMobileOtp()))
-                        return Mono.error(new RuntimeException("Invalid mobile OTP"));
+                    // Email OTP first (local check): the SMS OTP is single-use at the provider,
+                    // so verifying it before a wrong email OTP would burn it.
                     if (!request.getEmailOtp().equals(user.getEmailOtp()))
                         return Mono.error(new RuntimeException("Invalid email OTP"));
 
-                    user.setActive(true);
-                    user.setMobileOtp(null);
-                    user.setEmailOtp(null);
-
-                    return userRepository.save(user)
+                    return mobileOtpService.verify(user, request.getMobileOtp())
+                            .then(Mono.defer(() -> {
+                                user.setActive(true);
+                                user.setMobileOtp(null);
+                                user.setEmailOtp(null);
+                                // verify() already cleared these in the DB; keep this save from
+                                // writing the stale values back.
+                                user.setMobileOtpRef(null);
+                                user.setMobileOtpAttempts(0);
+                                return userRepository.save(user);
+                            }))
                             .flatMap(saved -> buildLoginResponse(saved)
                                     .flatMap(resp -> saveSession(saved, resp.getToken(), request.getDeviceToken())
                                             .thenReturn(resp)));

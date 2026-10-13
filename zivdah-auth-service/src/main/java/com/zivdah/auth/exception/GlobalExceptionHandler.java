@@ -66,6 +66,20 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
     }
 
+    @ExceptionHandler(OtpException.class)
+    public ResponseEntity<ApiResponse<Object>> handleOtp(OtpException ex) {
+        log.warn("OTP request failed: {}", ex.getMessage());
+
+        ApiResponse<Object> response = ApiResponse.builder()
+                .status("error")
+                .message(ex.getMessage())
+                .statusCode(ex.getStatus().value())
+                .data(null)
+                .build();
+
+        return new ResponseEntity<>(response, ex.getStatus());
+    }
+
     @ExceptionHandler(MpinException.class)
     public ResponseEntity<ApiResponse<Object>> handleMpin(MpinException ex) {
         log.warn("MPIN request failed: {}", ex.getMessage());

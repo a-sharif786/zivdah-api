@@ -33,7 +33,7 @@ dist/
 
 # Environment variables (real secrets) — keep .env.example tracked as the template
 .env
-.env.*
+.env.production
 !.env.example
 
 # Unit test reports
