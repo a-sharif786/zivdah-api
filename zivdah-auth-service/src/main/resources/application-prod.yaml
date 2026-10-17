@@ -51,12 +51,21 @@ otp:
   max-attempts: 5
   resend-cooldown: 60s
   sms:
-    provider: ${AUTH_OTP_SMS_PROVIDER:authkey}
+    provider: datagen   # fixed: send/verify OTP always go through DataGenSmsOtpProvider
     authkey:
       base-url: ${AUTHKEY_BASE_URL:https://console.authkey.io}
       auth-key: ${AUTHKEY_AUTH_KEY}
       sid: ${AUTHKEY_SID}
       country-code: ${AUTHKEY_COUNTRY_CODE:91}
+    # DataGen 2Factor (generate_otp.php / verify_otp.php) — the active provider. Server IP must be
+    # whitelisted in the DataGen panel (else code 407); sender id must be DLT-approved (else 413).
+    datagen:
+      base-url: ${DATAGEN_BASE_URL:https://global.datagenit.com/API}
+      auth-key: ${DATAGEN_AUTH_KEY:}
+      sender-id: ${DATAGEN_SENDER_ID:}
+      entity-id: ${DATAGEN_ENTITY_ID:}
+      template-id: ${DATAGEN_TEMPLATE_ID:}
+      country-code: ${DATAGEN_COUNTRY_CODE:91}
 
 jwt:
   secret: ${JWT_SECRET}

@@ -42,18 +42,26 @@ resend:
   api-key: ${RESEND_API_KEY}
   from-email: ${MAIL_FROM_ADDRESS:no-reply@zivdahonlinegrocery.com}
 
-# Mobile OTP. Dev defaults to the "static" provider (no SMS, OTP always 123456); set
-# OTP_SMS_PROVIDER=authkey plus AUTHKEY_AUTH_KEY / AUTHKEY_SID to send real SMS locally.
+# Mobile OTP. Dev defaults to the "datagen" provider (real SMS via DataGen generate_otp/verify_otp);
+# needs DATAGEN_AUTH_KEY / DATAGEN_SENDER_ID (from .env). AUTH_OTP_SMS_PROVIDER=static gives the
+# no-SMS 123456 stand-in, =authkey the authkey.io provider.
 otp:
   max-attempts: 5          # wrong guesses per issued OTP, then a new one must be requested
   resend-cooldown: 60s     # per user — /send-otp is public and every SMS costs money
   sms:
-    provider: ${AUTH_OTP_SMS_PROVIDER:static}
+    provider: datagen   # fixed: send/verify OTP always go through DataGenSmsOtpProvider
     authkey:
       base-url: ${AUTHKEY_BASE_URL:https://console.authkey.io}
       auth-key: ${AUTHKEY_AUTH_KEY:52e3aa06b3177198}
       sid: ${AUTHKEY_SID:45964}
       country-code: ${AUTHKEY_COUNTRY_CODE:91}
+    datagen:
+      base-url: ${DATAGEN_BASE_URL:https://global.datagenit.com/API}   # must end at /API, not generate_otp.php
+      auth-key: ${DATAGEN_AUTH_KEY:D!~10582gc3U1dO7S3}
+      sender-id: ${DATAGEN_SENDER_ID:ZIVDAH}
+      entity-id: ${DATAGEN_ENTITY_ID:1701179095959499188}
+      template-id: ${DATAGEN_TEMPLATE_ID:1777179215449918700}
+      country-code: ${DATAGEN_COUNTRY_CODE:91}
 
 jwt:
   secret: ${JWT_SECRET:my_super_secret_key_that_is_at_least_32_characters_long_123456}
