@@ -50,6 +50,9 @@ resend:
 otp:
   max-attempts: 5
   resend-cooldown: 60s
+  demo:                     # test numbers: no SMS sent, fixed code accepted. Empty OTP_DEMO_MOBILES disables.
+    mobiles: ${OTP_DEMO_MOBILES:7060532399}
+    code: ${OTP_DEMO_CODE:123456}
   sms:
     provider: datagen   # fixed: send/verify OTP always go through DataGenSmsOtpProvider
     authkey:
